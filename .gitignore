@@ -1,1 +1,7 @@
 dashboards/legacy_nodered_flow.json
+swarm/ha-discovery.env
+swarm/health.env
+swarm/victron-secrets.env
+swarm/.env
+swarm/*.bak.*
+swarm/input-snapshot_*.txt
