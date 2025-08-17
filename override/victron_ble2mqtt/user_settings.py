@@ -8,6 +8,7 @@ class MqttConfig:
     host: str = "localhost"
     port: int = 1883
     username: Optional[str] = None
+    user_name: Optional[str] = None
     password: Optional[str] = None
     tls: bool = False
     ca_file: Optional[str] = None
@@ -34,6 +35,7 @@ class UserSettings:
         self.mqtt.host = getattr(data, "mqtt_host", self.mqtt.host)
         self.mqtt.port = int(getattr(data, "mqtt_port", self.mqtt.port))
         self.mqtt.username = getattr(data, "mqtt_username", None)
+        self.mqtt.user_name = getattr(data, "mqtt_username", None) or self.mqtt.username or os.getenv("MQTT_USER")
         self.mqtt.password = getattr(data, "mqtt_password", None)
         self.mqtt.main_uid = getattr(data, "main_uid", None) or os.getenv("MAIN_UID") or socket.gethostname()
         pcs = getattr(data, "publish_config_throttle_seconds", None) or os.getenv("PUBLISH_CONFIG_THROTTLE_SEC")

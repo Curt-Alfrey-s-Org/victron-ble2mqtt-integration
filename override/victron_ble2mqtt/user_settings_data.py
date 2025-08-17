@@ -29,7 +29,7 @@ mqtt_password = os.getenv("MQTT_PASSWORD", "")  # <- NO hardcoded secret
 devices = [
     {
         "mac": "d4:ef:fb:b3:d7:0c",  # Replace with actual MAC
-        "type": "SmartShunt-T2",
+        "type": "SmartShunt",
         "name": "Battery 1",
         # "advertisement_key" will be injected from env below
     },
@@ -40,7 +40,7 @@ devices = [
     },
     {
         "mac": "cb:0d:c2:0a:ae:0f",  # Replace with actual MAC
-        "type": "SmartShunt-KU",
+        "type": "SmartShunt",
         "name": "Battery 2",
     },
 ]
