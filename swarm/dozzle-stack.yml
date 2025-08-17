@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    environment:
+      DOZZLE_USERNAME: ${DOZZLE_USERNAME}
+      DOZZLE_PASSWORD: ${DOZZLE_PASSWORD}
+      DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_TAILSIZE: "1000"
+      # DOZZLE_ENABLE_ACTIONS: "false"
+      # DOZZLE_ENABLE_SHELL: "false"
+      # DOZZLE_BASE: "/"
+    ports:
+      - "9999:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+      placement:
+        constraints:
+          - node.role == manager
+
+  file_victron:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/victron_ble2mqtt.log"]
+    volumes:
+      - /var/log:/logs:ro
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+
+  file_wifi_ap:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/wifi_ap_watchdog.log"]
+    volumes:
+      - /var/log:/logs:ro
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+
+  file_mosquitto:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/mosquitto/mosquitto.log"]
+    volumes:
+      - /var/log:/logs:ro
+    deploy:
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+
+networks:
+  default:
+    driver: overlay

@@ -1,0 +1,96 @@
+version: "3.8"
+
+services:
+  ha_auto_discovery:
+    image: efrecon/mqtt-client:latest
+    env_file:
+      - ha-discovery.env       # provides MQTT_HOST/PORT/USER/PASSWORD
+      - auto-discovery.env     # provides TOPIC_ROOT/DEVICE_NAME_PREFIX/LIMIT_DEVICES
+    command:
+      - sh
+      - -c
+      - |
+        set -euo pipefail
+        : "${TOPIC_ROOT:=victron}"
+        : "${DEVICE_NAME_PREFIX:=Victron}"
+
+        touch /tmp/seen_keys
+
+        # Subscribe and publish HA discovery once per (device,metric)
+        mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -v -t "${TOPIC_ROOT}/#" | \
+        while IFS= read -r line; do
+          topic="${line%% *}"; payload="${line#* }"
+
+          # Expected: <TOPIC_ROOT>/<device_id>/<metric...>
+          rel="${topic#${TOPIC_ROOT}/}"
+          dev="${rel%%/*}"
+          rest="${rel#${dev}/}"
+
+          # Optional filter: LIMIT_DEVICES is a comma-separated CSV; allow spaces in IDs
+          if [ -n "${LIMIT_DEVICES:-}" ]; then
+            case ",${LIMIT_DEVICES}," in
+              *,"${dev}",*) : ;;
+              *) continue ;;
+            esac
+          fi
+
+          # Sanitize identifiers for HA uniqueness
+          sdev="$(printf '%s' "$dev" | tr -cd '[:alnum:]_-')"
+          smetric="$(printf '%s' "$rest" | tr -cd '[:alnum:]_-/')"
+          slug="$(printf '%s' "${sdev}_${smetric}" | tr '/ ' '__')"
+          key="${sdev}:${smetric}"
+
+          # Skip if already published
+          grep -qxF "$key" /tmp/seen_keys 2>/dev/null && continue
+
+          # Heuristic mapping
+          unit=""; dclass=""; sclass="measurement"
+          case "$smetric" in
+            *soc*|*state_of_charge*|*battery_pct*|*percent*) unit="%"; dclass="battery" ;;
+            *temp*|*temperature*)                            unit="°C"; dclass="temperature" ;;
+            *voltage*|*volt*|*/V|*pv*_v|*bat*_v)             unit="V"; dclass="voltage" ;;
+            *current*|*amp*|*/A|*pv*_i|*bat*_i)              unit="A"; dclass="current" ;;
+            *power*|*watt*|*/W|*pv*_p|*bat*_p)               unit="W"; dclass="power" ;;
+            *energy*|*yield*|*kwh*)                          unit="kWh"; dclass="energy"; sclass="total_increasing" ;;
+            *frequency*|*hz)                                 unit="Hz"; dclass="frequency" ;;
+            *capacity*|*ah|*a_h)                             unit="Ah" ;;
+          esac
+
+          name_metric="$(printf '%s' "$smetric" | tr '/_' '  ' | sed -E 's/ +/ /g')"
+          name="${DEVICE_NAME_PREFIX} ${dev} ${name_metric}"
+          uniq="vic_${sdev}_${smetric}_$(hostname)"
+
+          cfg="/tmp/ha_${slug}.json"
+          {
+            echo '{'
+            echo "  \"name\": \"${name}\","
+            echo "  \"unique_id\": \"${uniq}\","
+            echo "  \"state_topic\": \"${topic}\","
+            [ -n "$dclass" ] && echo "  \"device_class\": \"${dclass}\"," || true
+            [ -n "$unit" ] && echo "  \"unit_of_measurement\": \"${unit}\"," || true
+            echo "  \"state_class\": \"${sclass}\","
+            echo "  \"device\": {"
+            echo "    \"identifiers\": [\"victron_${sdev}\"],"
+            echo "    \"name\": \"${DEVICE_NAME_PREFIX} ${dev}\","
+            echo "    \"manufacturer\": \"Victron\","
+            echo "    \"model\": \"BLE->MQTT\""
+            echo "  }"
+            echo '}'
+          } > "$cfg"
+
+          mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
+            -t "homeassistant/sensor/${slug}/config" -f "$cfg"
+
+          echo "$key" >> /tmp/seen_keys
+        done
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+
+networks:
+  default:
+    driver: overlay
