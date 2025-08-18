@@ -1,0 +1,19 @@
+version: "3.8"
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+    # Optional auth:
+    # environment:
+    #   DOZZLE_USERNAME: admin
+    #   DOZZLE_PASSWORD: "strongpass"
