@@ -4,9 +4,9 @@ services:
   victron_ble_bridge:
     image: python:3.11-slim
     env_file:
-      - ha-discovery.env        # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
-      - auto-discovery.env      # TOPIC_ROOT (topic base)
-      - victron-secrets.env     # ADVKEY_* (advertisement keys)
+      - swarm/ha-discovery.env        # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
+      - swarm/auto-discovery.env      # TOPIC_ROOT (topic base)
+      - swarm/victron-secrets.env     # ADVKEY_* (advertisement keys)
     environment:
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: "/app/override:/work:/app"  # prefer /work (generated config) then repo code
