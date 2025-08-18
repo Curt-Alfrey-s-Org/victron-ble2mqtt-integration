@@ -5,6 +5,7 @@ from typing import Dict, List
 from bleak import BLEDevice
 from tomlkit.items import Table
 from victron_ble.devices import Device, DeviceData, BatteryMonitor, SolarCharger
+from victron_ble.devices import detect_device_type
 from victron_ble.exceptions import AdvertisementKeyMismatchError
 
 logger = logging.getLogger(__name__)

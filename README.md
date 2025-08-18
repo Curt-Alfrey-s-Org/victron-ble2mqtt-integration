@@ -1,188 +1,133 @@
-# Victron BLE to MQTT Integration
+# victron-ble2mqtt-integration
 
-This repository provides working examples and templates for integrating Victron Smart devices (e.g., MPPTs, SmartShunts) using [victron-ble2mqtt](https://github.com/Louisvdw/victron-ble2mqtt). These examples allow for forwarding Victron data to your platform of choice such as Home Assistant, Node-RED, or others.
+Bridge Victron **BLE** advertisements → **MQTT** with Home Assistant discovery.
 
-## ⚠️ Compatibility and Scope
+This repo currently runs on a Raspberry Pi with BlueZ and publishes entities via [`ha_services`](https://pypi.org/project/ha_services/) into Home Assistant’s MQTT discovery.
 
-* Confirmed working with but not limited to, Victron 75/15 MPPTs, Victron SmartShunt, and Venus OS running on Raspberry Pi.
-* Current integrations include:
+---
 
-  * Home Assistant (via MQTT dashboard)
-  * Node-RED (via MQTT flow)
-  * Refoss Smart Energy Monitor (via native Home Assistant integration)
+## What’s working (verified)
 
-## 📁 Dashboard Directory
+- ✅ BLE scanning on `hci0` (LE-only) is stable.
+- ✅ Victron **Solar Charger (VE.Direct SmarT / BlueSolar MPPT 75/15 rev3)** is detected and decoded.
+- ✅ MQTT discovery + states arrive in HA (entities like `battery_voltage`, `charge_state`, `solar_power`, etc.).
+- ✅ Optional: Dozzle is running and can be used to tail container logs.
 
-All dashboard files are located under the `dashboards/` folder.
-
-## 🧩 Dashboard JSON Files
-
-### Home Assistant
-
-* **Path:** `dashboards/home_assistant_mqtt.json`
-* **Description:** Imports into Home Assistant's MQTT dashboard to visualize Victron Smart device data.
-* 📝 *Comment inside JSON marks where to replace MAC address.*
-
-### Node-RED
-
-* **Path:** `dashboards/nodered_victron_flow.json`
-* **Description:** Full Node-RED flow to subscribe to Victron MQTT topics and build your own dashboard or automations.
-
-> Replace MAC addresses or topic filters as needed inside these files. Look for comment markers `# REPLACE_ME`.
-
-## 🔧 Setup
+**Example topics observed**
 
 
 
-📄 **Installation Guide:** [Victron BLE to MQTT Integration Setup Guide](https://github.com/curtalfrey/victron-ble2mqtt-integration/blob/main/Victron_BLE_to_MQTT_Integration_Setup_Guide.md)
+---
 
+## Requirements
 
+- Raspberry Pi with **BlueZ** (Bluetooth) enabled.
+- Python 3 (system packages already include `bleak`, `victron_ble`, `ha_services` on the target used here).
+- An MQTT broker reachable from the Pi.
 
+> If you run tails/clients in Docker, set `MQTT_HOST` to the broker’s **LAN IP**, not `localhost`.
 
-
-### Step 1: Clone This Repo
-
-```bash
-cd ~
-git clone https://github.com/curtalfrey/victron-ble2mqtt-integration.git
-cd victron-ble2mqtt-integration
-```
-
-### Step 2: Edit `user_settings.py`
-
+---
 
 ## Configuration
 
-To get started, copy the example user settings file and customize it for your setup:
+Two env files are used:
 
-```bash
-cp setup/user_settings.example.py victron_ble2mqtt/user_settings.py
-```
+- `swarm/ha-discovery.env`
+  - `MQTT_HOST` – broker LAN IP (not 127.0.0.1 inside containers)
+  - `MQTT_PORT` (default 1883)
+  - `MQTT_USER` / `MQTT_PASSWORD`
+  - Optional: `PUBLISH_CONFIG_THROTTLE_SEC` (default 60), `MAIN_UID` (defaults to hostname)
 
+- `swarm/victron-secrets.env`
+  - `VICTRON_DEVICE_KEYS` – semicolon-separated `MAC=32hex` pairs, e.g.  
+    `D4:EF:FB:B3:D7:0C=<32-hex>;CB:0D:C2:0A:AE:0F=<32-hex>;D7:69:EB:1F:F8:3D=<32-hex>`
 
-```bash
-change the name to below and 
-nano user_settings.py
-```
-
-Make sure to:
-
-* Replace MAC addresses with your actual Victron device MACs
-* Modify MQTT settings if needed
-
-### Step 3: Configure `victron_ble2mqtt.service`
-
-```bash
-sudo cp setup/victron_ble2mqtt.service /etc/systemd/system/victron_ble2mqtt.service
-sudo systemctl daemon-reload
-sudo systemctl enable victron_ble2mqtt.service
-sudo systemctl start victron_ble2mqtt.service
-```
-
-### Step 4: Import Dashboards
-
-* For Home Assistant, use the GUI to import `home_assistant_mqtt.json`
-* For Node-RED, open the Node-RED UI and import `nodered_victron_flow.json` via the editor
-
-## ✅ Fix for Common `user_settings.toml` Error
-
-If `user_settings.toml` is not being loaded or is causing errors, skip it completely and use `user_settings.py`. This repo provides a verified working `user_settings.py` that eliminates TOML-related issues.
-
-## 🔌 Refoss Smart Energy Monitor Integration
-
-**Supported models:**
-
-* Refoss Smart Energy Monitor EM06 (firmware v2.3.8+)
-* Refoss Smart Energy Monitor EM16 (firmware v3.1.7+)
-
-**Integration steps:**
-
-1. Ensure the Refoss device is on the same LAN as your Home Assistant instance.
-2. In Home Assistant, go to **Settings → Devices & Services → Add Integration → Refoss**.
-3. Home Assistant will auto-discover the device and create energy monitoring entities (e.g., current, voltage, power per channel).
-4. These entities can be used in dashboards and automations, combined with Victron data.
-
-> 📝 Refoss integration is entirely local and does not rely on cloud services.
-
-🧭 Dashboards & Example Flows
-This project includes example dashboards for Home Assistant and Node-RED to help you quickly visualize and use MQTT data published by victron-ble2mqtt.
-
-📁 Location:
-All example files are in the dashboards/ directory.
-
-🟦 Home Assistant
-File: home_assistant_victron.json
-Description: A sample Lovelace dashboard showing Victron SmartShunt and MPPT data via MQTT.
-Usage:
-
-Go to Home Assistant > Settings > Dashboards > Raw Config Editor
-
-Import the JSON, then replace any example MQTT topics, MACs, or entity IDs with your own
-
-🟨 Node-RED
-1. example_nodered_victron_flow.json
-Uses victron/# topic filter
-
-Good for general Victron MQTT data testing
-
-Broker address is set to YOUR_MQTT_BROKER_IP (replace with yours)
-
-2. example_homeassistant_flow.json
-Uses homeassistant/# topic filter
-
-Best for visualizing MQTT messages published by Home Assistant’s auto-discovery
-
-Also includes YOUR_MQTT_BROKER_IP placeholder
-
-To import:
-In Node-RED, click the menu (☰) → Import → paste JSON or upload the file.
-
-⚠️ Notes
-These files are examples only — be sure to update:
-
-broker IP address
-
-MQTT topics
-
-Any MAC addresses or device-specific filters
-
-Avoid importing multiple flows with the same Node IDs; Node-RED will automatically fix conflicts if they arise.
-
-## 📌 Keywords for Searchability
-
-```
-victron-ble2mqtt not working
-victron user_settings.toml error
-victron_ble2mqtt.service fix
-victron ble mqtt node-red
-victron mqtt home assistant
-refoss smart energy home assistant local
-refoss em06 mqtt integration
-victron ble2mqtt raspberry pi setup
-victron smartshunt mqtt example
-victron mppt mqtt dashboard
-victron mqtt integration node-red home assistant
-victron ble2mqtt user_settings.py example
-victron mqtt troubleshooting guide
-refoss em16 energy monitor local integration
-refoss home assistant no cloud
-victron refoss energy dashboard
-combine victron and refoss in home assistant
-victron ble2mqtt systemd config error
-victron ble2mqtt service not starting
-```
-
-## 🔐 Notes on Privacy
-
-* All user-specific info like usernames have been scrubbed.
-* Replace any placeholders with your actual values before deploying.
+Ensure the MACs match your devices and the keys are correct.
 
 ---
 
-### Contributions Welcome
+## One-shot debug run
 
-Submit a PR if you'd like to share other dashboards (e.g., for Grafana, InfluxDB, etc.)
+Publishes discovery + live states to MQTT (Ctrl-C to stop):
 
----
+```bash
+cd ~/victron-ble2mqtt-integration
+set -a
+. swarm/ha-discovery.env
+. swarm/victron-secrets.env
+set +a
+PYTHONPATH="$PWD/override:$PWD/fixes:$PWD" python3 - <<'PY'
+from victron_ble2mqtt.cli_app.mqtt import publish_loop
+publish_loop(verbosity=3)  # DEBUG
+PY
 
-© 2025 Curt Alfrey | [alfaqd.com](https://alfaqd.com)
+You should see BLE detections and MQTT “CONNECT/CONNACK” logs, followed by discovery/state publishes.
+
+Quick checks
+1) Verify Victron devices are advertising
+
+Close the Victron app on your phone (it can suppress adverts), then:
+
+sudo btmgmt -i hci0 power off
+sudo btmgmt -i hci0 le on
+sudo btmgmt -i hci0 bredr off
+sudo btmgmt -i hci0 power on
+
+# Short scan; you should see your device MACs
+sudo timeout 25s btmgmt -i hci0 find -l \
+ | egrep 'D4:EF:FB:B3:D7:0C|CB:0D:C2:0A:AE:0F|D7:69:EB:1F:F8:3D' || echo 'NO MATCHES'
+
+
+If you have a second adapter (e.g., hci1) and don’t want it used:
+
+sudo btmgmt -i hci1 power off
+
+2) Watch MQTT
+
+From the Pi:
+
+mosquitto_sub -h "$MQTT_HOST" -p "${MQTT_PORT:-1883}" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -v \
+  -t 'homeassistant/#' -t 'victron_ble/#'
+
+
+If you prefer Docker tailing + Dozzle, run your own small alpine container with mosquitto_sub and view logs in Dozzle.
+
+Home Assistant
+
+Go to Settings → Devices & Services → MQTT.
+
+The device should appear (e.g., VE.Direct SmarT under a device like raspberrypi-d769eb1ff83d).
+
+Entities include: battery_voltage, battery_charging_current, charge_state, solar_power, charging_power, load, load_power, yield_today, and an rssi sensor.
+
+Troubleshooting
+
+Discovery config but no states
+
+Ensure the Victron app is closed.
+
+Re-check VICTRON_DEVICE_KEYS formatting and MACs.
+
+Confirm adverts show up during btmgmt find -l while the publisher runs.
+
+Docker tails show “Lookup error”
+
+MQTT_HOST was a placeholder/comment. Set it to the broker’s LAN IP.
+
+Local note (temporary override)
+
+We added this import to keep detection working with current libs:
+
+# override/victron_ble2mqtt/victron_ble_utils.py
+from victron_ble.devices import detect_device_type
+
+
+This can be revisited if the upstream dependency changes.
+
+License
+
+MIT (or the project’s existing license).
+
+
+::contentReference[oaicite:0]{index=0}
