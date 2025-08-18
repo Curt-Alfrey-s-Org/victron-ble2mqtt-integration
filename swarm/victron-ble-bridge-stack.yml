@@ -4,9 +4,9 @@ services:
   victron_ble_bridge:
     image: python:3.11-slim
     env_file:
-      - swarm/ha-discovery.env        # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
-      - swarm/auto-discovery.env      # TOPIC_ROOT (topic base)
-      - swarm/victron-secrets.env     # ADVKEY_* (advertisement keys)
+      - ha-discovery.env        # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
+      - auto-discovery.env      # TOPIC_ROOT (topic base)
+      - victron-secrets.env     # ADVKEY_* (advertisement keys)
     environment:
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: "/app/override:/work:/app"  # prefer /work (generated config) then repo code
@@ -31,78 +31,77 @@ services:
 
         # --- Build user_settings.py from example + envs (incl. ADVKEY_* overrides) ---
         python - <<'PY'
-import os, re, json, ast, pathlib
-from textwrap import dedent
+        import os, re, json, ast, pathlib
+        from textwrap import dedent
 
-repo_example = pathlib.Path("/app/user_settings.example.py")
-devices = []
-if repo_example.exists():
-    txt = repo_example.read_text(errors="ignore")
-    m = re.search(r"devices\s*=\s*\[", txt)
-    if m:
-        start = m.end() - 1
-        depth = 0
-        end = None
-        for i, ch in enumerate(txt[start:], start):
-            if ch == '[':
-                depth += 1
-            elif ch == ']':
-                depth -= 1
-                if depth == 0:
-                    end = i
-                    break
-        if end is not None:
-            block = txt[start:end+1]
-            for d in re.findall(r"\{.*?\}", block, flags=re.S):
-                clean = re.sub(r"#.*", "", d)
-                try:
-                    obj = ast.literal_eval(clean)
-                    if isinstance(obj, dict):
-                        # Ensure no secret from example leaks into generated file
-                        obj.pop("advertisement_key", None)
-                        devices.append(obj)
-                except Exception:
-                    pass
+        repo_example = pathlib.Path("/app/user_settings.example.py")
+        devices = []
+        if repo_example.exists():
+            txt = repo_example.read_text(errors="ignore")
+            m = re.search(r"devices\s*=\s*\[", txt)
+            if m:
+                start = m.end() - 1
+                depth = 0
+                end = None
+                for i, ch in enumerate(txt[start:], start):
+                    if ch == '[':
+                        depth += 1
+                    elif ch == ']':
+                        depth -= 1
+                        if depth == 0:
+                            end = i
+                            break
+                if end is not None:
+                    block = txt[start:end+1]
+                    for d in re.findall(r"\{.*?\}", block, flags=re.S):
+                        clean = re.sub(r"#.*", "", d)
+                        try:
+                            obj = ast.literal_eval(clean)
+                            if isinstance(obj, dict):
+                                # Ensure no secret from example leaks into generated file
+                                obj.pop("advertisement_key", None)
+                                devices.append(obj)
+                        except Exception:
+                            pass
 
-mqtt_host = os.getenv("MQTT_HOST", "localhost")
-mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
-mqtt_user = os.getenv("MQTT_USER", "victron")
-topic_root = os.getenv("TOPIC_ROOT", "victron")
+        mqtt_host = os.getenv("MQTT_HOST", "localhost")
+        mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
+        mqtt_user = os.getenv("MQTT_USER", "victron")
+        topic_root = os.getenv("TOPIC_ROOT", "victron")
 
-outdir = pathlib.Path("/work/victron_ble2mqtt")
-outdir.mkdir(parents=True, exist_ok=True)
+        outdir = pathlib.Path("/work/victron_ble2mqtt")
+        outdir.mkdir(parents=True, exist_ok=True)
 
-content = dedent(f"""
-# Auto-generated; NO secrets embedded. Secrets read from env at runtime.
-import os, re
+        content = dedent(f"""
+        # Auto-generated; NO secrets embedded. Secrets read from env at runtime.
+        import os, re
 
-mqtt_host = {mqtt_host!r}
-mqtt_port = {mqtt_port}
-mqtt_username = {mqtt_user!r}
-mqtt_password = os.getenv("MQTT_PASSWORD", "")
-mqtt_topic_root = {topic_root!r}
+        mqtt_host = {mqtt_host!r}
+        mqtt_port = {mqtt_port}
+        mqtt_username = {mqtt_user!r}
+        mqtt_password = os.getenv("MQTT_PASSWORD", "")
+        mqtt_topic_root = {topic_root!r}
 
-# Devices from example; advertisement keys pulled from env at runtime.
-devices = {json.dumps(devices, indent=2)}
+        # Devices from example; advertisement keys pulled from env at runtime.
+        devices = {json.dumps(devices, indent=2)}
 
-def _slug(s: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_").upper()
+        def _slug(s: str) -> str:
+            return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_").upper()
 
-for d in devices:
-    name = d.get("name") or d.get("type") or ""
-    mac  = (d.get("mac") or "").replace(":","").upper()
-    # Prefer name-based var, fall back to MAC-based var
-    key = os.getenv("ADVKEY_"+_slug(name)) or (os.getenv("ADVKEY_"+mac) if mac else "")
-    if key:
-        d["advertisement_key"] = key
+        for d in devices:
+            name = d.get("name") or d.get("type") or ""
+            mac  = (d.get("mac") or "").replace(":","").upper()
+            # Prefer name-based var, fall back to MAC-based var
+            key = os.getenv("ADVKEY_"+_slug(name)) or (os.getenv("ADVKEY_"+mac) if mac else "")
+            if key:
+                d["advertisement_key"] = key
 
-# Logging
-log_level = "INFO"
-""").strip() + "\n"
+        # Logging
+        log_level = "INFO"
+        """).strip() + "\n"
 
-(outdir / "user_settings.py").write_text(content)
-print("Wrote /work/victron_ble2mqtt/user_settings.py with", len(devices), "devices (secrets via env)")
-
+        (outdir / "user_settings.py").write_text(content)
+        print("Wrote /work/victron_ble2mqtt/user_settings.py with", len(devices), "devices (secrets via env)")
         PY
 
         # --- Python deps ---
