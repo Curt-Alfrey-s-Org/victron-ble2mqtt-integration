@@ -1,0 +1,12 @@
+# Core BLE + MQTT
+bleak>=0.22
+paho-mqtt>=1.6
+
+# Victron parsing + HA MQTT device helpers + CLI plumbing
+victron-ble>=0.10
+ha-services>=0.6
+cli-base>=0.6
+
+# Utilities used by your modules
+rich>=13.0
+tyro>=0.9

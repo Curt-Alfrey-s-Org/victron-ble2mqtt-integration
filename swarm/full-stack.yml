@@ -68,7 +68,7 @@ services:
       - victron-secrets.env      # ADVKEY_* from your snapshot
     environment:
       PYTHONUNBUFFERED: "1"
-      PYTHONPATH: "/work:/app"   # prefer /work (generated config) then repo code
+      PYTHONPATH: "/app/override:/work:/app"   # prefer /work (generated config) then repo code
     volumes:
       - /home/n4s1/victron-ble2mqtt-integration:/app:ro
       - victron_work:/work
@@ -174,7 +174,7 @@ print("Wrote /work/victron_ble2mqtt/user_settings.py with", len(devices), "devic
         python - <<'PY'
         import runpy, sys
         try:
-            runpy.run_module("victron_ble2mqtt", run_name="__main__")
+            runpy.run_module("victron_ble2mqtt.__main__", run_name="__main__")
         except Exception as e:
             print("ERROR: could not start victron_ble2mqtt as a module:", e)
             sys.exit(1)
