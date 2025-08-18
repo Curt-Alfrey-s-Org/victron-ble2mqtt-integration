@@ -5,12 +5,6 @@
 #   2) Do NOT hardcode secrets here; keep MQTT_* and ADVKEY_* in your .env files.
 #   3) This example file is not used at runtime.
 
-# NOTE: Example template for PUBLIC repo.
-# HOW TO USE IN PRODUCTION:
-#   1) Copy the relevant contents from this file into:
-#        victron_ble2mqtt/user_settings.py
-#   2) Do NOT hardcode secrets here; keep MQTT_* and ADVKEY_* in your .env files.
-#   3) This example file is not used at runtime.
 
 """
 user_settings.example.py
