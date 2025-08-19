@@ -7,14 +7,7 @@ services:
   dozzle:
     image: amir20/dozzle:latest
     env_file:
-      - swarm/.env                     # DOZZLE_USERNAME / DOZZLE_PASSWORD (optional)
-    environment:
-      DOZZLE_NO_ANALYTICS: "true"
-      DOZZLE_TAILSIZE: "1000"
-      DOZZLE_ADDR: ":8080"
-      # If you want basic auth, set these in swarm/.env or uncomment:
-      # DOZZLE_USERNAME: admin
-      # DOZZLE_PASSWORD: supersecret
+      - swarm/.env                     # DOZZLE_USERNAME / DOZZLE_PASSWORD
     ports:
       - "9999:8080"
     volumes:
@@ -29,13 +22,6 @@ services:
       placement:
         constraints:
           - node.role == manager
-      resources:
-        limits:
-          cpus: "0.50"
-          memory: 128M
-        reservations:
-          cpus: "0.05"
-          memory: 32M
 
   # Tail host log files to stdout so they appear in Dozzle
   file_victron:
@@ -48,10 +34,6 @@ services:
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 32M
 
   file_wifi_ap:
     image: busybox:1.36
@@ -63,10 +45,6 @@ services:
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 32M
 
   file_mosquitto:
     image: busybox:1.36
@@ -78,10 +56,6 @@ services:
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 32M
 
   # -----------------------------
   # Victron BLE -> MQTT bridge
@@ -184,7 +158,6 @@ log_level = "INFO"
 
 (outdir / "user_settings.py").write_text(content)
 print("Wrote /work/victron_ble2mqtt/user_settings.py with", len(devices), "devices (secrets via env)")
-
 PY
 
         # Python deps
@@ -223,13 +196,6 @@ PY
       placement:
         constraints:
           - node.role == manager
-      resources:
-        limits:
-          cpus: "1.00"
-          memory: 512M
-        reservations:
-          cpus: "0.10"
-          memory: 128M
 
   # -----------------------------
   # Health → MQTT publishers
@@ -266,10 +232,6 @@ PY
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 64M
 
   mqtt_health_wifi:
     image: efrecon/mqtt-client:latest
@@ -307,10 +269,6 @@ PY
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 64M
 
   # -----------------------------
   # Home Assistant discovery (static health cards)
@@ -411,10 +369,6 @@ PY
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 64M
 
   # -----------------------------
   # HA discovery (curated whitelist) — enabled
@@ -509,10 +463,6 @@ PY
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.20"
-          memory: 96M
 
   # -----------------------------
   # HA discovery (auto) — disabled by default to avoid dupes
@@ -600,10 +550,6 @@ PY
         condition: any
         delay: 5s
         max_attempts: 0
-      resources:
-        limits:
-          cpus: "0.10"
-          memory: 64M
 
   # -----------------------------
   # MQTT test publishers — disabled (enable when needed)
@@ -643,10 +589,6 @@ PY
       replicas: 0
       restart_policy:
         condition: none
-      resources:
-        limits:
-          cpus: "0.05"
-          memory: 32M
 
   mqtt_test_ping_once:
     image: efrecon/mqtt-client:latest
@@ -667,10 +609,6 @@ PY
       replicas: 0
       restart_policy:
         condition: none
-      resources:
-        limits:
-          cpus: "0.05"
-          memory: 32M
 
 networks:
   default:
