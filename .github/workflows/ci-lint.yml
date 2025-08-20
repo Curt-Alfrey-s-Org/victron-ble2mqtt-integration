@@ -1,0 +1,36 @@
+name: CI — lint & types
+
+on:
+  push:
+    branches: [ main, '**' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Black + Flake8 + Mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          pip install black==23.9.1 flake8 mypy
+
+      - name: Run black check
+        run: |
+          black --version
+          black --check .
+
+      - name: Run flake8
+        run: flake8 . --exit-zero
+
+      - name: Run mypy
+        run: mypy . || true
