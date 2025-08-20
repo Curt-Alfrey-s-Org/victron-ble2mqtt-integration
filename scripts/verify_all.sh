@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SWARM="$PWD/swarm"
+SWARM="$PWD/victron-ble2mqtt-integration/swarm"
 
 show() {
   local p="$1"
@@ -28,23 +28,7 @@ echo "----- ls -l swarm/ -----"
 ls -l "$SWARM" || true
 
 # show all expected files
-show "$SWARM/dozzle-stack.yml"
 show "$SWARM/.env"
-
-show "$SWARM/health-stack.yml"
-show "$SWARM/health.env"
-
-show "$SWARM/ha-discovery-stack.yml"
-show "$SWARM/ha-discovery.env"
-
-show "$SWARM/ha-republish-stack.yml"
-
-show "$SWARM/auto-discovery.env"
-show "$SWARM/auto-discovery-stack.yml"
-
-show "$SWARM/curated-discovery-stack.yml"
-
-show "$SWARM/ha-discovery-stack.filled.yml"
 show "$SWARM/devices.list"
 
 # snapshot previews (robust via Python)

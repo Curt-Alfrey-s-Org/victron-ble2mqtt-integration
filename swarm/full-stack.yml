@@ -1,615 +1,149 @@
-version: "3.8"
+# full-stack.yml  (Swarm stack: victron_support)
+# - Dozzle on :9999
+# - Victron BLE (uses your prebuilt image)
+# - Optional MQTT health publishers + HA discovery helpers
 
 services:
   # -----------------------------
-  # Observability UI (Dozzle)
+  # Victron BLE2MQTT
+  # -----------------------------
+  victron_ble2mqtt:
+    image: local/victron-ble-bridge:1.0
+    env_file:
+      - health.env
+      - ha-discovery.env
+      - auto-discovery.env
+      - victron-secrets.env
+    volumes:
+      - /var/log:/logs:ro
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy: { condition: any, delay: 5s }
+
+  # -----------------------------
+  # Mosquitto MQTT Broker
+  # -----------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto:/mosquitto/config
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto/data:/mosquitto/data
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto/log:/mosquitto/log
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy: { condition: any, delay: 5s }
+
+  # -----------------------------
+  # Dozzle (Container Logs UI)
   # -----------------------------
   dozzle:
     image: amir20/dozzle:latest
-    env_file:
-      - swarm/.env                     # DOZZLE_USERNAME / DOZZLE_PASSWORD
     ports:
       - "9999:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
-      placement:
-        constraints:
-          - node.role == manager
-
-  # Tail host log files to stdout so they appear in Dozzle
-  file_victron:
-    image: busybox:1.36
-    command: ["sh","-c","tail -n +1 -F /logs/victron_ble2mqtt.log"]
-    volumes:
-      - /var/log:/logs:ro
-    deploy:
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
-
-  file_wifi_ap:
-    image: busybox:1.36
-    command: ["sh","-c","tail -n +1 -F /logs/wifi_ap_watchdog.log"]
-    volumes:
-      - /var/log:/logs:ro
-    deploy:
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
-
-  file_mosquitto:
-    image: busybox:1.36
-    command: ["sh","-c","tail -n +1 -F /logs/mosquitto/mosquitto.log"]
-    volumes:
-      - /var/log:/logs:ro
-    deploy:
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
-
-  # -----------------------------
-  # Victron BLE -> MQTT bridge
-  # -----------------------------
-  victron_ble_bridge:
-    image: python:3.11-slim
-    env_file:
-      - swarm/ha-discovery.env         # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
-      - swarm/auto-discovery.env       # TOPIC_ROOT
-      - swarm/victron-secrets.env      # ADVKEY_* from your snapshot
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      PYTHONUNBUFFERED: "1"
-      PYTHONPATH: "/app/override:/work:/app"   # prefer /work (generated config) then repo code
-    volumes:
-      - /home/n4s1/victron-ble2mqtt-integration:/app:ro
-      - victron_work:/work
-      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        export DEBIAN_FRONTEND=noninteractive
-
-        # OS prerequisites for BlueZ client
-        apt-get update
-        apt-get install -y --no-install-recommends bluez libglib2.0-0 dbus libbluetooth3
-        rm -rf /var/lib/apt/lists/*
-
-        # Build user_settings.py from repo example + envs (incl. ADVKEY_* overrides)
-        python - <<'PY'
-import os, re, json, ast, pathlib
-from textwrap import dedent
-
-repo_example = pathlib.Path("/app/user_settings.example.py")
-devices = []
-if repo_example.exists():
-    txt = repo_example.read_text(errors="ignore")
-    m = re.search(r"devices\s*=\s*\[", txt)
-    if m:
-        start = m.end() - 1
-        depth = 0
-        end = None
-        for i, ch in enumerate(txt[start:], start):
-            if ch == '[':
-                depth += 1
-            elif ch == ']':
-                depth -= 1
-                if depth == 0:
-                    end = i
-                    break
-        if end is not None:
-            block = txt[start:end+1]
-            for d in re.findall(r"\{.*?\}", block, flags=re.S):
-                clean = re.sub(r"#.*", "", d)
-                try:
-                    obj = ast.literal_eval(clean)
-                    if isinstance(obj, dict):
-                        # Ensure no secret from example leaks into generated file
-                        obj.pop("advertisement_key", None)
-                        devices.append(obj)
-                except Exception:
-                    pass
-
-mqtt_host = os.getenv("MQTT_HOST", "localhost")
-mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
-mqtt_user = os.getenv("MQTT_USER", "victron")
-topic_root = os.getenv("TOPIC_ROOT", "victron")
-
-outdir = pathlib.Path("/work/victron_ble2mqtt")
-outdir.mkdir(parents=True, exist_ok=True)
-
-content = dedent(f"""
-# Auto-generated; NO secrets embedded. Secrets read from env at runtime.
-import os, re
-
-mqtt_host = {mqtt_host!r}
-mqtt_port = {mqtt_port}
-mqtt_username = {mqtt_user!r}
-mqtt_password = os.getenv("MQTT_PASSWORD", "")
-mqtt_topic_root = {topic_root!r}
-
-# Devices from example; advertisement keys pulled from env at runtime.
-devices = {json.dumps(devices, indent=2)}
-
-def _slug(s: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_").upper()
-
-for d in devices:
-    name = d.get("name") or d.get("type") or ""
-    mac  = (d.get("mac") or "").replace(":","").upper()
-    # Prefer name-based var, fall back to MAC-based var
-    key = os.getenv("ADVKEY_"+_slug(name)) or (os.getenv("ADVKEY_"+mac) if mac else "")
-    if key:
-        d["advertisement_key"] = key
-
-# Logging
-log_level = "INFO"
-""").strip() + "\n"
-
-(outdir / "user_settings.py").write_text(content)
-print("Wrote /work/victron_ble2mqtt/user_settings.py with", len(devices), "devices (secrets via env)")
-PY
-
-        # Python deps
-        python -V
-        pip install --no-cache-dir --upgrade pip setuptools wheel
-        if [ -f /app/requirements.txt ]; then
-          pip install --no-cache-dir -r /app/requirements.txt
-        else
-          pip install --no-cache-dir bleak paho-mqtt
-        fi
-
-        # Run the bridge (module must be on PYTHONPATH: /work or /app)
-        python - <<'PY'
-import runpy, sys
-try:
-    runpy.run_module("victron_ble2mqtt.__main__", run_name="__main__")
-except Exception as e:
-    print("ERROR: could not start victron_ble2mqtt as a module:", e)
-    sys.exit(1)
-PY
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    healthcheck:
-      test: ["CMD-SHELL", "test -S /run/dbus/system_bus_socket || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 10
+      - DOZZLE_USERNAME=admin
+      - DOZZLE_PASSWORD=changeme
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 0
-      placement:
-        constraints:
-          - node.role == manager
+      restart_policy: { condition: any, delay: 5s }
 
   # -----------------------------
-  # Health → MQTT publishers
-  # -----------------------------
-  mqtt_health_victron:
-    image: efrecon/mqtt-client:latest
-    volumes:
-      - /var/log:/logs:ro
-    env_file:
-      - swarm/health.env
-    command: >-
-      sh -c '
-      MQTT_HOST=${MQTT_HOST:?set in health.env};
-      : ${MQTT_PORT:=1883}; : ${MQTT_USER:=victron}; : ${MQTT_PASSWORD:=changeme};
-      : ${INTERVAL_SEC:=120}; : ${STALE_SECS:=600};
-      : ${TOPIC_VIC:=system/health/victron_ble}; : ${LOG_PATH:=/logs/victron_ble2mqtt.log};
-      while true; do
-        if [ ! -e "$LOG_PATH" ] || [ ! -s "$LOG_PATH" ]; then STATUS="WARN"; MSG="no log yet";
-        else MTIME=$(stat -c %Y "$LOG_PATH" 2>/dev/null || stat -f %m "$LOG_PATH");
-             NOW=$(date +%s); AGE=$((NOW-MTIME));
-             if [ "$AGE" -gt "$STALE_SECS" ]; then STATUS="WARN"; MSG="stale ${AGE}s";
-             else STATUS="OK"; MSG="fresh ${AGE}s";
-             fi;
-        fi;
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
-          -t "$TOPIC_VIC" -m "$STATUS: $MSG";
-        sleep "$INTERVAL_SEC";
-      done
-      '
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
 
+  # -----------------------------
+  # Victron BLE -> MQTT
+  # -----------------------------
   mqtt_health_wifi:
-    image: efrecon/mqtt-client:latest
+    image: localhost:5000/mqtt-tools:1
     volumes:
       - /var/log:/logs:ro
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
     env_file:
-      - swarm/health.env
-    environment:
-      TOPIC_WIFI: "system/watchdog/wifi_ap"
-      LOG_PATH_WIFI: "/logs/wifi_ap_watchdog.log"
-    command: >-
-      sh -c '
-      MQTT_HOST=${MQTT_HOST:?set in health.env};
-      : ${MQTT_PORT:=1883}; : ${MQTT_USER:=victron}; : ${MQTT_PASSWORD:=changeme};
-      : ${INTERVAL_SEC:=120}; : ${STALE_SECS_WIFI:=600};
-      : ${TOPIC_WIFI:=system/watchdog/wifi_ap}; : ${LOG_PATH_WIFI:=/logs/wifi_ap_watchdog.log};
-      while true; do
-        if [ ! -e "$LOG_PATH_WIFI" ] || [ ! -s "$LOG_PATH_WIFI" ]; then STATUS="WARN"; MSG="no log yet";
-        else MTIME=$(stat -c %Y "$LOG_PATH_WIFI" 2>/dev/null || stat -f %m "$LOG_PATH_WIFI");
-             NOW=$(date +%s); AGE=$((NOW-MTIME));
-             if [ "$AGE" -gt "$STALE_SECS_WIFI" ]; then STATUS="WARN"; MSG="stale ${AGE}s";
-             else STATUS="OK"; MSG="fresh ${AGE}s";
-             fi;
-        fi;
-        LAST=$(tail -n 1 "$LOG_PATH_WIFI" | tr -dc "[:print:]" | cut -c1-200)
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
-          -t "$TOPIC_WIFI" -m "$STATUS: $MSG | $LAST";
-        sleep "$INTERVAL_SEC";
-      done
-      '
+      - health.env
+    command: ["sh","-c","/opt/victron/mqtt_health_wifi.sh"]
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
+      restart_policy: { condition: any, delay: 5s }
 
   # -----------------------------
   # Home Assistant discovery (static health cards)
   # -----------------------------
   ha_discovery:
-    image: efrecon/mqtt-client:latest
+    image: localhost:5000/mqtt-tools:1
     env_file:
-      - swarm/ha-discovery.env
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        mkdir -p /tmp/ha_disc
-
-        cat <<'JSON' > /tmp/ha_disc/victron_health_sensor.json
-        {
-          "name": "Victron BLE Bridge Health",
-          "unique_id": "victron_ble_health_sensor",
-          "state_topic": "system/health/victron_ble",
-          "icon": "mdi:heart-pulse",
-          "entity_category": "diagnostic",
-          "value_template": "{{ value.split(\":\")[0] }}",
-          "device": {
-            "identifiers": ["victron_ble_bridge"],
-            "name": "Victron BLE Bridge",
-            "manufacturer": "ALFaQD",
-            "model": "Victron BLE→MQTT"
-          }
-        }
-        JSON
-
-        cat <<'JSON' > /tmp/ha_disc/victron_health_problem.json
-        {
-          "name": "Victron BLE Problem",
-          "unique_id": "victron_ble_problem",
-          "state_topic": "system/health/victron_ble",
-          "device_class": "problem",
-          "entity_category": "diagnostic",
-          "value_template": "{% set s = value.split(\":\" )[0] %}{% if s == \"WARN\" %}ON{% else %}OFF{% endif %}",
-          "payload_on": "ON",
-          "payload_off": "OFF",
-          "device": {
-            "identifiers": ["victron_ble_bridge"],
-            "name": "Victron BLE Bridge",
-            "manufacturer": "ALFaQD",
-            "model": "Victron BLE→MQTT"
-          }
-        }
-        JSON
-
-        cat <<'JSON' > /tmp/ha_disc/wifi_health_sensor.json
-        {
-          "name": "WiFi AP Watchdog",
-          "unique_id": "wifi_ap_watchdog_sensor",
-          "state_topic": "system/watchdog/wifi_ap",
-          "icon": "mdi:wifi",
-          "entity_category": "diagnostic",
-          "value_template": "{{ value.split(\":\")[0] }}",
-          "device": {
-            "identifiers": ["victron_ble_bridge"],
-            "name": "Victron BLE Bridge"
-          }
-        }
-        JSON
-
-        cat <<'JSON' > /tmp/ha_disc/wifi_health_problem.json
-        {
-          "name": "WiFi AP Problem",
-          "unique_id": "wifi_ap_problem",
-          "state_topic": "system/watchdog/wifi_ap",
-          "device_class": "problem",
-          "entity_category": "diagnostic",
-          "value_template": "{% set s = value.split(\":\" )[0] %}{% if s == \"WARN\" %}ON{% else %}OFF{% endif %}",
-          "payload_on": "ON",
-          "payload_off": "OFF",
-          "device": {
-            "identifiers": ["victron_ble_bridge"],
-            "name": "Victron BLE Bridge"
-          }
-        }
-        JSON
-
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "homeassistant/sensor/victron_ble/health/config" -f /tmp/ha_disc/victron_health_sensor.json
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "homeassistant/binary_sensor/victron_ble/problem/config" -f /tmp/ha_disc/victron_health_problem.json
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "homeassistant/sensor/wifi_ap/health/config" -f /tmp/ha_disc/wifi_health_sensor.json
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "homeassistant/binary_sensor/wifi_ap/problem/config" -f /tmp/ha_disc/wifi_health_problem.json
-
-        tail -f /dev/null
+      - ha-discovery.env
+    command: ["sh","-c","/opt/victron/ha_discovery.sh"]
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
+      restart_policy: { condition: any, delay: 5s }
 
   # -----------------------------
   # HA discovery (curated whitelist) — enabled
   # -----------------------------
   ha_curated_discovery:
-    image: efrecon/mqtt-client:latest
+    volumes:
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
+    image: localhost:5000/mqtt-tools:1
     env_file:
-      - swarm/ha-discovery.env
-      - swarm/auto-discovery.env
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        : "${TOPIC_ROOT:=victron}"
-        : "${DEVICE_NAME_PREFIX:=Victron}"
-
-        # Whitelisted metric patterns (case-insensitive)
-        allow_re='(^|/)(soc|state_of_charge|battery_pct|percent|temperature|temp|voltage|volt|current|amp|power|watt|energy|yield|kwh|frequency|hz|capacity|ah|a_h)($|/)'
-
-        touch /tmp/seen_keys
-
-        mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -v -t "${TOPIC_ROOT}/#" | \
-        while IFS= read -r line; do
-          topic="${line%% *}"; payload="${line#* }"
-
-          rel="${topic#${TOPIC_ROOT}/}"
-          dev="${rel%%/*}"
-          rest="${rel#${dev}/}"
-
-          [ -n "$dev" ] && [ "$rest" != "$rel" ] || continue
-
-          if [ -n "${LIMIT_DEVICES:-}" ]; then
-            case ",${LIMIT_DEVICES}," in
-              *,"${dev}",*) : ;;
-              *) continue ;;
-            esac
-          fi
-
-          printf '%s\n' "$rest" | grep -Eqi "$allow_re" || continue
-
-          sdev="$(printf '%s' "$dev" | tr -cd '[:alnum:]_-')"
-          smetric="$(printf '%s' "$rest" | tr -cd '[:alnum:]_-/')"
-          slug="$(printf '%s' "${sdev}_${smetric}" | tr '/ ' '__')"
-          key="${sdev}:${smetric}"
-
-          grep -qxF "$key" /tmp/seen_keys 2>/dev/null && continue
-
-          unit=""; dclass=""; sclass="measurement"
-          case "$smetric" in
-            *soc*|*state_of_charge*|*battery_pct*|*percent*) unit="%"; dclass="battery" ;;
-            *temp*|*temperature*)                            unit="°C"; dclass="temperature" ;;
-            *voltage*|*volt*|*/V|*pv*_v|*bat*_v)             unit="V"; dclass="voltage" ;;
-            *current*|*amp*|*/A|*pv*_i|*bat*_i)              unit="A"; dclass="current" ;;
-            *power*|*watt*|*/W|*pv*_p|*bat*_p)               unit="W"; dclass="power" ;;
-            *energy*|*yield*|*kwh*)                          unit="kWh"; dclass="energy"; sclass="total_increasing" ;;
-            *frequency*|*hz)                                 unit="Hz"; dclass="frequency" ;;
-            *capacity*|*ah|*a_h)                             unit="Ah" ;;
-          esac
-
-          name_metric="$(printf '%s' "$smetric" | tr '/_' '  ' | sed -E 's/ +/ /g')"
-          name="${DEVICE_NAME_PREFIX} ${dev} ${name_metric}"
-          uniq="vic_${sdev}_${smetric}_$(hostname)"
-
-          cfg="/tmp/ha_${slug}.json"
-          {
-            echo '{'
-            echo "  \"name\": \"${name}\","
-            echo "  \"unique_id\": \"${uniq}\","
-            echo "  \"state_topic\": \"${topic}\","
-            [ -n "$dclass" ] && echo "  \"device_class\": \"${dclass}\"," || true
-            [ -n "$unit" ] && echo "  \"unit_of_measurement\": \"${unit}\"," || true
-            echo "  \"state_class\": \"${sclass}\","
-            echo "  \"device\": {"
-            echo "    \"identifiers\": [\"victron_${sdev}\"],"
-            echo "    \"name\": \"${DEVICE_NAME_PREFIX} ${dev}\","
-            echo "    \"manufacturer\": \"Victron\","
-            echo "    \"model\": \"BLE->MQTT\""
-            echo "  }"
-            echo '}'
-          } > "$cfg"
-
-          mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-            -t "homeassistant/sensor/${slug}/config" -f "$cfg"
-
-          echo "$key" >> /tmp/seen_keys
-        done
+      - ha-discovery.env
+      - auto-discovery.env
+    command: ["sh","-c","/opt/victron/ha_curated_discovery.sh"]
     deploy:
       mode: replicated
       replicas: 1
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
+      restart_policy: { condition: any, delay: 5s }
 
   # -----------------------------
-  # HA discovery (auto) — disabled by default to avoid dupes
+  # HA discovery (auto) — keep OFF by default to avoid dupes
   # -----------------------------
   ha_auto_discovery:
-    image: efrecon/mqtt-client:latest
+    image: localhost:5000/mqtt-tools:1
     env_file:
-      - swarm/ha-discovery.env
-      - swarm/auto-discovery.env
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        : "${TOPIC_ROOT:=victron}"
-        : "${DEVICE_NAME_PREFIX:=Victron}"
-
-        touch /tmp/seen_keys
-
-        mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -v -t "${TOPIC_ROOT}/#" | \
-        while IFS= read -r line; do
-          topic="${line%% *}"; payload="${line#* }"
-
-          rel="${topic#${TOPIC_ROOT}/}"
-          dev="${rel%%/*}"
-          rest="${rel#${dev}/}"
-
-          if [ -n "${LIMIT_DEVICES:-}" ]; then
-            case ",${LIMIT_DEVICES}," in
-              *,"${dev}",*) : ;;
-              *) continue ;;
-            esac
-          fi
-
-          sdev="$(printf '%s' "$dev" | tr -cd '[:alnum:]_-')"
-          smetric="$(printf '%s' "$rest" | tr -cd '[:alnum:]_-/')"
-          slug="$(printf '%s' "${sdev}_${smetric}" | tr '/ ' '__')"
-          key="${sdev}:${smetric}"
-
-          grep -qxF "$key" /tmp/seen_keys 2>/dev/null && continue
-
-          unit=""; dclass=""; sclass="measurement"
-          case "$smetric" in
-            *soc*|*state_of_charge*|*battery_pct*|*percent*) unit="%"; dclass="battery" ;;
-            *temp*|*temperature*)                            unit="°C"; dclass="temperature" ;;
-            *voltage*|*volt*|*/V|*pv*_v|*bat*_v)             unit="V"; dclass="voltage" ;;
-            *current*|*amp*|*/A|*pv*_i|*bat*_i)              unit="A"; dclass="current" ;;
-            *power*|*watt*|*/W|*pv*_p|*bat*_p)               unit="W"; dclass="power" ;;
-            *energy*|*yield*|*kwh*)                          unit="kWh"; dclass="energy"; sclass="total_increasing" ;;
-            *frequency*|*hz)                                 unit="Hz"; dclass="frequency" ;;
-            *capacity*|*ah|*a_h)                             unit="Ah" ;;
-          esac
-
-          name_metric="$(printf '%s' "$rest" | tr '/_' '  ' | sed -E 's/ +/ /g')"
-          name="${DEVICE_NAME_PREFIX} ${dev} ${name_metric}"
-          uniq="vic_${sdev}_${smetric}_$(hostname)"
-
-          cfg="/tmp/ha_${slug}.json"
-          {
-            echo '{'
-            echo "  \"name\": \"${name}\","
-            echo "  \"unique_id\": \"${uniq}\","
-            echo "  \"state_topic\": \"${topic}\","
-            [ -n "$dclass" ] && echo "  \"device_class\": \"${dclass}\"," || true
-            [ -n "$unit" ] && echo "  \"unit_of_measurement\": \"${unit}\"," || true
-            echo "  \"state_class\": \"${sclass}\","
-            echo "  \"device\": {"
-            echo "    \"identifiers\": [\"victron_${sdev}\"],"
-            echo "    \"name\": \"${DEVICE_NAME_PREFIX} ${dev}\","
-            echo "    \"manufacturer\": \"Victron\","
-            echo "    \"model\": \"BLE->MQTT\""
-            echo "  }"
-            echo '}'
-          } > "$cfg"
-
-          mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-            -t "homeassistant/sensor/${slug}/config" -f "$cfg"
-
-          echo "$key" >> /tmp/seen_keys
-        done
+      - ha-discovery.env
+      - auto-discovery.env
+    command: ["sh","-c","/opt/victron/ha_auto_discovery.sh"]
     deploy:
       mode: replicated
-      replicas: 0        # keep off by default to avoid duplicates with curated
-      restart_policy:
-        condition: any
-        delay: 5s
-        max_attempts: 0
+      replicas: 0
+      restart_policy: { condition: any, delay: 5s }
 
+    volumes:
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
   # -----------------------------
-  # MQTT test publishers — disabled (enable when needed)
+  # MQTT test publishers — disabled
   # -----------------------------
   mqtt_test_discovery_once:
-    image: efrecon/mqtt-client:latest
+    image: localhost:5000/mqtt-tools:1
     env_file:
-      - swarm/ha-discovery.env
-      - swarm/auto-discovery.env
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        : "${TOPIC_ROOT:=victron}"
-        HOST="$(hostname)"
-        CFG="/tmp/ha_test_sensor.json"
-        cat > "$CFG" <<JSON
-        {
-          "name": "Victron Test Ping",
-          "unique_id": "victron_test_ping_${HOST}",
-          "state_topic": "${TOPIC_ROOT}/test/ping",
-          "icon": "mdi:lan-connect",
-          "entity_category": "diagnostic",
-          "device": {
-            "identifiers": ["victron_test_${HOST}"],
-            "name": "Victron Test (${HOST})",
-            "manufacturer": "ALFaQD",
-            "model": "MQTT Test"
-          }
-        }
-        JSON
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "homeassistant/sensor/victron_test_ping_${HOST}/config" -f "$CFG"
+      - ha-discovery.env
+    command: ["sh","-c","/opt/victron/mqtt_test_discovery_once.sh"]
     deploy:
       mode: replicated
       replicas: 0
-      restart_policy:
-        condition: none
+      restart_policy: { condition: none }
 
   mqtt_test_ping_once:
-    image: efrecon/mqtt-client:latest
+    image: localhost:5000/mqtt-tools:1
     env_file:
-      - swarm/ha-discovery.env
-      - swarm/auto-discovery.env
-    command:
-      - sh
-      - -c
-      - |
-        set -euo pipefail
-        : "${TOPIC_ROOT:=victron}"
-        MSG="ping from $(hostname) at $(date -Iseconds)"
-        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
-          -t "${TOPIC_ROOT}/test/ping" -m "$MSG"
+      - ha-discovery.env
+    command: ["sh","-c","/opt/victron/mqtt_test_ping_once.sh"]
     deploy:
       mode: replicated
       replicas: 0
-      restart_policy:
-        condition: none
+      restart_policy: { condition: none }
 
+    volumes:
+      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
 networks:
   default:
     driver: overlay
