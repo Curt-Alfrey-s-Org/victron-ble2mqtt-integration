@@ -5,3 +5,19 @@ swarm/victron-secrets.env
 swarm/.env
 swarm/*.bak.*
 swarm/input-snapshot_*.txt
+
+# local env / secrets
+.env
+victron-secrets.env
+ha-discovery.env
+health.env
+user_settings.py
+.backups/
+*.bak
+*.env
+*.secrets
+
+# swarm / stack secrets and overrides (do not commit real secrets)
+swarm/victron-secrets.env
+swarm/ha-discovery.env
+swarm/health.env
