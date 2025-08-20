@@ -1,0 +1,7 @@
+[Unit]
+Description=HA watchdog probe and restart
+After=network.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/ha-watchdog.sh

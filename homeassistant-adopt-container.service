@@ -1,0 +1,15 @@
+[Unit]
+Description=Adopt existing Home Assistant container (by name)
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Use container name so the unit survives container recreation (if you recreate with same name)
+ExecStart=/usr/bin/docker start homeassistant
+ExecStop=/usr/bin/docker stop homeassistant
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

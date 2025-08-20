@@ -1,0 +1,15 @@
+[Unit]
+Description=Home Assistant Docker Compose
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
+ExecStart=/usr/bin/docker compose -f docker-compose.homeassistant.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.homeassistant.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,141 @@
+version: "3.8"
+
+services:
+  victron_ble:
+    # Switch to a clean base and run the module directly inside the task
+    image: python:3.11-slim
+    env_file:
+      - swarm/ha-discovery.env         # MQTT_HOST / MQTT_PORT / MQTT_USER / MQTT_PASSWORD
+      - swarm/auto-discovery.env       # TOPIC_ROOT
+      - swarm/victron-secrets.env      # ADVKEY_* (advertisement keys)
+    environment:
+      PYTHONUNBUFFERED: "1"
+      # Prefer /work (generated config) then your repo code
+      PYTHONPATH: "/app/override:/work:/app"
+    volumes:
+      # Your repo (ro) so we can import module and read user_settings.example.py
+      - /home/n4s1/victron-ble2mqtt-integration:/app:ro
+      # Writable workspace for generated config & cache
+      - victron_work:/work
+      # DBus access to host bluetoothd/BlueZ
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+    command:
+      - sh
+      - -c
+      - |
+        set -euo pipefail
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y --no-install-recommends bluez libglib2.0-0 dbus libbluetooth3
+        rm -rf /var/lib/apt/lists/*
+
+        # Build /work/victron_ble2mqtt/user_settings.py from repo example + ENV keys
+        python - <<'PY'
+import os, re, json, ast, pathlib
+from textwrap import dedent
+
+repo_example = pathlib.Path("/app/user_settings.example.py")
+devices = []
+if repo_example.exists():
+    txt = repo_example.read_text(errors="ignore")
+    m = re.search(r"devices\s*=\s*\[", txt)
+    if m:
+        start = m.end()-1; depth=0; end=None
+        for i,ch in enumerate(txt[start:], start):
+            if ch=='[': depth+=1
+            elif ch==']':
+                depth-=1
+                if depth==0: end=i; break
+        if end is not None:
+            block = txt[start:end+1]
+            for d in re.findall(r"\{.*?\}", block, flags=re.S):
+                clean = re.sub(r"#.*", "", d)
+                try:
+                    obj = ast.literal_eval(clean)
+                    if isinstance(obj, dict):
+                        obj.pop("advertisement_key", None)
+                        devices.append(obj)
+                except Exception:
+                    pass
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_").upper()
+
+mqtt_host = os.getenv("MQTT_HOST", "localhost")
+mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
+mqtt_user = os.getenv("MQTT_USER", "victron")
+topic_root = os.getenv("TOPIC_ROOT", "victron")
+
+outdir = pathlib.Path("/work/victron_ble2mqtt")
+outdir.mkdir(parents=True, exist_ok=True)
+
+content = dedent(f"""
+# Auto-generated from repo example + ENV. No secrets stored in file.
+import os, re
+
+mqtt_host = {mqtt_host!r}
+mqtt_port = {mqtt_port}
+mqtt_username = {mqtt_user!r}
+mqtt_password = os.getenv("MQTT_PASSWORD", "")
+mqtt_topic_root = {topic_root!r}
+
+devices = {json.dumps(devices, indent=2)}
+
+def _slug(s: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]+", "_", (s or "").strip()).strip("_").upper()
+
+for d in devices:
+    name = d.get("name") or d.get("type") or ""
+    mac  = (d.get("mac") or "").replace(":", "").upper()
+    key = os.getenv("ADVKEY_"+_slug(name)) or (os.getenv("ADVKEY_"+mac) if mac else "")
+    if key:
+        d["advertisement_key"] = key
+
+log_level = "INFO"
+""").strip() + "\n"
+
+(outdir / "user_settings.py").write_text(content)
+print("Wrote user_settings.py with", len(devices), "devices")
+PY
+
+        python -V
+        pip install --no-cache-dir --upgrade pip setuptools wheel
+        if [ -f /app/requirements.txt ]; then
+          pip install --no-cache-dir -r /app/requirements.txt
+        else
+          pip install --no-cache-dir bleak paho-mqtt
+        fi
+
+        python - <<'PY'
+import runpy, sys
+try:
+    runpy.run_module("victron_ble2mqtt.__main__", run_name="__main__")
+except Exception as e:
+    print("ERROR starting victron_ble2mqtt:", e)
+    sys.exit(1)
+PY
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/dbus/system_bus_socket || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 0
+      placement:
+        constraints:
+          - node.role == manager
+
+networks:
+  default:
+    driver: overlay
+
+volumes:
+  victron_work:

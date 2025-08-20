@@ -1,0 +1,106 @@
+version: "3.8"
+
+services:
+  ha_discovery:
+    image: efrecon/mqtt-client:latest
+    env_file:
+      - ha-discovery.env
+    command:
+      - sh
+      - -c
+      - |
+        set -euo pipefail
+        mkdir -p /tmp/ha_disc
+
+        cat <<'JSON' > /tmp/ha_disc/victron_health_sensor.json
+        {
+          "name": "Victron BLE Bridge Health",
+          "unique_id": "victron_ble_health_sensor",
+          "state_topic": "system/health/victron_ble",
+          "icon": "mdi:heart-pulse",
+          "entity_category": "diagnostic",
+          "value_template": "{{ value.split(\":\")[0] }}",
+          "device": {
+            "identifiers": ["victron_ble_bridge"],
+            "name": "Victron BLE Bridge",
+            "manufacturer": "ALFaQD",
+            "model": "Victron BLE→MQTT"
+          }
+        }
+        JSON
+
+        cat <<'JSON' > /tmp/ha_disc/victron_health_problem.json
+        {
+          "name": "Victron BLE Problem",
+          "unique_id": "victron_ble_problem",
+          "state_topic": "system/health/victron_ble",
+          "device_class": "problem",
+          "entity_category": "diagnostic",
+          "value_template": "{% set s = value.split(\":\" )[0] %}{% if s == \"WARN\" %}ON{% else %}OFF{% endif %}",
+          "payload_on": "ON",
+          "payload_off": "OFF",
+          "device": {
+            "identifiers": ["victron_ble_bridge"],
+            "name": "Victron BLE Bridge",
+            "manufacturer": "ALFaQD",
+            "model": "Victron BLE→MQTT"
+          }
+        }
+        JSON
+
+        cat <<'JSON' > /tmp/ha_disc/wifi_health_sensor.json
+        {
+          "name": "WiFi AP Watchdog",
+          "unique_id": "wifi_ap_watchdog_sensor",
+          "state_topic": "system/watchdog/wifi_ap",
+          "icon": "mdi:wifi",
+          "entity_category": "diagnostic",
+          "value_template": "{{ value.split(\":\")[0] }}",
+          "device": {
+            "identifiers": ["victron_ble_bridge"],
+            "name": "Victron BLE Bridge"
+          }
+        }
+        JSON
+
+        cat <<'JSON' > /tmp/ha_disc/wifi_health_problem.json
+        {
+          "name": "WiFi AP Problem",
+          "unique_id": "wifi_ap_problem",
+          "state_topic": "system/watchdog/wifi_ap",
+          "device_class": "problem",
+          "entity_category": "diagnostic",
+          "value_template": "{% set s = value.split(\":\" )[0] %}{% if s == \"WARN\" %}ON{% else %}OFF{% endif %}",
+          "payload_on": "ON",
+          "payload_off": "OFF",
+          "device": {
+            "identifiers": ["victron_ble_bridge"],
+            "name": "Victron BLE Bridge"
+          }
+        }
+        JSON
+
+        # Publish retained discovery configs
+        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
+          -t "homeassistant/sensor/victron_ble/health/config" -f /tmp/ha_disc/victron_health_sensor.json
+        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
+          -t "homeassistant/binary_sensor/victron_ble/problem/config" -f /tmp/ha_disc/victron_health_problem.json
+        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
+          -t "homeassistant/sensor/wifi_ap/health/config" -f /tmp/ha_disc/wifi_health_sensor.json
+        mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -u "$MQTT_USER" -P "$MQTT_PASSWORD" -r \
+          -t "homeassistant/binary_sensor/wifi_ap/problem/config" -f /tmp/ha_disc/wifi_health_problem.json
+
+        # Keep container alive so configs remain retained and re-published on restart
+        tail -f /dev/null
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 0
+
+networks:
+  default:
+    driver: overlay

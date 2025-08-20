@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    environment:
+      - TZ=America/New_York  # Change to your timezone
+    volumes:
+      - /opt/homeassistant:/config   # preserve your existing data (host path detected)
+    ports:
+      - "8123:8123"
+    devices:
+      - /dev/serial/by-id/usb-serial-if-needed:/dev/serial/by-id/usb-serial-if-needed # remove or edit if not needed
+    # Lightweight resource constraints for a Pi4 (tune if needed)
+    mem_limit: 1g
+    cpus: 0.7
+    # Limit logs so SD/flash doesn't wear out
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Container-level healthcheck (applies when container created by compose)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8123/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+    # If you run with `docker swarm` note that deploy.* is ignored by plain compose
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+          cpus: '0.7'
+
+# Notes:
+# - This file is for local docker-compose usage. It maps to your live data at /opt/homeassistant
+# - If you recreate the container via compose, make sure the container is stopped first to avoid name conflicts

@@ -5,58 +5,23 @@
 
 services:
   # -----------------------------
-  # Victron BLE2MQTT
+  # Observability UI (Dozzle)
   # -----------------------------
-  victron_ble2mqtt:
-    image: local/victron-ble-bridge:1.0
-    env_file:
-      - health.env
-      - ha-discovery.env
-      - auto-discovery.env
-      - victron-secrets.env
+  file_wifi_ap:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/wifi_ap_watchdog.log"]
     volumes:
       - /var/log:/logs:ro
-      - /home/n4s1/victron-ble2mqtt-integration/swarm/scripts:/opt/victron:ro
     deploy:
-      mode: replicated
-      replicas: 1
       restart_policy: { condition: any, delay: 5s }
 
-  # -----------------------------
-  # Mosquitto MQTT Broker
-  # -----------------------------
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    ports:
-      - "1883:1883"
-      - "9001:9001"
+  file_mosquitto:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/mosquitto/mosquitto.log"]
     volumes:
-      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto:/mosquitto/config
-      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto/data:/mosquitto/data
-      - /home/n4s1/victron-ble2mqtt-integration/swarm/mosquitto/log:/mosquitto/log
+      - /var/log:/logs:ro
     deploy:
-      mode: replicated
-      replicas: 1
       restart_policy: { condition: any, delay: 5s }
-
-  # -----------------------------
-  # Dozzle (Container Logs UI)
-  # -----------------------------
-  dozzle:
-    image: amir20/dozzle:latest
-    ports:
-      - "9999:8080"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - DOZZLE_USERNAME=admin
-      - DOZZLE_PASSWORD=changeme
-    deploy:
-      mode: replicated
-      replicas: 1
-      restart_policy: { condition: any, delay: 5s }
-
-  # -----------------------------
 
   # -----------------------------
   # Victron BLE -> MQTT

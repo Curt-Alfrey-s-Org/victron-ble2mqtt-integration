@@ -1,0 +1,75 @@
+version: "3.8"
+
+services:
+  dozzle:
+    image: amir20/dozzle:latest
+    environment:
+      DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_TAILSIZE: "1000"
+      # Optional auth (uncomment and set via env or .env):
+      # DOZZLE_USERNAME: ${DOZZLE_USERNAME}
+      # DOZZLE_PASSWORD: ${DOZZLE_PASSWORD}
+      # Bind address inside the container
+      DOZZLE_ADDR: ":8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - target: 8080
+        published: 9999
+        protocol: tcp
+        mode: ingress
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+        delay: 5s
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  file_victron:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/victron_ble2mqtt.log"]
+    volumes:
+      - /var/log/victron_ble2mqtt.log:/logs/victron_ble2mqtt.log:ro
+    deploy:
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "0.10", memory: 32M }
+
+  file_wifi_ap:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/wifi_ap_watchdog.log"]
+    volumes:
+      - /var/log/wifi_ap_watchdog.log:/logs/wifi_ap_watchdog.log:ro
+    deploy:
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "0.10", memory: 32M }
+
+  file_mosquitto:
+    image: busybox:1.36
+    command: ["sh","-c","tail -n +1 -F /logs/mosquitto/mosquitto.log"]
+    volumes:
+      - /var/log/mosquitto/mosquitto.log:/logs/mosquitto.log:ro
+    deploy:
+      restart_policy: { condition: any }
+      resources:
+        limits: { cpus: "0.10", memory: 32M }
+
+networks:
+  default:
+    driver: overlay
