@@ -4,14 +4,20 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
+    # Allow HA to see services running on the host (mosquitto at localhost)
+    network_mode: host
+    env_file:
+      - ./ha-discovery.env
     environment:
       - TZ=America/New_York  # Change to your timezone
     volumes:
       - /opt/homeassistant:/config   # preserve your existing data (host path detected)
     ports:
       - "8123:8123"
-    devices:
-      - /dev/serial/by-id/usb-serial-if-needed:/dev/serial/by-id/usb-serial-if-needed # remove or edit if not needed
+  # Optional serial device mapping. If you have a specific USB serial device
+  # to pass into the container, uncomment and set the correct host path.
+  # devices:
+  #   - /dev/serial/by-id/usb-serial-if-needed:/dev/serial/by-id/usb-serial-if-needed
     # Lightweight resource constraints for a Pi4 (tune if needed)
     mem_limit: 1g
     cpus: 0.7

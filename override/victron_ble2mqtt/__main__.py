@@ -18,6 +18,7 @@ from typing import List, Dict, Any
 
 from bleak import AdvertisementData, BLEDevice
 from paho.mqtt.client import Client as PahoClient
+from paho.mqtt.enums import CallbackAPIVersion
 from victron_ble.scanner import BaseScanner
 
 # Production settings & handlers from your override package
@@ -27,7 +28,7 @@ from victron_ble2mqtt.victron_ble_utils import DeviceHandler
 
 
 def _build_mqtt_client(host: str, port: int, username: str | None, password: str | None) -> PahoClient:
-    client = PahoClient()
+    client = PahoClient(callback_api_version=CallbackAPIVersion.VERSION2)
     if username:
         client.username_pw_set(username, password or "")
     client.connect(host, port)

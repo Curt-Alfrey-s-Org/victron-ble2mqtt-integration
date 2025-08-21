@@ -4,11 +4,12 @@ Requires=docker.service
 After=docker.service
 
 [Service]
-Type=oneshot
-RemainAfterExit=yes
+Type=simple
 WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
-ExecStart=/usr/bin/docker compose -f docker-compose.victron.yml up -d --build
-ExecStop=/usr/bin/docker compose -f docker-compose.victron.yml down
+ExecStart=/usr/local/bin/victron-runner.sh
+ExecStop=/usr/bin/docker compose -f /home/n4s1/victron-ble2mqtt-integration/docker-compose.victron.yml down
+Restart=always
+RestartSec=10
 TimeoutStartSec=0
 
 [Install]
