@@ -11,11 +11,20 @@ swarm/input-snapshot_*.txt
 victron-secrets.env
 ha-discovery.env
 health.env
-user_settings.py
 .backups/
 *.bak
 *.env
 *.secrets
+
+# common temporary/ignored files
+.backups/
+*.bak*
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 
 # swarm / stack secrets and overrides (do not commit real secrets)
 swarm/victron-secrets.env
