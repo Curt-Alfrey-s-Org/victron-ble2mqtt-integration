@@ -141,6 +141,30 @@ Then enable it:
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable victron_ble2mqtt.service
+
+### Alternative: Docker Compose + systemd runner (recommended)
+
+Instead of running the Python process directly, this repo now provides a Docker Compose-based deployment that is easier to maintain and upgrade.
+
+On the Pi, from the repo root:
+
+```bash
+# build image (or use prebuilt GHCR image)
+docker buildx build --platform linux/arm64 -t victron_ble2mqtt:local --load .
+
+# start the victron stack
+docker compose -f docker-compose.victron.yml up -d --build
+
+# install the systemd runner (optional, included in repo)
+sudo cp systemd/victron.service /etc/systemd/system/
+sudo cp systemd/victron-runner.sh /usr/local/bin/victron-runner.sh
+sudo chmod +x /usr/local/bin/victron-runner.sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now victron.service
+```
+
+This approach uses `systemd/victron-runner.sh` which starts the compose stack and monitors the main container health, restarting the stack if it becomes unhealthy.
+
 ```
 
 ## 7. Mosquitto MQTT Broker Setup

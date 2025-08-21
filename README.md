@@ -47,6 +47,18 @@ Ensure the MACs match your devices and the keys are correct.
 
 ---
 
+## Production deployment & tools
+
+This repository now includes a production-friendly deployment path using Docker Compose and small systemd runners. See `deploy/README.md` for a full walkthrough. Highlights:
+
+- Docker Compose stacks: `docker-compose.victron.yml` (the main BLE->MQTT service) and `docker-compose.tools.yml` (Portainer, Dozzle, Watchtower, nginx reverse proxy).
+- Systemd units: `systemd/victron.service` and a long-running `victron-runner.sh` are included to auto-start and monitor the compose stack on reboot.
+- Security: nginx reverse-proxy (TLS + basic auth) sits in front of Portainer/Dozzle; `nginx/.htpasswd` is used for basic auth — rotate the password and replace the self-signed certs before exposing to untrusted networks.
+- CI/Images: A GitHub Actions workflow builds multi-arch images and can publish to GHCR; use Buildx or the provided workflow to create arm64 images for Raspberry Pi.
+
+Do not commit secrets (ADVKEY_*, MQTT_PASSWORD, etc.) — they should be provided at runtime via `.env` or environment-managed secrets.
+
+
 ## One-shot debug run
 
 Publishes discovery + live states to MQTT (Ctrl-C to stop):
