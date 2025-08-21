@@ -1,0 +1,15 @@
+[Unit]
+Description=Victron BLE2MQTT service (victron_ble2mqtt compose)
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
+ExecStart=/usr/bin/docker compose -f docker-compose.victron.yml up -d --build
+ExecStop=/usr/bin/docker compose -f docker-compose.victron.yml down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
