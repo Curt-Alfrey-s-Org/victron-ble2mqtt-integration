@@ -1,0 +1,5 @@
+version: '3.8'
+
+services:
+  victron_ble2mqtt:
+    devices: []

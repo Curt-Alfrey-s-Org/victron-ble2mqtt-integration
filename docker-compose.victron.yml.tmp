@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  victron_ble2mqtt:
+    build: .
+    image: victron_ble2mqtt:local
+    container_name: victron_ble2mqtt
+    restart: unless-stopped
+    environment:
+      - MQTT_HOST=${MQTT_HOST:-localhost}
+      - MQTT_PORT=${MQTT_PORT:-1883}
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - MAIN_UID=${MAIN_UID}
+      - PUBLISH_CONFIG_THROTTLE_SEC=${PUBLISH_CONFIG_THROTTLE_SEC:-60}
+      - PYTHONPATH=/work/override:/work
+    env_file:
+      - ./victron-secrets.env
+      - ./.env
+    volumes:
+      - ./override:/work/override:ro
+      - ./swarm:/work/swarm:ro
+      - /var/log/victron_ble2mqtt.log:/logs/victron_ble2mqtt.log:rw
+      - /run/dbus/system_bus_socket:/run/dbus/system_bus_socket:ro
+      - /var/run/dbus:/var/run/dbus:ro
+      - /var/lib/bluetooth:/var/lib/bluetooth:ro
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    # Use image entrypoint so it can generate /work/victron_ble2mqtt/user_settings.py
+    # (Dockerfile sets CMD -> docker-entrypoint.sh which writes user_settings.py)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import importlib; importlib.import_module('victron_ble2mqtt')\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          memory: 256M
+
+# Usage:
+# 1) Copy or create `.env` with MQTT_* and ADVKEY_* values or run:
+#    set -a; . swarm/ha-discovery.env; . swarm/victron-secrets.env; set +a
+# 2) docker compose -f docker-compose.victron.yml up --build
