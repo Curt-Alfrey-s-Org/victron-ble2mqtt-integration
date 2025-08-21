@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - enhance/ci-trivy-scan
+      - main
 
 jobs:
   build-and-push:
