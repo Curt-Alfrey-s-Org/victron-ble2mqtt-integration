@@ -13,11 +13,13 @@ cd "$REPO_DIR"
 
 NO_TOOLS=0
 USE_GHCR=0
+USE_FORCE=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --no-tools) NO_TOOLS=1; shift ;;
     --use-ghcr) USE_GHCR=1; shift ;;
-    -h|--help) sed -n '1,120p' "$0"; exit 0 ;;
+    --force) USE_FORCE=1; shift ;;
+    -h|--help) sed -n '1,200p' "$0"; exit 0 ;;
     *) echo "Unknown arg: $1"; exit 2 ;;
   esac
 done
@@ -26,6 +28,32 @@ done
 if ! command -v docker >/dev/null; then
   echo "docker is required. Install Docker and re-run."
   exit 1
+fi
+
+# Ensure docker compose plugin is available
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose plugin is required (docker compose). Install Docker Compose v2 and re-run."
+  exit 1
+fi
+
+# Check required env files (secrets). Allow override with --force
+missing=()
+check_file(){
+  if [ ! -f "$1" ]; then
+    missing+=("$1")
+  fi
+}
+# Common locations we accept
+check_file "./victron-secrets.env"
+check_file "./swarm/victron-secrets.env"
+check_file "./.env"
+check_file "./swarm/ha-discovery.env"
+
+if [ ${#missing[@]} -gt 0 ] && [ $USE_FORCE -eq 0 ]; then
+  echo "Missing one or more environment/secret files required for deployment:"
+  for f in "${missing[@]}"; do echo "  - $f"; done
+  echo "Place your secrets in one of the locations above (or run with --force to skip)."
+  exit 2
 fi
 
 if [ $USE_GHCR -eq 1 ]; then
