@@ -1,41 +1,60 @@
 #!/usr/bin/env bash
 # victron-runner.sh
-# Long-running runner used by systemd to start the compose stack and monitor health.
-set -eu
-WORKDIR="/home/n4s1/victron-ble2mqtt-integration"
+# Long-running runner used by systemd to (re)create the container via our redeploy script
+# and monitor its health. Avoids docker compose dependency.
+set -euo pipefail
+
+WORKDIR="/home/user1/victron-ble2mqtt-integration"
+MAIN_SERVICE=victron_ble2mqtt
+
 cd "$WORKDIR"
 
-# Bring up the compose stack (build if necessary)
-/usr/bin/docker compose -f docker-compose.victron.yml up -d --build
+redeploy() {
+  echo "[victron-runner] Redeploying ${MAIN_SERVICE} via scripts/redeploy_victron.sh" >&2
+  bash "$WORKDIR/scripts/redeploy_victron.sh"
+}
 
-# Monitor the main container health and exit only on failure
-MAIN_SERVICE=victron_ble2mqtt
-while true; do
-  sleep 5
-  if docker ps --filter "name=${MAIN_SERVICE}" --format '{{.Names}}' | grep -q "${MAIN_SERVICE}"; then
-    # check health status
-    HEALTH=$(docker inspect --format='{{.State.Health.Status}}' ${MAIN_SERVICE} 2>/dev/null || echo unknown)
-    if [ "$HEALTH" = "healthy" ]; then
-      sleep 30
-      continue
-    elif [ "$HEALTH" = "starting" ]; then
-      # keep waiting
-      sleep 5
-      continue
-    elif [ "$HEALTH" = "unhealthy" ]; then
-      echo "${MAIN_SERVICE} reported unhealthy, restarting stack" >&2
-      /usr/bin/docker compose -f docker-compose.victron.yml down
-      /usr/bin/docker compose -f docker-compose.victron.yml up -d
-      sleep 10
-      continue
-    else
-      # unknown or no healthcheck set
-      sleep 10
-      continue
+is_running() {
+  docker ps --filter "name=${MAIN_SERVICE}" --format '{{.Names}}' | grep -q "^${MAIN_SERVICE}$"
+}
+
+health_status() {
+  docker inspect --format='{{.State.Health.Status}}' "${MAIN_SERVICE}" 2>/dev/null || echo unknown
+}
+
+# Ensure container exists and is running
+if ! is_running; then
+  # Wait for Bluetooth adapter readiness to avoid early scanner failures
+  echo "[victron-runner] Waiting for Bluetooth adapter (hci0) to be powered..." >&2
+  for i in $(seq 1 20); do
+    if bluetoothctl show | grep -q "Powered: yes"; then
+      break
     fi
-  else
-    echo "${MAIN_SERVICE} not running, starting stack" >&2
-    /usr/bin/docker compose -f docker-compose.victron.yml up -d
-    sleep 5
+    sleep 1
+  done
+  redeploy
+fi
+
+# Monitor loop
+while true; do
+  sleep 10
+  if ! is_running; then
+    echo "[victron-runner] ${MAIN_SERVICE} not running; redeploying" >&2
+    redeploy
+    continue
   fi
+  hs=$(health_status)
+  case "$hs" in
+    healthy)
+      # all good
+      ;;
+    starting)
+      # allow to settle
+      ;;
+    unhealthy|unknown)
+      echo "[victron-runner] ${MAIN_SERVICE} health=$hs; redeploying" >&2
+      docker rm -f "${MAIN_SERVICE}" >/dev/null 2>&1 || true
+      redeploy
+      ;;
+  esac
 done

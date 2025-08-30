@@ -1,5 +1,1 @@
-from victron_ble2mqtt.user_settings import UserSettings
-
-def get_settings() -> UserSettings:
-    """Return UserSettings from Python file (no TOML)."""
-    return UserSettings()
+from override.victron_ble2mqtt.cli_app.settings import *  # noqa: F401,F403

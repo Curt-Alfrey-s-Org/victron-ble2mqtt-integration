@@ -2,19 +2,16 @@ import inspect
 import logging
 from enum import Enum
 from typing import Dict, List
-from bleak import BLEDevice
-from tomlkit.items import Table
-from victron_ble.devices import Device, DeviceData, BatteryMonitor, SolarCharger, detect_device_type
-from victron_ble.exceptions import AdvertisementKeyMismatchError
 
-logger = logging.getLogger(__name__)
-import inspect
-import logging
-from enum import Enum
-from typing import Dict, List
 from bleak import BLEDevice
 from tomlkit.items import Table
-from victron_ble.devices import Device, DeviceData, BatteryMonitor, SolarCharger, detect_device_type
+from victron_ble.devices import (
+	Device,
+	DeviceData,
+	BatteryMonitor,
+	SolarCharger,
+	detect_device_type,
+)
 from victron_ble.exceptions import AdvertisementKeyMismatchError
 
 logger = logging.getLogger(__name__)
@@ -26,7 +23,18 @@ def values2dict(obj: DeviceData) -> dict:
 		if name.startswith("get_"):
 			value = method()
 			if isinstance(value, Enum):
-				value = value.name.lower()
+				# Some IntFlag/Flag combinations or patched values may have no .name
+				enum_name = getattr(value, 'name', None)
+				if enum_name:
+					value = enum_name.lower()
+				else:
+					# Derive a readable string, e.g. "A|B" -> "a|b", or fallback to raw value
+					text = str(value)
+					if '.' in text:
+						parts = text.split('|')
+						parts = [p.split('.')[-1] for p in parts]
+						text = '|'.join(parts)
+					value = text.lower()
 			if value is not None:
 				data[name[4:]] = value
 	return data
@@ -39,6 +47,11 @@ class GenericDevice:
 	def parse(self, *, raw_data) -> dict:
 		device_data: DeviceData = self.victron_device.parse(raw_data)
 		data_dict = values2dict(device_data)
+		# Apply per-device correction for Battery 1 current readings
+		if hasattr(self.ble_device, 'name') and self.ble_device.name == 'Battery 1':
+			if 'current' in data_dict and isinstance(data_dict['current'], (int, float)):
+				# Battery 1 is off by 2 decimal places (e.g., 987.3A instead of 9.87A)
+				data_dict['current'] = data_dict['current'] / 100
 		return data_dict
 
 class DeviceHandler:
@@ -51,17 +64,21 @@ class DeviceHandler:
 			'SolarCharger': SolarCharger
 		}
 		for device_info in device_keys:
-			mac = device_info['mac'].upper()
-			device_type = device_info['type']
-			name = device_info['name']
-			advertisement_key = device_info['advertisement_key']
+			mac = (device_info.get('mac') or '').upper()
+			device_type = device_info.get('type')
+			name = device_info.get('name')
+			advertisement_key = device_info.get('advertisement_key')
+			# Normalize key to a clean string
 			if isinstance(advertisement_key, Table):
 				advertisement_key = str(advertisement_key.unwrap())
 			elif not isinstance(advertisement_key, str):
-				advertisement_key = str(advertisement_key)
-			# Validate hex key
-			if not all(c in '0123456789abcdefABCDEF' for c in advertisement_key):
-				logger.error('Invalid advertisement_key %s for %s', advertisement_key, mac)
+				advertisement_key = str(advertisement_key or '')
+			advertisement_key = advertisement_key.strip()
+			# Validate hex key: exactly 32 hex chars (even length), no non-hex
+			if not advertisement_key or len(advertisement_key) != 32 or not all(
+				c in '0123456789abcdefABCDEF' for c in advertisement_key
+			):
+				logger.error('Invalid advertisement_key (must be 32 hex) %r for %s (%s)', advertisement_key, mac, name)
 				continue
 			DeviceClass = self.device_type_map.get(device_type)
 			if not DeviceClass:

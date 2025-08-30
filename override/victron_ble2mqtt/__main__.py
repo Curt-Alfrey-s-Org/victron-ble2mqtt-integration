@@ -84,6 +84,11 @@ def main() -> None:
             self.victron_mqtt_handler = VictronMqttDeviceHandler(user_settings=user_settings)
             self.mqtt_client = paho
             self.rssi_info: dict[str, int] = {}
+            # Throttles
+            self._last_pub: dict[str, float] = {}
+            self._pub_gap = float(getattr(user_settings.mqtt, 'publish_throttle_seconds', 3) or 3)
+            self._log_gap = float(getattr(user_settings.mqtt, 'log_throttle_seconds', 3) or 3)
+            self._last_warn: dict[str, float] = {}
 
         def _detection_callback(self, device: BLEDevice, advertisement: AdvertisementData):
             # cache latest RSSI by MAC
@@ -91,17 +96,33 @@ def main() -> None:
             return super()._detection_callback(device, advertisement)
 
         def callback(self, ble_device: BLEDevice, raw_data: bytes):
-            logger.debug("BLE payload from %s: %s", ble_device.address.lower(), raw_data.hex())
+            import time
+            now = time.monotonic()
+            # Rate-limit noisy debug
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("BLE payload from %s: %s", ble_device.address.lower(), raw_data.hex())
             if generic := self.device_handler.get_generic_device(ble_device, raw_data):
-                self.victron_mqtt_handler.publish(
-                    ble_device=ble_device,
-                    raw_data=raw_data,
-                    generic_device=generic,
-                    rssi=self.rssi_info.get(ble_device.address),
-                    mqtt_client=self.mqtt_client,
-                )
+                last = self._last_pub.get(ble_device.address, 0.0)
+                if (now - last) >= self._pub_gap:
+                    self._last_pub[ble_device.address] = now
+                    self.victron_mqtt_handler.publish(
+                        ble_device=ble_device,
+                        raw_data=raw_data,
+                        generic_device=generic,
+                        rssi=self.rssi_info.get(ble_device.address),
+                        mqtt_client=self.mqtt_client,
+                    )
+                else:
+                    # Occasionally log that we skipped (throttled)
+                    lw = self._last_warn.get(ble_device.address, 0.0)
+                    if (now - lw) >= self._log_gap:
+                        self._last_warn[ble_device.address] = now
+                        logger.info("Throttled publish for %s (gap %.1fs)", ble_device.address, self._pub_gap)
             else:
-                logger.warning("Unsupported: %s (%s)", ble_device.name, ble_device.address)
+                lw = self._last_warn.get(ble_device.address + ":unsupported", 0.0)
+                if (now - lw) >= self._log_gap:
+                    self._last_warn[ble_device.address + ":unsupported"] = now
+                    logger.warning("Unsupported: %s (%s)", ble_device.name, ble_device.address)
 
     async def _run():
         scanner = MqttPublisher(keys=keys)

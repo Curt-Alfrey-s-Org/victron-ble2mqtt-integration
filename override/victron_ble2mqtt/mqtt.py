@@ -40,9 +40,11 @@ class BaseHandler:
     def setup(self, *, data_dict):
         mac_address = self.ble_device.address
         uid = mac_address.lower().replace(':', '')
+        # Resolve a friendly, non-empty device name for Home Assistant discovery
+        name = self._resolve_device_name(default_uid=uid, data_dict=data_dict)
         self.device = MqttDevice(
             main_device=self.main_mqtt_device,
-            name=self.ble_device.name,
+            name=name,
             uid=uid,
             manufacturer='Victron Energy',
             model=data_dict['model_name'],  # e.g.: 'SmartSolar MPPT 100|20 48V' | 'SmartShunt 500A/50mV',
@@ -54,11 +56,53 @@ class BaseHandler:
             state_class='measurement',
         )
 
+    def _resolve_device_name(self, *, default_uid: str, data_dict: dict) -> str:
+        """
+        Determine a stable, non-null device name for HA discovery:
+        1) use user_settings.devices entry name for matching MAC
+        2) else use BLE reported name
+        3) else use Victron model_name
+        4) else fall back to MAC-based uid
+        """
+        try:
+            mac_l = (self.ble_device.address or '').lower()
+            for entry in getattr(self.user_settings, 'devices', []) or []:
+                try:
+                    entry_mac = (getattr(entry, 'mac', '') or '').lower()
+                    entry_name = getattr(entry, 'name', None)
+                except Exception:
+                    entry_mac = str((entry or {}).get('mac', '')).lower()
+                    entry_name = (entry or {}).get('name')
+                if entry_mac and entry_mac == mac_l and entry_name:
+                    return str(entry_name)
+        except Exception:
+            pass
+
+        # BLE device name if present
+        if getattr(self.ble_device, 'name', None):
+            return str(self.ble_device.name)
+
+        # Model name from parsed data
+        model_name = data_dict.get('model_name')
+        if model_name:
+            return str(model_name)
+
+        # Final fallback to UID
+        return f'Victron {default_uid}'
+
     def publish(self, *, data_dict: dict, rssi: int | None) -> None:
         if self.device is None:
             self.setup(data_dict=data_dict)
-
-        self.main_mqtt_device.poll_and_publish(self.mqtt_client)
+        # Throttle system info polling/publishing
+        import time
+        if not hasattr(self.main_mqtt_device, "_last_sys_poll"):
+            self.main_mqtt_device._last_sys_poll = 0.0
+        if not hasattr(self.user_settings.mqtt, "system_poll_throttle_seconds"):
+            self.user_settings.mqtt.system_poll_throttle_seconds = 3
+        now = time.monotonic()
+        if (now - self.main_mqtt_device._last_sys_poll) >= float(self.user_settings.mqtt.system_poll_throttle_seconds or 3):
+            self.main_mqtt_device._last_sys_poll = now
+            self.main_mqtt_device.poll_and_publish(self.mqtt_client)
 
         self.rssi_sensor.set_state(rssi)
         self.rssi_sensor.publish(self.mqtt_client)

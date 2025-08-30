@@ -1,0 +1,104 @@
+== DIAG START 2025-08-29T14:00:56-05:00 ==
+== ENV (masked) ==
+MQTT_USER=user1
+MQTT_PASSWORD=****
+MQTT_HOST=localhost
+MQTT_PORT=1883
+
+== docker ps ==
+NAMES              STATUS                          PORTS
+homeassistant      Up 22 minutes                   
+victron_ble2mqtt   Restarting (1) 39 seconds ago   
+
+== broker port 1883 listening ==
+LISTEN 0      100                           127.0.0.1:1883       0.0.0.0:*                                               
+LISTEN 0      100                               [::1]:1883          [::]:*                                               
+
+== HA MQTT status ==
+== containers ==
+homeassistant	Up 22 minutes
+victron_ble2mqtt	Restarting (1) 39 seconds ago
+
+== YAML MQTT in /opt/homeassistant/configuration.yaml ==
+12:mqtt: !include mqtt.yaml
+
+== /opt/homeassistant/mqtt.yaml (summary) ==
+broker: 127.0.0.1
+port: 1883
+username: victron
+password: changeme
+
+== core.config_entries mqtt entry (inside homeassistant) ==
+bash: line 1: warning: here-document at line 1 delimited by end-of-file (wanted `PYnimport')
+bash: -c: line 1: syntax error near unexpected token `('
+bash: -c: line 1: `python3 - <<'PY'\nimport json\nfrom pathlib import Path\nfile=Path('/config/.storage/core.config_entries')\ntry:\n  data=json.loads(file.read_text())\n  entries=[e for e in data.get('data',{}).get('entries',[]) if e.get('domain')=='mqtt']\n  if not entries:\n    print('no mqtt entry')\n  else:\n    e=entries[0]\n    d=e.get('data',{})\n    print('title=', e.get('title'), 'source=', e.get('source'))\n    print('broker=', d.get('broker'), 'port=', d.get('port'), 'username_set=', bool(d.get('username')))\nexcept Exception as ex:\n  print('error:', ex)\nPY'
+
+== Hint ==
+If YAML is present, disable it to use the UI: run scripts/ha_disable_yaml_mqtt.sh and restart HA.
+If an MQTT integration exists, configure it in the UI (Devices & Services). To re-add fresh, run scripts/ha_remove_mqtt_integration.sh then add via UI.
+
+== retained probe (auth) ==
+publish ok
+test/probe probe-1756494056
+subscribe ok
+
+== HA birth topic (15s) ==
+Timed out
+no birth observed (may already be online)
+
+== Discovery topics (2 msgs, 20s) ==
+Timed out
+no discovery observed (timeout)
+
+== Victron container MQTT env ==
+MQTT_HOST=localhost
+
+== Recent logs: victron (last 120s) ==
+Wrote /work/victron_ble2mqtt/user_settings.py with 3 devices
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/victron_ble2mqtt/__main__.py", line 2, in <module>
+    from override.victron_ble2mqtt.__main__ import *  # noqa: F401,F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/__main__.py", line 25, in <module>
+    from victron_ble2mqtt.cli_app.settings import get_settings
+  File "/app/victron_ble2mqtt/cli_app/__init__.py", line 2, in <module>
+    from override.victron_ble2mqtt.cli_app import *  # noqa: F401,F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/cli_app/__init__.py", line 15, in <module>
+    import_all_files(package=__package__, init_file=__file__)
+  File "/usr/local/lib/python3.11/site-packages/cli_base/autodiscover.py", line 24, in import_all_files
+    import_module(name)
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/cli_app/mqtt.py", line 15, in <module>
+    from victron_ble2mqtt.cli_app import app
+ImportError: cannot import name 'app' from partially initialized module 'victron_ble2mqtt.cli_app' (most likely due to a circular import) (/app/victron_ble2mqtt/cli_app/__init__.py)
+Wrote /work/victron_ble2mqtt/user_settings.py with 3 devices
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/victron_ble2mqtt/__main__.py", line 2, in <module>
+    from override.victron_ble2mqtt.__main__ import *  # noqa: F401,F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/__main__.py", line 25, in <module>
+    from victron_ble2mqtt.cli_app.settings import get_settings
+  File "/app/victron_ble2mqtt/cli_app/__init__.py", line 2, in <module>
+    from override.victron_ble2mqtt.cli_app import *  # noqa: F401,F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/cli_app/__init__.py", line 15, in <module>
+    import_all_files(package=__package__, init_file=__file__)
+  File "/usr/local/lib/python3.11/site-packages/cli_base/autodiscover.py", line 24, in import_all_files
+    import_module(name)
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/override/victron_ble2mqtt/cli_app/mqtt.py", line 15, in <module>
+    from victron_ble2mqtt.cli_app import app
+ImportError: cannot import name 'app' from partially initialized module 'victron_ble2mqtt.cli_app' (most likely due to a circular import) (/app/victron_ble2mqtt/cli_app/__init__.py)
+
+== Recent logs: homeassistant (last 120s) ==
+== DIAG END 2025-08-29T14:01:32-05:00 ==
+Saved: /home/user1/victron-ble2mqtt-integration/_diag/diag_20250829-140056.log

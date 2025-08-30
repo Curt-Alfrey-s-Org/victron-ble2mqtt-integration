@@ -7,6 +7,9 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/override:/app:/work
 WORKDIR /app
+# Copy source code into the image
+COPY victron_ble2mqtt /app/victron_ble2mqtt
+COPY override/victron_ble2mqtt /app/override/victron_ble2mqtt
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

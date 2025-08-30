@@ -1,0 +1,24 @@
+[Unit]
+Description=Victron BLE2MQTT (container) managed by runner
+Requires=docker.service bluetooth.service
+After=network-online.target docker.service bluetooth.service
+Wants=network-online.target bluetooth.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/user1/victron-ble2mqtt-integration
+PermissionsStartOnly=true
+# Ensure Bluetooth stack is sane before starting the runner (runs as root due to PermissionsStartOnly)
+ExecStartPre=/usr/bin/systemctl restart bluetooth
+ExecStartPre=/usr/bin/bash -lc 'rfkill unblock bluetooth || true'
+ExecStartPre=/usr/bin/sleep 2
+ExecStart=/usr/bin/bash /home/user1/victron-ble2mqtt-integration/systemd/victron-runner.sh
+Restart=always
+RestartSec=10
+TimeoutStartSec=0
+User=user1
+Group=user1
+Environment=HOME=/home/user1
+
+[Install]
+WantedBy=multi-user.target

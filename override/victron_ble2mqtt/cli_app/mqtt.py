@@ -12,7 +12,7 @@ from ha_services.mqtt4homeassistant.mqtt import get_connected_client
 from rich import print  # noqa
 from victron_ble.scanner import BaseScanner
 
-from victron_ble2mqtt.cli_app import app
+from override.victron_ble2mqtt.cli_app import app
 from victron_ble2mqtt.cli_app.settings import get_settings
 from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler
 from victron_ble2mqtt.user_settings import UserSettings

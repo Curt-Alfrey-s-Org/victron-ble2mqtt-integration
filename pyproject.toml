@@ -1,0 +1,38 @@
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+exclude = [
+  "^/swarm/",
+  "^/overrides/",
+  "^/override/",  # mounted at runtime; keep, but don't auto-format here by default
+  "^/venv/",
+  "^/.venv/",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["victron_ble2mqtt", "override", "tests"]
+known_first_party = ["victron_ble2mqtt"]
+skip = ["swarm", "overrides", "override", ".venv", "venv"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+extend-exclude = ["swarm", "overrides", "override", "venv", ".venv"]
+select = [
+  "E",  # pycodestyle
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "B",  # flake8-bugbear
+  "I",  # isort import order
+  "UP", # pyupgrade
+  "PL", # pylint-like rules
+]
+ignore = [
+  "E203",  # whitespace before ':' (black compatible)
+  "E501",  # line length (let black handle wrapping)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["PLR2004"]

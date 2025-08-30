@@ -13,6 +13,10 @@ class MqttConfig:
     ca_file: Optional[str] = None
     main_uid: Optional[str] = None
     publish_config_throttle_seconds: int = 60
+    # New throttles
+    publish_throttle_seconds: int = 3  # min gap between device publishes
+    system_poll_throttle_seconds: int = 3  # min gap between system info polls
+    log_throttle_seconds: int = 3  # min gap between repeated debug/warn logs
 
 @dataclass
 class DeviceEntry:
@@ -41,6 +45,25 @@ class UserSettings:
         if pcs not in (None, ""):
             try:
                 self.mqtt.publish_config_throttle_seconds = int(pcs)
+            except Exception:
+                pass
+        # Optional throttles
+        pths = getattr(data, "publish_throttle_seconds", None) or os.getenv("PUBLISH_THROTTLE_SEC")
+        if pths not in (None, ""):
+            try:
+                self.mqtt.publish_throttle_seconds = int(pths)
+            except Exception:
+                pass
+        sths = getattr(data, "system_poll_throttle_seconds", None) or os.getenv("SYSTEM_POLL_THROTTLE_SEC")
+        if sths not in (None, ""):
+            try:
+                self.mqtt.system_poll_throttle_seconds = int(sths)
+            except Exception:
+                pass
+        lths = getattr(data, "log_throttle_seconds", None) or os.getenv("LOG_THROTTLE_SEC")
+        if lths not in (None, ""):
+            try:
+                self.mqtt.log_throttle_seconds = int(lths)
             except Exception:
                 pass
         raw_devices: List[dict[str, Any]] = list(getattr(data, "devices", []))

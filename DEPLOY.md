@@ -28,3 +28,12 @@ Notes:
 Troubleshooting:
 - If the container fails to start, check `docker logs -f victron_ble2mqtt` for errors (missing ADVKEY, MQTT auth errors, missing device files).
 - Ensure the host has BlueZ installed for BLE scanning.
+
+Network failover (eth0 -> wlan0):
+- Ensure Wi‑Fi credentials are present in `.env` as WIFI_SSID/WIFI_PASSWORD or saved in NetworkManager.
+- The deploy script prefers Ethernet and falls back to Wi‑Fi automatically via route metrics.
+- Optional watchdog to keep Wi‑Fi up when Ethernet drops:
+   1. Install unit: `sudo install -m 644 systemd/wifi-failover-monitor.service /etc/systemd/system/wifi-failover-monitor@.service`
+   2. Reload: `sudo systemctl daemon-reload`
+   3. Enable: `sudo systemctl enable --now wifi-failover-monitor@<user>.service`
+   4. Logs: `journalctl -u wifi-failover-monitor@<user>.service -f`
