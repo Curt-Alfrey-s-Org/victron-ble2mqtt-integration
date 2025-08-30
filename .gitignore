@@ -6,6 +6,9 @@ swarm/.env
 swarm/*.bak.*
 swarm/input-snapshot_*.txt
 
+# tools reverse proxy auth file (generated locally, do not commit)
+nginx/.htpasswd
+
 # local env / secrets
 .env
 victron-secrets.env
