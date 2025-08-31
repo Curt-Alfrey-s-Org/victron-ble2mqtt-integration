@@ -47,11 +47,6 @@ class GenericDevice:
 	def parse(self, *, raw_data) -> dict:
 		device_data: DeviceData = self.victron_device.parse(raw_data)
 		data_dict = values2dict(device_data)
-		# Apply per-device correction for Battery 1 current readings
-		if hasattr(self.ble_device, 'name') and self.ble_device.name == 'Battery 1':
-			if 'current' in data_dict and isinstance(data_dict['current'], (int, float)):
-				# Battery 1 is off by 2 decimal places (e.g., 987.3A instead of 9.87A)
-				data_dict['current'] = data_dict['current'] / 100
 		return data_dict
 
 class DeviceHandler:

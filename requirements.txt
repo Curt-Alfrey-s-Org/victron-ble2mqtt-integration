@@ -13,3 +13,6 @@ tyro>=0.9
 
 # Local MQTT broker for testing
 hbmqtt
+
+# Dev/test
+pytest>=7
