@@ -1,0 +1,11 @@
+[Unit]
+Description=Disable Wi‑Fi power save on wlan0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '/usr/sbin/iw dev wlan0 set power_save off 2>/dev/null || /sbin/iw dev wlan0 set power_save off 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target

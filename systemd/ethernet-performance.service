@@ -1,0 +1,12 @@
+[Unit]
+Description=Disable Ethernet EEE and tune txqueuelen
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'if command -v ethtool >/dev/null 2>&1; then ethtool --set-eee eth0 eee off 2>/dev/null || true; fi; ip link set dev eth0 txqueuelen 1000 2>/dev/null || true'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

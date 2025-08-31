@@ -1,12 +1,12 @@
-## Docker Compose v2 format (no top-level 'version' field)
 services:
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
     restart: unless-stopped
-    # no host ports exposed; nginx will proxy internally
     networks:
       - tools_net
+    environment:
+      - DOZZLE_BASE=/dozzle
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
@@ -23,9 +23,10 @@ services:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
-    # no host ports exposed; nginx will proxy internally
     networks:
       - tools_net
+    environment:
+      - PUBLIC_URL=/portainer
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
@@ -44,7 +45,7 @@ services:
     container_name: tools_nginx
     restart: unless-stopped
     ports:
-      - "443:443"  # public TLS endpoint
+      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./ssl:/etc/nginx/ssl:ro

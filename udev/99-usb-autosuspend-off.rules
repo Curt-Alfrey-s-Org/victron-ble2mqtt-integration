@@ -1,0 +1,3 @@
+# Disable USB autosuspend for all devices by default
+# Turn on runtime power for any USB device that supports power/control attribute
+ACTION=="add", SUBSYSTEM=="usb", TEST=="power/control", ATTR{power/control}="on"

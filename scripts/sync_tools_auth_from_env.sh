@@ -25,7 +25,8 @@ fi
 mkdir -p nginx
 HASH=$(openssl passwd -apr1 "$USER_PASS")
 printf "%s:%s\n" "$USER_NAME" "$HASH" > nginx/.htpasswd
-chmod 640 nginx/.htpasswd || true
+# Ensure the file is readable by nginx (inside container may not match host uid/gid)
+chmod 644 nginx/.htpasswd || true
 
 echo "Wrote nginx/.htpasswd for user '$USER_NAME' from .env"
 
