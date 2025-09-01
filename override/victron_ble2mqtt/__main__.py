@@ -89,6 +89,22 @@ def main() -> None:
             self._pub_gap = float(getattr(user_settings.mqtt, 'publish_throttle_seconds', 3) or 3)
             self._log_gap = float(getattr(user_settings.mqtt, 'log_throttle_seconds', 3) or 3)
             self._last_warn: dict[str, float] = {}
+            # System info periodic publish interval (seconds)
+            self._sys_poll_gap = float(getattr(user_settings.mqtt, 'system_poll_throttle_seconds', 3) or 3)
+
+        async def periodic_system_info_publish(self) -> None:
+            """Publish Pi4 system info on a fixed interval regardless of BLE traffic.
+
+            This ensures Home Assistant state updates (e.g., CPU, temp, uptime) continue
+            even when Victron BLE devices are out of range or silent.
+            """
+            import asyncio as _asyncio
+            while True:
+                try:
+                    self.victron_mqtt_handler.main_mqtt_device.poll_and_publish(self.mqtt_client)
+                except Exception as e:
+                    logger.warning("System info publish failed: %s", e)
+                await _asyncio.sleep(self._sys_poll_gap)
 
         def _detection_callback(self, device: BLEDevice, advertisement: AdvertisementData):
             # cache latest RSSI by MAC
@@ -126,6 +142,14 @@ def main() -> None:
 
     async def _run():
         scanner = MqttPublisher(keys=keys)
+        # Kick an immediate system-info publish to generate discovery early
+        try:
+            scanner.victron_mqtt_handler.main_mqtt_device.poll_and_publish(scanner.mqtt_client)
+        except Exception:
+            pass
+        # Start periodic system-info publishing in the background
+        asyncio.create_task(scanner.periodic_system_info_publish())
+        # Start BLE scanner (runs until stopped)
         await scanner.start()
 
     loop = asyncio.get_event_loop()

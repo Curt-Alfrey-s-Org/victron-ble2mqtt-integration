@@ -9,7 +9,7 @@ set -euo pipefail
 HA_CONT=${HA_CONT:-homeassistant}
 NEW_HOST=${MQTT_HOST:-127.0.0.1}
 NEW_PORT=${MQTT_PORT:-1883}
-# Optionally set MQTT username/password (if your broker requires auth)
+# Optionally set MQTT username/password (leave empty for anonymous access)
 NEW_USER=${MQTT_USER:-}
 NEW_PASS=${MQTT_PASSWORD:-}
 
@@ -47,11 +47,10 @@ for e in list(data.get("data",{}).get("entries", [])):
             d["port"] = int(${NEW_PORT})
         except Exception:
             d["port"] = 1883
-        # Apply username/password if provided; else leave existing as-is
-        if new_user is not None and new_user != "":
-            d["username"] = new_user
-            # allow empty password if broker uses passwordless user
-            d["password"] = new_pass or ""
+        # Apply username/password if provided; else clear to anonymous
+        if new_user is not None:
+            d["username"] = new_user or None
+            d["password"] = (new_pass or None)
         after = (d.get("broker"), d.get("port"))
         print("mqtt entry:", before, "->", after)
         changed = True

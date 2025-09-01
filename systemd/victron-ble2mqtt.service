@@ -8,10 +8,10 @@ Wants=network-online.target bluetooth.service
 Type=simple
 WorkingDirectory=/home/user1/victron-ble2mqtt-integration
 PermissionsStartOnly=true
-# Ensure Bluetooth stack is sane before starting the runner (runs as root due to PermissionsStartOnly)
-ExecStartPre=/usr/bin/systemctl restart bluetooth
+# Ensure Bluetooth is started; don't force restart to avoid start-limit hits
+ExecStartPre=-/usr/bin/systemctl start bluetooth
 ExecStartPre=/usr/bin/bash -lc 'rfkill unblock bluetooth || true'
-ExecStartPre=/usr/bin/sleep 2
+ExecStartPre=/usr/bin/sleep 1
 ExecStart=/usr/bin/bash /home/user1/victron-ble2mqtt-integration/systemd/victron-runner.sh
 Restart=always
 RestartSec=10

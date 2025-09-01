@@ -1,8 +1,6 @@
 # victron-ble2mqtt-integration
 
-Bridge Victron **BLE** advertisements → **MQTT** with Home Assistant discovery.
-
-This repo currently runs on a Raspberry Pi with BlueZ and publishes entities via [`ha_services`](https://pypi.org/project/ha_services/) into Home Assistant’s MQTT discovery.
+Bridge Victron BLE advertisements → MQTT with Home Assistant discovery. Designed for Raspberry Pi with BlueZ; publishes entities via [`ha_services`](https://pypi.org/project/ha_services/).
 
 ---
 
@@ -13,7 +11,7 @@ This repo currently runs on a Raspberry Pi with BlueZ and publishes entities via
 - ✅ MQTT discovery + states arrive in HA (entities like `battery_voltage`, `charge_state`, `solar_power`, etc.).
 - ✅ Optional: Dozzle is running and can be used to tail container logs.
 
-**Example topics observed**
+See Home Assistant → Settings → Devices & Services → MQTT for discovered entities.
 
 
 
@@ -21,42 +19,46 @@ This repo currently runs on a Raspberry Pi with BlueZ and publishes entities via
 
 ## Requirements
 
-- Raspberry Pi with **BlueZ** (Bluetooth) enabled.
-- Python 3 (system packages already include `bleak`, `victron_ble`, `ha_services` on the target used here).
-- An MQTT broker reachable from the Pi.
+- Raspberry Pi with BlueZ (Bluetooth) enabled
+- Docker Engine + Compose v2 (installed by deploy script if missing)
+
+## System info publishing (Pi4)
+
+- Previously, Pi system metrics (CPU, temp, load, wifi, etc.) were only published when a BLE packet was decoded and forwarded. If no Victron BLE adverts were seen, these sensors appeared to “stall.”
+- Now, a periodic publisher runs inside `override/victron_ble2mqtt/__main__.py`, pushing system metrics at a fixed interval regardless of BLE activity. This makes Pi4 data flow consistently, including right after container start.
+- Tuning: `SYSTEM_POLL_THROTTLE_SEC` (default 3s) in `docker-compose.victron.yml`.
+- Reboot-proof via systemd runner installed by `scripts/deploy.sh`.
 
 > If you run tails/clients in Docker, set `MQTT_HOST` to the broker’s **LAN IP**, not `localhost`.
 
 ---
 
-## Configuration
+## Deploy
 
-Two env files are used:
+Run the unified installer:
 
-- `swarm/ha-discovery.env`
-  - `MQTT_HOST` – broker LAN IP (not 127.0.0.1 inside containers)
-  - `MQTT_PORT` (default 1883)
-  - `MQTT_USER` / `MQTT_PASSWORD`
-  - Optional: `PUBLISH_CONFIG_THROTTLE_SEC` (default 60), `MAIN_UID` (defaults to hostname)
+```bash
+sudo bash scripts/deploy.sh
+```
 
-- `swarm/victron-secrets.env`
-  - `VICTRON_DEVICE_KEYS` – semicolon-separated `MAC=32hex` pairs, e.g.  
-    `D4:EF:FB:B3:D7:0C=<32-hex>;CB:0D:C2:0A:AE:0F=<32-hex>;D7:69:EB:1F:F8:3D=<32-hex>`
-
-Ensure the MACs match your devices and the keys are correct.
+It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, starts Home Assistant, and installs the `victron-ble2mqtt` systemd runner.
+See `DEPLOY.md` for options and troubleshooting.
 
 ---
 
 ## Production deployment & tools
 
-This repository now includes a production-friendly deployment path using Docker Compose and small systemd runners. See `deploy/README.md` for a full walkthrough. Highlights:
+Do not commit secrets (ADVKEY_*, MQTT_PASSWORD, etc.). Provide via `.env` or environment-managed secrets.
 
-- Docker Compose stacks: `docker-compose.victron.yml` (the main BLE->MQTT service) and `docker-compose.tools.yml` (Portainer, Dozzle, Watchtower, nginx reverse proxy).
-- Systemd units: `systemd/victron.service` and a long-running `victron-runner.sh` are included to auto-start and monitor the compose stack on reboot.
-- Security: nginx reverse-proxy (TLS + basic auth) sits in front of Portainer/Dozzle; `nginx/.htpasswd` is used for basic auth — rotate the password and replace the self-signed certs before exposing to untrusted networks.
-- CI/Images: A GitHub Actions workflow builds multi-arch images and can publish to GHCR; use Buildx or the provided workflow to create arm64 images for Raspberry Pi.
 
-Do not commit secrets (ADVKEY_*, MQTT_PASSWORD, etc.) — they should be provided at runtime via `.env` or environment-managed secrets.
+### VS Code RAM usage on Raspberry Pi
+
+If VS Code Server uses too much memory:
+
+- Use the workspace settings in `.vscode/settings.json` (already included) to reduce indexers and watchers.
+- Kill all VS Code Server processes on demand:
+  - `bash scripts/kill_vscode_server.sh`
+- Automatic cleanup runs every 10 minutes and removes stale VS Code Server processes older than 15 minutes: see `scripts/vscode_server_cleanup.sh` and systemd units `vscode-server-cleanup@.service` and `.timer`.
 
 
 ## One-shot debug run
@@ -109,7 +111,7 @@ Home Assistant
 
 Go to Settings → Devices & Services → MQTT.
 
-The device should appear (e.g., VE.Direct SmarT under a device like raspberrypi-d769eb1ff83d).
+The device should appear under your host device.
 
 Entities include: battery_voltage, battery_charging_current, charge_state, solar_power, charging_power, load, load_power, yield_today, and an rssi sensor.
 
@@ -127,15 +129,9 @@ Docker tails show “Lookup error”
 
 MQTT_HOST was a placeholder/comment. Set it to the broker’s LAN IP.
 
-Local note (temporary override)
-
-We added this import to keep detection working with current libs:
-
-# override/victron_ble2mqtt/victron_ble_utils.py
-from victron_ble.devices import detect_device_type
-
-
-This can be revisited if the upstream dependency changes.
+Notes
+- The deploy script can repair a malformed `/etc/docker/daemon.json` and restart Docker safely.
+- The systemd unit starts bluetooth safely before running the container (no forced restart).
 
 License
 

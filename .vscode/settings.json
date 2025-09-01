@@ -1,0 +1,36 @@
+{
+  "typescript.tsserver.maxTsServerMemory": 768,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.tsserver.useSeparateSyntaxServer": false,
+  "javascript.validate.enable": false,
+  "typescript.validate.enable": false,
+  "python.analysis.indexing": false,
+  "python.analysis.memory.keepLibraryAst": false,
+  "python.analysis.autoImportCompletions": false,
+  "python.analysis.typeCheckingMode": "off",
+  "telemetry.telemetryLevel": "off",
+  "editor.codeActionsOnSave": {},
+  "editor.largeFileOptimizations": true,
+  "editor.minimap.enabled": false,
+  "workbench.editor.enablePreview": true,
+  "workbench.tree.indent": 10,
+  "workbench.startupEditor": "none",
+  "workbench.enableExperiments": false,
+  "remote.autoForwardPorts": false,
+  "git.enabled": false,
+  "git.autofetch": false,
+  "git.decorations.enabled": false,
+  "scm.diffDecorations": "none",
+  "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/node_modules/**": true,
+    "**/.venv/**": true,
+    "**/__pycache__/**": true
+  },
+  "search.exclude": {
+    "**/.git": true,
+    "**/node_modules": true,
+    "**/.venv": true,
+    "**/__pycache__": true
+  }
+}

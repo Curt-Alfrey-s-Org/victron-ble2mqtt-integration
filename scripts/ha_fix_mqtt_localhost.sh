@@ -21,14 +21,12 @@ cfg_dir = Path('/config')
 conf = cfg_dir / 'configuration.yaml'
 mq = cfg_dir / 'mqtt.yaml'
 
-# Write mqtt.yaml deterministically
+# Write mqtt.yaml deterministically (anonymous access)
 mqtt_yaml = (
-    'broker: 127.0.0.1\n'
-    'port: 1883\n'
-    'username: user1\n'
-    'password: 123abc123\n'
-    'discovery: true\n'
-    'keepalive: 60\n'
+  'broker: 127.0.0.1\n'
+  'port: 1883\n'
+  'discovery: true\n'
+  'keepalive: 60\n'
 )
 mq.write_text(mqtt_yaml, encoding='utf-8')
 

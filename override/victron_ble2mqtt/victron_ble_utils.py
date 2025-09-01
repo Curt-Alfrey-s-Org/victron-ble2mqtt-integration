@@ -90,19 +90,13 @@ class DeviceHandler:
 		address = device.address.upper()
 		if address in self.devices:
 			return self.devices[address]
-		logger.info('Device %s not pre-registered, attempting detection', address)
-		if DeviceClass := detect_device_type(raw_data):
-			for device_info in self.devices.values():
-				try:
-					victron_device = DeviceClass(device_info.victron_device.advertisement_key)
-					victron_device.parse(raw_data)
-					generic_device = GenericDevice(victron_device, ble_device=device)
-					self.devices[address] = generic_device
-					logger.info('Registered new device: %s', device.name)
-					return generic_device
-				except (AdvertisementKeyMismatchError, ValueError) as err:
-					logger.warning('Error parsing data: %s', err)
-		logger.error('No valid device type for %s', address)
+		# Safety: Do NOT attempt to reuse other devices' advertisement keys.
+		# If this MAC isn't pre-registered (likely due to missing/invalid ADVKEY_*),
+		# refuse auto-registration to avoid decoding with the wrong key which yields bogus values.
+		logger.error(
+			"Device %s not pre-registered. Provide a valid 32-hex ADVKEY for this device (by name or MAC) and restart.",
+			address,
+		)
 		return None
 
 

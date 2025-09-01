@@ -37,6 +37,24 @@ class BaseHandler:
         self.rssi_sensor = None
         self.sensors = {}
 
+    @staticmethod
+    def _apply_precision(sensor: Sensor | None, value):
+        """Round numeric values based on sensor.suggested_display_precision, if set.
+        Preserves non-numeric values.
+        """
+        try:
+            if sensor is None:
+                return value
+            prec = getattr(sensor, 'suggested_display_precision', None)
+            if isinstance(value, (int, float)) and isinstance(prec, int):
+                if prec == 0:
+                    # Use int for whole numbers
+                    return int(round(float(value), 0))
+                return round(float(value), prec)
+        except Exception:
+            pass
+        return value
+
     def setup(self, *, data_dict):
         mac_address = self.ble_device.address
         uid = mac_address.lower().replace(':', '')
@@ -112,7 +130,7 @@ class BaseHandler:
                 continue
 
             if sensor := self.sensors.get(key):
-                sensor.set_state(value)
+                sensor.set_state(self._apply_precision(sensor, value))
                 sensor.publish(self.mqtt_client)
             else:
                 pass # logger.warning(f'No sensor for key: {key}')
@@ -166,6 +184,27 @@ class BatteryMonitorHandler(BaseHandler):
     #     'voltage': 26.22,
     #     'rssi': -70,
     # }
+
+    def __init__(
+        self,
+        *,
+        ble_device,
+        main_mqtt_device,
+        victron_device,
+        mqtt_client,
+        user_settings,
+    ):
+        # Ensure optional sensors always exist to avoid AttributeError if aux_mode toggles
+        super().__init__(
+            ble_device=ble_device,
+            main_mqtt_device=main_mqtt_device,
+            victron_device=victron_device,
+            mqtt_client=mqtt_client,
+            user_settings=user_settings,
+        )
+        self.power_sensor = None
+        self.midpoint_shift = None
+        self.midpoint_shift_percent = None
 
     def setup(self, *, data_dict):
         super().setup(data_dict=data_dict)
@@ -260,21 +299,95 @@ class BatteryMonitorHandler(BaseHandler):
                 suggested_display_precision=2,
             )
 
+        # Apply optional per-device precision overrides from user settings
+        try:
+            mac_l = (self.ble_device.address or '').lower()
+            entry = None
+            for e in getattr(self.user_settings, 'devices', []) or []:
+                if getattr(e, 'mac', '').lower() == mac_l:
+                    entry = e
+                    break
+            overrides = getattr(entry, 'precision', None) if entry else None
+            if isinstance(overrides, dict):
+                # Map of our internal sensor keys to Sensor objects we created above
+                key_to_sensor = {
+                    'aux_mode': self.sensors.get('aux_mode'),
+                    'consumed_ah': self.sensors.get('consumed_ah'),
+                    'current': self.sensors.get('current'),
+                    'midpoint_voltage': self.sensors.get('midpoint_voltage'),
+                    'remaining_mins': self.sensors.get('remaining_mins'),
+                    'soc': self.sensors.get('soc'),
+                    'voltage': self.sensors.get('voltage'),
+                    'power': self.power_sensor,
+                }
+                # Include optional midpoint sensors if present
+                if self.midpoint_shift:
+                    key_to_sensor['midpoint_shift'] = self.midpoint_shift
+                if self.midpoint_shift_percent:
+                    key_to_sensor['midpoint_shift_percent'] = self.midpoint_shift_percent
+                for k, v in overrides.items():
+                    try:
+                        s = key_to_sensor.get(k)
+                        if s is not None and isinstance(v, int):
+                            s.suggested_display_precision = v
+                    except Exception:
+                        pass
+        except Exception:
+            # Non-fatal if overrides fail
+            pass
+
     def publish(self, *, data_dict: dict, rssi: int | None) -> None:
         super().publish(data_dict=data_dict, rssi=rssi)
 
         # Extra sensors
 
-        self.power_sensor.set_state(data_dict['voltage'] * data_dict['current'])
+        self.power_sensor.set_state(
+            self._apply_precision(self.power_sensor, data_dict['voltage'] * data_dict['current'])
+        )
         self.power_sensor.publish(self.mqtt_client)
 
         if data_dict.get('aux_mode', None) == 'midpoint_voltage':
+            # Lazily create midpoint sensors in case aux_mode changed after initial setup
+            if not hasattr(self, 'midpoint_shift'):
+                self.midpoint_shift = Sensor(
+                    device=self.device,
+                    name='Midpoint Shift',
+                    uid='midpoint_shift',
+                    device_class='voltage',
+                    state_class='measurement',
+                    unit_of_measurement='V',
+                    suggested_display_precision=2,
+                )
+                self.midpoint_shift_percent = Sensor(
+                    device=self.device,
+                    name='Midpoint Shift',
+                    uid='midpoint_shift_percent',
+                    state_class='measurement',
+                    unit_of_measurement='%',
+                    suggested_display_precision=2,
+                )
+                # Apply precision overrides if configured for this device
+                try:
+                    mac_l = (self.ble_device.address or '').lower()
+                    entry = None
+                    for e in getattr(self.user_settings, 'devices', []) or []:
+                        if getattr(e, 'mac', '').lower() == mac_l:
+                            entry = e
+                            break
+                    overrides = getattr(entry, 'precision', None) if entry else None
+                    if isinstance(overrides, dict):
+                        if 'midpoint_shift' in overrides and isinstance(overrides['midpoint_shift'], int):
+                            self.midpoint_shift.suggested_display_precision = overrides['midpoint_shift']
+                        if 'midpoint_shift_percent' in overrides and isinstance(overrides['midpoint_shift_percent'], int):
+                            self.midpoint_shift_percent.suggested_display_precision = overrides['midpoint_shift_percent']
+                except Exception:
+                    pass
             midpoint_shift = calc_midpoint_shift(data_dict['voltage'], data_dict['midpoint_voltage'])
-            self.midpoint_shift.set_state(midpoint_shift)
+            self.midpoint_shift.set_state(self._apply_precision(self.midpoint_shift, midpoint_shift))
             self.midpoint_shift.publish(self.mqtt_client)
 
             midpoint_shift_percent = calc_midpoint_shift_percent(data_dict['voltage'], data_dict['midpoint_voltage'])
-            self.midpoint_shift_percent.set_state(midpoint_shift_percent)
+            self.midpoint_shift_percent.set_state(self._apply_precision(self.midpoint_shift_percent, midpoint_shift_percent))
             self.midpoint_shift_percent.publish(self.mqtt_client)
 
 
@@ -373,10 +486,20 @@ class SolarChargerHandler(BaseHandler):
 
         # Extra sensors
 
-        self.charging_power.set_state(data_dict['battery_voltage'] * data_dict['battery_charging_current'])
+        self.charging_power.set_state(
+            self._apply_precision(
+                self.charging_power,
+                data_dict['battery_voltage'] * data_dict['battery_charging_current'],
+            )
+        )
         self.charging_power.publish(self.mqtt_client)
 
-        self.load_power.set_state(data_dict['battery_voltage'] * data_dict['external_device_load'])
+        self.load_power.set_state(
+            self._apply_precision(
+                self.load_power,
+                data_dict['battery_voltage'] * data_dict['external_device_load'],
+            )
+        )
         self.load_power.publish(self.mqtt_client)
 
 

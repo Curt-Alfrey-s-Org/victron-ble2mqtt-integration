@@ -1,0 +1,11 @@
+[Unit]
+Description=Run VS Code Server cleanup periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+AccuracySec=1min
+Unit=vscode-server-cleanup@%i.service
+
+[Install]
+WantedBy=timers.target

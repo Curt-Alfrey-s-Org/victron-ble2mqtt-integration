@@ -13,8 +13,10 @@ AUTH_ARGS=()
 [[ -n "$PASS" ]] && AUTH_ARGS+=( -P "$PASS" )
 
 prefixes=(
-  'homeassistant/sensor/raspberrypi/#'
-  'homeassistant/sensor/raspberrypi-d769eb1ff83d/#'
+  # Main device and host sensors
+  'homeassistant/sensor/1000/#'
+  # Per-device (SmartShunt, SolarCharger) topics use the 1000-* prefix
+  'homeassistant/sensor/1000-*/#'
 )
 
 echo "Collecting retained discovery topics to purge..."

@@ -1,0 +1,13 @@
+[Unit]
+Description=Clean up stale VS Code Server processes
+Wants=vscode-server-cleanup.timer
+
+[Service]
+Type=oneshot
+User=%i
+ExecStart=/usr/bin/bash -lc '/home/%i/victron-ble2mqtt-integration/scripts/vscode_server_cleanup.sh'
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

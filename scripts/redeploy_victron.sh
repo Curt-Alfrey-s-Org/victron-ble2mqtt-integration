@@ -31,11 +31,13 @@ docker rm -f victron_ble2mqtt >/dev/null 2>&1 || true
 
 # Run fresh container
 docker run -d --name victron_ble2mqtt --restart unless-stopped \
+  --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \
   --network host --cap-add NET_ADMIN --privileged \
   --env-file ./victron-secrets.env \
   -e MQTT_HOST=localhost -e MQTT_PORT=1883 \
   -e MQTT_USER="${MQTT_USER:-}" -e MQTT_PASSWORD="${MQTT_PASSWORD:-}" \
   -e MAIN_UID="${MAIN_UID:-}" -e PUBLISH_CONFIG_THROTTLE_SEC="${PUBLISH_CONFIG_THROTTLE_SEC:-60}" \
+  -e SYSTEM_POLL_THROTTLE_SEC="${SYSTEM_POLL_THROTTLE_SEC:-3}" \
   -e LOG_LEVEL="${LOG_LEVEL:-INFO}" \
   -e ADVKEY_BATTERY_1="${ADVKEY_BATTERY_1_SAN}" \
   -e ADVKEY_BATTERY_2="${ADVKEY_BATTERY_2_SAN}" \

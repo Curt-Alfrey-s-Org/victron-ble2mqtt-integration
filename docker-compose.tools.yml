@@ -49,7 +49,6 @@ services:
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./ssl:/etc/nginx/ssl:ro
-      - ./nginx/.htpasswd:/etc/nginx/.htpasswd:ro
     depends_on:
       - dozzle
       - portainer

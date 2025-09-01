@@ -53,7 +53,7 @@ except Exception:
 
 mqtt_host = os.getenv("MQTT_HOST", "localhost")
 mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
-mqtt_user = os.getenv("MQTT_USER", "victron")
+mqtt_user = os.getenv("MQTT_USER", "")
 topic_root = os.getenv("TOPIC_ROOT", "victron")
 outdir = pathlib.Path("/work/victron_ble2mqtt")
 outdir.mkdir(parents=True, exist_ok=True)

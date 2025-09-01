@@ -22,7 +22,7 @@ import re
 # MQTT Configuration (secrets via env)
 mqtt_host = os.getenv("MQTT_HOST", "localhost")
 mqtt_port = int(os.getenv("MQTT_PORT", "1883"))
-mqtt_username = os.getenv("MQTT_USER", "victron")
+mqtt_username = os.getenv("MQTT_USER", "")
 mqtt_password = os.getenv("MQTT_PASSWORD", "")  # <- NO hardcoded secret
 
 # List of Victron BLE devices to monitor (no secrets here)
@@ -31,6 +31,22 @@ devices = [
         "mac": "d4:ef:fb:b3:d7:0c",  # Replace with actual MAC
         "type": "SmartShunt",
         "name": "Battery 1",
+        # Optional per-device display precision overrides
+        # Example: make Battery 1 show clean 2 decimals for V, 1 for A, 1 for % SOC, 2 for W
+        # Per-sensor display precision overrides
+        # Valid keys for Battery monitors: voltage, current, power, soc, consumed_ah,
+        # midpoint_voltage, midpoint_shift, midpoint_shift_percent, remaining_mins
+        "precision": {
+            "voltage": 2,
+            "current": 3,
+            "power": 2,
+            "soc": 1,
+            "consumed_ah": 1,
+            "midpoint_voltage": 2,
+            "midpoint_shift": 2,
+            "midpoint_shift_percent": 2,
+            "remaining_mins": 0
+        },
         # "advertisement_key" will be injected from env below
     },
     {
