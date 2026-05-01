@@ -17,6 +17,14 @@ What the installer does (idempotent):
 
 Steps (copy/paste):
 
+### Fresh Raspberry Pi OS (optional one-shot)
+
+As a **non-root** user with `sudo` (updates OS, installs `git`, clones or pulls this repo, seeds optional `swarm/*.env`, then runs deploy):
+
+```bash
+bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
+```
+
 1) Clone the repo and ensure `.env` is present
 
    git clone https://github.com/curtalfrey/victron-ble2mqtt-integration.git
