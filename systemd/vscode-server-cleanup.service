@@ -4,8 +4,9 @@ Wants=vscode-server-cleanup.timer
 
 [Service]
 Type=oneshot
-User=%i
-ExecStart=/usr/bin/bash -lc '/home/%i/victron-ble2mqtt-integration/scripts/vscode_server_cleanup.sh'
+User=user1
+Group=user1
+ExecStart=/usr/local/bin/vscode-server-cleanup.sh
 Nice=10
 IOSchedulingClass=idle
 

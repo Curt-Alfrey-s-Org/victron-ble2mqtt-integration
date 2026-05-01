@@ -276,7 +276,7 @@ sudo systemctl enable --now victron-ble2mqtt.service
 if [[ "${ENABLE_TOOLS}" == "1" ]]; then
   if [[ -f "$ROOT_DIR/systemd/victron-tools.service" ]]; then
     echo "[deploy] Enabling victron-tools.service ..."
-    sudo install -m 0644 -D "$ROOT_DIR/systemd/victron-tools.service" /etc/systemd/system/victron-tools.service
+    render_unit_with_user_path "$ROOT_DIR/systemd/victron-tools.service" /etc/systemd/system/victron-tools.service
     sudo systemctl daemon-reload
     sudo systemctl enable --now victron-tools.service || true
   fi
@@ -309,7 +309,7 @@ if [[ "${ENABLE_VSCODE_CLEANUP}" == "1" ]]; then
   if [[ -f "$ROOT_DIR/systemd/vscode-server-cleanup.service" && -f "$ROOT_DIR/systemd/vscode-server-cleanup.timer" && -f "$ROOT_DIR/scripts/vscode_server_cleanup.sh" ]]; then
     echo "[deploy] Installing VS Code cleanup timer ..."
     sudo install -m 0755 -D "$ROOT_DIR/scripts/vscode_server_cleanup.sh" /usr/local/bin/vscode-server-cleanup.sh
-    sudo install -m 0644 -D "$ROOT_DIR/systemd/vscode-server-cleanup.service" /etc/systemd/system/vscode-server-cleanup.service
+    render_unit_with_user_path "$ROOT_DIR/systemd/vscode-server-cleanup.service" /etc/systemd/system/vscode-server-cleanup.service
     sudo install -m 0644 -D "$ROOT_DIR/systemd/vscode-server-cleanup.timer" /etc/systemd/system/vscode-server-cleanup.timer
     sudo systemctl daemon-reload
     sudo systemctl enable --now vscode-server-cleanup.timer || true
@@ -364,16 +364,19 @@ fi
 # MQTT broker watchdog (minute) – optional
 if [[ "${ENABLE_MQTT_WATCHDOG}" == "1" ]]; then
   echo "[deploy] Installing MQTT watchdog timer ..."
-  sudo bash -lc "cat > /usr/local/bin/mqtt-watchdog.sh <<'SH'
+  # Do not nest this heredoc inside sudo bash -lc "..." — deploy.sh has set -u and
+  # would expand "$HOST"/"$PORT" from the outer shell before the heredoc is written.
+  sudo tee /usr/local/bin/mqtt-watchdog.sh >/dev/null <<'WDOG'
 #!/usr/bin/env bash
 set -euo pipefail
-HOST=127.0.0.1; PORT=${MQTT_PORT:-1883}
-if mosquitto_sub -h "$HOST" -p "$PORT" -t '$SYS/broker/uptime' -C 1 -W 5 >/dev/null 2>&1; then
+HOST=127.0.0.1
+PORT=${MQTT_PORT:-1883}
+if mosquitto_sub -h "${HOST}" -p "${PORT}" -t '$SYS/broker/uptime' -C 1 -W 5 >/dev/null 2>&1; then
   exit 0
 fi
 logger -t mqtt-watchdog 'Mosquitto unresponsive; restarting'
 systemctl restart mosquitto || true
-SH"
+WDOG
   sudo chmod +x /usr/local/bin/mqtt-watchdog.sh
   sudo bash -lc "cat > /etc/systemd/system/mqtt-watchdog.service <<UNIT
 [Unit]
