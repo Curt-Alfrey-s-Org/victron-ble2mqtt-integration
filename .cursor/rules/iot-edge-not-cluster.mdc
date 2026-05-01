@@ -1,0 +1,10 @@
+---
+description: Victron Pi is home-auto edge, not Petals/GPU fleet
+globs: "**/*"
+---
+
+# victron-ble2mqtt-integration — scope
+
+- This repo targets a **Raspberry Pi** home stack (BLE, MQTT, Home Assistant). It is **not** a Petals worker or CPU fleet node by default.
+- For **TrueNAS hub**, **Prometheus**, and **multi-repo Cursor** workflow, read `docs/ALFA_CLUSTER_INTEGRATION.md` and root `AGENTS.md`.
+- Do not add Petals worker compose, CUDA wheel sync, or cluster deploy scripts here unless the operator explicitly requests that integration.

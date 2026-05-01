@@ -1,84 +1,65 @@
-# Integration with TrueNAS hub, alfa-ai, and monitoring
+# Same LAN as Alfa — hub, alfa-ai, monitoring (no Petals on the Pi)
 
-This repo runs **edge IoT** workloads (Home Assistant + Victron BLE → MQTT) on a Raspberry Pi. It is **not** a Petals GPU worker, but it should follow the same **LAN-first artifact** and **observability** conventions as [alfa-ai](https://github.com/Curt-Alfrey-s-Org/alfa-ai) and [monitoring](https://github.com/Curt-Alfrey-s-Org/monitoring).
-
----
-
-## 1. TrueNAS hub (`.111`)
-
-Canonical policy lives in alfa-ai:
-
-- [HUB_ARTIFACTS.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HUB_ARTIFACTS.md) — **≥ 200 MB** binaries are seeded on the hub once; LAN clients read NFS `…/mnt/cluster/…` or SMB `\\GAMERBOYZ\…`.
-- [CLUSTER_SHARED_STORAGE.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/CLUSTER_SHARED_STORAGE.md) — dataset layout under `/mnt/HDDs/Alfa-AI/`.
-
-### What applies on the Pi
-
-| Artifact | Typical size | On Pi |
-|----------|----------------|--------|
-| `python:3.11-bookworm` base layers | > 200 MB | Prefer **`docker pull` via registry mirror** on `.111` (`http://192.168.0.111:5000` when configured), or `docker load` a tarball from **`/mnt/cluster/docker/images/`** (or SMB `\\GAMERBOYZ\docker-images\`) after a one-time save on the hub. |
-| `ghcr.io/home-assistant/home-assistant:stable` | Large | Same: mirror or **hub tarball** + `docker load`; avoid repeated multi-GB pulls from the public internet once the image exists on the LAN. |
-| Victron app `pip` deps (`requirements.lock`) | Usually < 200 MB | May still use hub **wheels** if you standardize on offline `pip install --find-links` in a future Dockerfile revision. |
-
-### NFS (optional)
-
-If the Pi mounts cluster storage (same pattern as Linux workers in alfa-ai):
-
-```bash
-# Example only — use your NAS export and fstab policy.
-sudo mkdir -p /mnt/cluster
-sudo mount -t nfs 192.168.0.111:/mnt/HDDs/alfa-ai-cluster /mnt/cluster
-```
-
-Then stage image tarballs or use paths documented in `HUB_ARTIFACTS.md` for `docker load`.
-
-### Docker Engine → mirror
-
-Point the Pi’s Docker daemon at the pull-through registry on TrueNAS when that mirror is deployed (see alfa-ai / TrueNAS docs). After that, `docker compose` / `docker pull` on the Pi use LAN bandwidth instead of docker.io for cached layers.
+This repo runs on a **Raspberry Pi** (or similar) as a **home / Victron / MQTT / Home Assistant** edge. It is **not** part of the **Petals** distributed GPU cluster or the **CPU worker fleet** unless you explicitly choose to repurpose that host.
 
 ---
 
-## 2. alfa-ai (organization + inventory)
+## alfa-ai — see, analyze, and edit this repo in Cursor
 
-- **Repo:** [Curt-Alfrey-s-Org/alfa-ai](https://github.com/Curt-Alfrey-s-Org/alfa-ai) — distributed AI stack, hub scripts, and **NODE_INVENTORY**.
-- **This Pi** should appear in [docs/NODE_INVENTORY.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/NODE_INVENTORY.md) once you assign a **static LAN IP** (summary table: *Raspberry Pi 4 — Victron / HA edge*).
-- **Contributing:** develop Victron/HA changes here; keep **secrets** (MQTT passwords, `ADVKEY_*`) out of git — use `.env` / `victron-secrets.env` as today.
+On the development host (e.g. **web-sites** / `.105`), keep clones as **siblings** so one Cursor workspace can index all of them:
 
-There is no runtime coupling between Petals/LiteLLM and this stack; integration is **operational** (artifacts, docs, monitoring).
+| Repo | Typical path |
+|------|----------------|
+| **alfa-ai** | `/home/ansible/alfa-ai` |
+| **victron-ble2mqtt-integration** | `/home/ansible/victron-ble2mqtt-integration` |
+| **monitoring** | `/home/ansible/monitoring` |
 
----
+**Cursor:** **File → Add Folder to Workspace…** and add the two other folders (or open a multi-root `.code-workspace` that lists all three). Agents and search then apply across repos without merging git histories.
 
-## 3. monitoring (Prometheus on `.105`)
+**Doc-first for alfa-ai:** When a change touches **cluster storage, hub policy, or worker deploy**, read the relevant files under `alfa-ai/docs/` (e.g. `HUB_ARTIFACTS.md`, `CLUSTER_SHARED_STORAGE.md`, `NODE_INVENTORY.md`) before editing **this** repo’s deploy scripts so paths and policy stay consistent.
 
-Central stack: [Curt-Alfrey-s-Org/monitoring](https://github.com/Curt-Alfrey-s-Org/monitoring) — Prometheus **9092**, Grafana **3000** on `192.168.0.105`.
-
-### Host metrics on the Pi
-
-1. Clone the monitoring repo on the Pi (or copy the folder from a workstation).
-2. Run the edge helper (same pattern as `hosts/192.168.0.248`):
-
-   ```bash
-   cd monitoring/hosts/pi4-victron
-   chmod +x run.sh setup-linux-metrics.sh
-   ./run.sh
-   sudo ./setup-linux-metrics.sh
-   ```
-
-3. On **192.168.0.105**, edit `prometheus/prometheus.yml`: under `job_name: node-remote`, add a target **`YOUR_PI_IP:9100`** with labels `instance: pi4-victron`, `host_role: iot-edge` (see commented template in that file).
-4. Reload Prometheus: `curl -X POST http://127.0.0.1:9092/-/reload` (from `.105`, or via Docker).
-
-### Home Assistant / MQTT
-
-- HA UI and MQTT are **application** concerns; Prometheus does not scrape them by default. Optional follow-ups: blackbox probe to `http://PI_IP:8123/`, or an MQTT exporter if you add one cluster-wide.
-
-### Firewall
-
-Allow **TCP 9100** from `192.168.0.105` to the Pi if you use host firewall rules (`ufw` example is in `setup-linux-metrics.sh` output on other hosts).
+Pointer from alfa-ai back to this repo: `alfa-ai/docs/RELATED_VICTRON_HOMEAUTO.md`.
 
 ---
 
-## Quick checklist
+## TrueNAS hub (.111)
 
-- [ ] Static DHCP / fixed IP for the Pi; document it in alfa-ai `NODE_INVENTORY.md`.
-- [ ] Large images (Python base, HA) via **hub or mirror**, not repeated cold pulls from the internet.
-- [ ] `node_exporter` on Pi + **Prometheus** `node-remote` target on `.105`.
-- [ ] (Optional) NFS `/mnt/cluster` on Pi for tarballs and backups.
+Alfa’s **canonical hub** policy and paths are documented in:
+
+- `alfa-ai` repo: [`docs/HUB_ARTIFACTS.md`](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HUB_ARTIFACTS.md)
+- Shared pattern reference (on the dev server): `/home/ansible/docs/DOCKER_BUILD_PATTERNS.md`
+
+**victron-ble2mqtt-integration** builds a **small** app image (`python:3.11-bookworm` + `pip` from `requirements.lock`). Routine `docker build` / `scripts/deploy.sh` on the Pi is normal.
+
+Use the hub when you need **air-gapped or no-public-internet** builds on the LAN:
+
+1. On **TrueNAS `.111`**, seed once: `docker.io/library/python:3.11-bookworm`, `ghcr.io/home-assistant/home-assistant:stable`, and your tagged `victron_ble2mqtt:local` tarball under the hub’s **docker-images** layout (see `HUB_ARTIFACTS.md`).
+2. On the **Pi**, `docker load` from NFS/SMB or pull from your **private registry** on `.111` instead of `docker pull` from the public internet.
+
+Do **not** treat the Pi as a worker that should `pip install` multi‑GB CUDA stacks from the hub; that is unrelated to this stack.
+
+---
+
+## monitoring (Prometheus on `.105`)
+
+Central stack: **monitoring** repo on **192.168.0.105** (see `monitoring/README.md`).
+
+**On the Pi:**
+
+1. Clone **monitoring** (or copy the host folder from a machine that already has it).
+2. Run **`hosts/pi4-victron/run.sh`** then **`sudo ./setup-linux-metrics.sh`** (installs `node_exporter` on **:9100** and documents firewall).
+3. On **.105**, edit **`monitoring/prometheus/prometheus.yml`**: uncomment the **`node-remote`** target for the Pi and set the real LAN IP; optionally add the Pi to **`blackbox-icmp`** and add an HTTP probe for Home Assistant (`http://<pi-ip>:8123/`) under **`blackbox-http-lan`** or a small dedicated job.
+4. Reload Prometheus: `curl -X POST http://127.0.0.1:9092/-/reload`
+
+Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
+
+---
+
+## Summary
+
+| Concern | Where it lives |
+|--------|----------------|
+| Cursor / agents across repos | Multi-root: alfa-ai + victron + monitoring |
+| Hub / large artifacts | `alfa-ai/docs/HUB_ARTIFACTS.md` |
+| Pi metrics in Grafana | `monitoring` + `hosts/pi4-victron/` |
+| **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |
