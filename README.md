@@ -44,6 +44,8 @@ sudo bash scripts/deploy.sh
 It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, starts Home Assistant, and installs the `victron-ble2mqtt` systemd runner.
 See `DEPLOY.md` for options and troubleshooting.
 
+**Same LAN as the Alfa cluster?** See [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) for TrueNAS hub usage, cross-links to **alfa-ai**, and **monitoring** (Prometheus / `node_exporter` on the Pi).
+
 ---
 
 ## Production deployment & tools
