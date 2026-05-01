@@ -1,0 +1,19 @@
+# Template for repo-root `.env` (secrets — never commit `.env`).
+# Create on the Pi:
+#   cp dotenv.sample .env && chmod 600 .env && nano .env
+#
+# deploy.sh also creates or appends MQTT_* lines if `.env` is missing or has no MQTT_USER=.
+
+# --- MQTT (local Mosquitto + Home Assistant “MQTT” integration + victron container) ---
+MQTT_HOST=127.0.0.1
+MQTT_PORT=1883
+MQTT_USER=
+MQTT_PASSWORD=
+
+# --- Optional: Wi‑Fi (often filled by scripts/setup_wifi_env.sh during deploy) ---
+# WIFI_SSID=
+# WIFI_PASSWORD=
+
+# --- Optional: Dozzle / tools basic auth (scripts/sync_tools_auth_from_env.sh) ---
+# DOZZLE_USERNAME=admin
+# DOZZLE_PASSWORD=
