@@ -48,6 +48,8 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    docker ps --filter name=victron_ble2mqtt
    docker logs -f victron_ble2mqtt
 
+   If `docker ps` as your normal user says **permission denied**, deploy already added you to the **docker** group — **log out and back in** (or `newgrp docker`) so the socket is usable interactively. The `victron-ble2mqtt.service` unit includes **SupplementaryGroups=docker** so the systemd runner can call Docker without sudo.
+
 Notes:
 - Uses host networking for Bluetooth and MQTT (see `docker-compose.victron.yml`).
 - If you prefer prebuilt images, push to GHCR and adjust compose to pull.

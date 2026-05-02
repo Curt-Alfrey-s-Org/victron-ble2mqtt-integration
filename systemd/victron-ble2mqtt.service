@@ -18,6 +18,9 @@ RestartSec=10
 TimeoutStartSec=0
 User=user1
 Group=user1
+# systemd does not add all of the user's supplementary groups unless listed here;
+# docker.sock is root:docker — required for redeploy_victron.sh without sudo.
+SupplementaryGroups=docker
 Environment=HOME=/home/user1
 
 [Install]

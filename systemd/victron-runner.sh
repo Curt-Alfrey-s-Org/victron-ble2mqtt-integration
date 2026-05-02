@@ -4,7 +4,9 @@
 # and monitor its health. Avoids docker compose dependency.
 set -euo pipefail
 
-WORKDIR="/home/user1/victron-ble2mqtt-integration"
+# Repo root (this file lives in systemd/ — never hardcode /home/user1; deploy only templates the .service).
+_SCRIPT="${BASH_SOURCE[0]:-$0}"
+WORKDIR="$(cd "$(dirname "$_SCRIPT")/.." && pwd)"
 MAIN_SERVICE=victron_ble2mqtt
 
 cd "$WORKDIR"
