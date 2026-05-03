@@ -527,7 +527,10 @@ echo "[deploy] Container status:"
 docker ps --format '{{.Names}}\t{{.Status}}' | egrep 'victron|homeassistant' || true
 
 echo "[deploy] victron_ble2mqtt env (MQTT_* & ADVKEY_*):"
-docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null | egrep '^(MQTT_|ADVKEY_)' || true
+# Config.Env may list the same key twice (--env-file placeholders + -e from redeploy).
+# Last assignment wins at runtime; dedupe so this summary matches what the process sees.
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null \
+  | egrep '^(MQTT_|ADVKEY_)' | tac | awk -F= '!seen[$1]++' | tac || true
 
 echo "[deploy] Tail victron_ble2mqtt logs: docker logs -f victron_ble2mqtt"
 echo "[deploy] Done."
