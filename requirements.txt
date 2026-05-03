@@ -10,6 +10,8 @@ ha-services>=0.6
 # Utilities used by your modules
 rich>=13.0
 tyro>=0.9
+# ha-services imports snetio from psutil._common; psutil 7.2+ moved those names (breaks container start).
+psutil>=7.0,<7.2
 
 # Local MQTT broker for testing
 hbmqtt
