@@ -68,6 +68,7 @@ Troubleshooting quick wins:
 - Docker won’t start after running the installer: check `/etc/docker/daemon.json`. The installer backs up invalid files and writes valid JSON, then restarts Docker.
 - `victron-ble2mqtt.service` fails with bluetooth errors: the unit uses `ExecStartPre=-/usr/bin/systemctl start bluetooth` (no hard restart). Verify `bluetoothctl show` reports `Powered: yes`.
 - No HA entities after discovery: ensure the Victron app is closed (it can stop adverts), and verify ADVKEY_* values are correct.
+- USB BLE dongle: add `BLE_ADAPTER=hci1` (or whatever `bluetoothctl list` shows) to `.env`, then `sudo bash scripts/redeploy_victron.sh` — the bridge defaults to BlueZ’s default adapter (`hci0`) unless overridden.
 
 Network failover (eth0 -> wlan0):
 - Ensure Wi‑Fi credentials are present in `.env` as WIFI_SSID/WIFI_PASSWORD or saved in NetworkManager.

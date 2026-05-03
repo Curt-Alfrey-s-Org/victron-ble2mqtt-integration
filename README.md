@@ -94,8 +94,9 @@ sudo btmgmt -i hci0 power on
 sudo timeout 25s btmgmt -i hci0 find -l \
  | egrep 'D4:EF:FB:B3:D7:0C|CB:0D:C2:0A:AE:0F|D7:69:EB:1F:F8:3D' || echo 'NO MATCHES'
 
+**USB BLE dongle (common fix when the Pi’s built-in radio is weak or busy):** list adapters with `bluetoothctl list`, then put the dongle’s interface in `.env` (e.g. `BLE_ADAPTER=hci1`). Re-run `scripts/redeploy_victron.sh` or `deploy.sh` so the container picks it up; startup logs include `BLE scanner using adapter hci1`. Scan with the same index: `sudo btmgmt -i hci1 find -l`. Point **Home Assistant** at the other adapter (Settings → Bluetooth) if you want HA on built-in and Victron on the dongle.
 
-If you have a second adapter (e.g., hci1) and don’t want it used:
+If you have a second adapter you are **not** using for Victron, you can power it off to reduce noise:
 
 sudo btmgmt -i hci1 power off
 

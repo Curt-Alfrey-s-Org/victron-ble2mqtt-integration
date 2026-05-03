@@ -15,6 +15,8 @@ services:
       # System info publish interval (seconds). Keep small for responsive HA sensors.
       - SYSTEM_POLL_THROTTLE_SEC=${SYSTEM_POLL_THROTTLE_SEC:-3}
       - PUBLISH_CONFIG_THROTTLE_SEC=${PUBLISH_CONFIG_THROTTLE_SEC:-60}
+      # USB BLE dongle is usually hci1; leave unset for built-in hci0
+      - BLE_ADAPTER=${BLE_ADAPTER:-}
       - PYTHONPATH=/work/override:/work
     env_file:
       - ./victron-secrets.env

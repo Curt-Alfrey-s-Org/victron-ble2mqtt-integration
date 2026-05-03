@@ -16,7 +16,7 @@ import logging
 import os
 from typing import List, Dict, Any
 
-from bleak import AdvertisementData, BLEDevice
+from bleak import AdvertisementData, BLEDevice, BleakScanner
 from paho.mqtt.client import Client as PahoClient
 from paho.mqtt.enums import CallbackAPIVersion
 from victron_ble.scanner import BaseScanner
@@ -80,6 +80,16 @@ def main() -> None:
     class MqttPublisher(BaseScanner):
         def __init__(self, *, keys: List[Dict[str, Any]]):
             super().__init__()
+            # USB BLE dongles are often hci1 while the Pi built-in is hci0; victron_ble's
+            # BaseScanner defaults to BlueZ default adapter. Override via .env:
+            #   BLE_ADAPTER=hci1   (or VICTRON_BLE_ADAPTER=hci1)
+            _adapter = (os.getenv("BLE_ADAPTER") or os.getenv("VICTRON_BLE_ADAPTER") or "").strip()
+            if _adapter:
+                self._scanner = BleakScanner(
+                    detection_callback=self._detection_callback,
+                    adapter=_adapter,
+                )
+                logger.info("BLE scanner using adapter %s (BLE_ADAPTER / VICTRON_BLE_ADAPTER)", _adapter)
             self.device_handler = DeviceHandler(keys)
             self.victron_mqtt_handler = VictronMqttDeviceHandler(user_settings=user_settings)
             self.mqtt_client = paho

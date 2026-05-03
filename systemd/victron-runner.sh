@@ -11,6 +11,15 @@ MAIN_SERVICE=victron_ble2mqtt
 
 cd "$WORKDIR"
 
+# Optional: BLE_ADAPTER=hci1 when using a USB dongle (see README).
+if [[ -f "$WORKDIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$WORKDIR/.env" || true
+  set +a
+fi
+HCI="${BLE_ADAPTER:-${VICTRON_BLE_ADAPTER:-hci0}}"
+
 redeploy() {
   echo "[victron-runner] Redeploying ${MAIN_SERVICE} via scripts/redeploy_victron.sh" >&2
   bash "$WORKDIR/scripts/redeploy_victron.sh"
@@ -27,9 +36,9 @@ health_status() {
 # Ensure container exists and is running
 if ! is_running; then
   # Wait for Bluetooth adapter readiness to avoid early scanner failures
-  echo "[victron-runner] Waiting for Bluetooth adapter (hci0) to be powered..." >&2
-  for i in $(seq 1 20); do
-    if bluetoothctl show | grep -q "Powered: yes"; then
+  echo "[victron-runner] Waiting for Bluetooth adapter (${HCI}) to be powered..." >&2
+  for _ in $(seq 1 20); do
+    if bluetoothctl show "$HCI" 2>/dev/null | grep -q "Powered: yes"; then
       break
     fi
     sleep 1
