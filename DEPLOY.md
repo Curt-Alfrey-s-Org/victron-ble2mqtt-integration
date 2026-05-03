@@ -54,6 +54,7 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    If `docker ps` as your normal user says **permission denied**, deploy already added you to the **docker** group — **log out and back in** (or `newgrp docker`) so the socket is usable interactively. The `victron-ble2mqtt.service` unit includes **SupplementaryGroups=docker** so the systemd runner can call Docker without sudo.
 
 Notes:
+- **Home Assistant → MQTT:** broker **`127.0.0.1`**, port **`1883`**, same **`MQTT_USER` / `MQTT_PASSWORD` as `.env`**, TLS **off**. Preflight on the Pi: `set -a; . ./.env; set +a` then `mosquitto_sub -h 127.0.0.1 -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" -t '$SYS/broker/uptime' -C 1` — if that fails, check Mosquitto before the HA UI (`journalctl -u mosquitto -n 40`).
 - Uses host networking for Bluetooth and MQTT (see `docker-compose.victron.yml`).
 - If you prefer prebuilt images, push to GHCR and adjust compose to pull.
 - Logging/operations hardening included:

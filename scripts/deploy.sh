@@ -136,7 +136,16 @@ if ! need_cmd mosquitto; then
 fi
 ensure_service_active mosquitto
 
+# Sync Wi‑Fi lines into .env *before* Mosquitto password/listener so .env is complete
+# (setup_wifi_env rewrites .env while preserving MQTT_* / ADVKEY_* lines).
+if [[ -x "$ROOT_DIR/scripts/setup_wifi_env.sh" ]]; then
+  bash "$ROOT_DIR/scripts/setup_wifi_env.sh" || true
+fi
+if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
+
 # Configure listener if not present; prefer auth if creds provided
+# per_listener_settings true avoids Mosquitto 2.x binding a stray default :1883
+# when password_file/listener options are split across include snippets.
 MOSQ_DIR="/etc/mosquitto"
 MOSQ_CONF_DIR="$MOSQ_DIR/conf.d"
 sudo mkdir -p "$MOSQ_CONF_DIR"
@@ -147,7 +156,9 @@ if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
   sudo rm -f "$ALLOW_ALL_CONF" 2>/dev/null || true
   sudo bash -lc "set -e; mosquitto_passwd -b -c /etc/mosquitto/passwd '$MQTT_USER' '$MQTT_PASSWORD'"
   sudo bash -lc "cat > '$AUTH_CONF' <<CONF
+per_listener_settings true
 listener ${MQTT_PORT} 0.0.0.0
+protocol mqtt
 allow_anonymous false
 password_file /etc/mosquitto/passwd
 log_type error
@@ -160,7 +171,9 @@ else
   if [[ ! -f "$ALLOW_ALL_CONF" ]]; then
     echo "[deploy] Configuring Mosquitto (anonymous allowed on ${MQTT_PORT})..."
   sudo bash -lc "cat > '$ALLOW_ALL_CONF' <<CONF
+per_listener_settings true
 listener ${MQTT_PORT} 0.0.0.0
+protocol mqtt
 allow_anonymous true
 log_type error
 log_type warning
@@ -271,11 +284,6 @@ sudo rfkill unblock bluetooth || true
 if [[ "${ENABLE_PERF_TUNING:-0}" == "1" ]]; then
   echo "[deploy] Applying performance tuning (systemd + udev) ..."
   bash "$ROOT_DIR/scripts/apply_max_performance.sh" || true
-fi
-
-# Optional Wi‑Fi environment baseline
-if [[ -x "$ROOT_DIR/scripts/setup_wifi_env.sh" ]]; then
-  bash "$ROOT_DIR/scripts/setup_wifi_env.sh" || true
 fi
 
 # ------------------------------------------------------------
