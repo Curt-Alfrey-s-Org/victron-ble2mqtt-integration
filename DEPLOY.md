@@ -30,6 +30,9 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    git clone https://github.com/curtalfrey/victron-ble2mqtt-integration.git
    cd victron-ble2mqtt-integration
    cp -n dotenv.sample .env && chmod 600 .env   # then edit: MQTT_USER, MQTT_PASSWORD
+   # ADVKEY_* may live in .env **or** ./victron-secrets.env — if both set the same
+   # variable, **.env wins** (see scripts/redeploy_victron.sh). Prefer victron-secrets.env
+   # for keys only (chmod 600); deploy creates empty placeholders there on first run.
    # Or run deploy once — it creates/appends MQTT_* lines if `.env` is missing or has no MQTT_USER=.
    cp config/user_settings.example.py user_settings.local.py # optional
 

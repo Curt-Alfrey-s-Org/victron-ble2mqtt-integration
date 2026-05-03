@@ -13,45 +13,6 @@ cd "$ROOT_DIR"
 # --- trap for helpful errors ---
 trap 'rc=$?; echo "[deploy] Failed at line $LINENO (exit=$rc)" >&2; exit $rc' ERR
 
-# --- ensure .env exists for MQTT_* (Mosquitto auth, HA MQTT integration, redeploy_victron.sh) ---
-ensure_dotenv_for_mqtt() {
-  local touched=false
-  if [[ ! -f ./.env ]]; then
-    if [[ -f ./dotenv.sample ]]; then
-      echo "[deploy] Creating .env from dotenv.sample (set MQTT_USER / MQTT_PASSWORD, then re-run deploy if Mosquitto already configured)."
-      cp ./dotenv.sample ./.env
-    elif [[ -f ./.env.sample ]]; then
-      echo "[deploy] Creating .env from .env.sample (set MQTT_USER / MQTT_PASSWORD, then re-run deploy if Mosquitto already configured)."
-      cp ./.env.sample ./.env
-    else
-      echo "[deploy] Creating .env with MQTT placeholders (dotenv.sample missing from checkout)."
-      cat > ./.env <<'EOS'
-# MQTT — set for Mosquitto + Home Assistant + victron container
-MQTT_HOST=127.0.0.1
-MQTT_PORT=1883
-MQTT_USER=
-MQTT_PASSWORD=
-EOS
-    fi
-    touched=true
-  elif ! grep -qE '^[[:space:]]*MQTT_USER=' ./.env 2>/dev/null; then
-    echo "[deploy] Appending MQTT_* placeholders to .env (set MQTT_USER / MQTT_PASSWORD)."
-    {
-      echo ""
-      echo "# MQTT — Home Assistant + victron (added by deploy.sh)"
-      echo "MQTT_HOST=127.0.0.1"
-      echo "MQTT_PORT=1883"
-      echo "MQTT_USER="
-      echo "MQTT_PASSWORD="
-    } >> ./.env
-    touched=true
-  fi
-  if [[ "$touched" == true ]]; then
-    chmod 600 ./.env 2>/dev/null || true
-  fi
-}
-ensure_dotenv_for_mqtt
-
 # --- load env if present ---
 if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
 
@@ -283,7 +244,7 @@ fi
 # ------------------------------------------------------------
 if [[ ! -f requirements.txt ]]; then echo "[deploy] requirements.txt missing" >&2; exit 1; fi
 if [[ ! -f victron-secrets.env ]]; then
-  echo "[deploy] Creating placeholder victron-secrets.env (edit ADVKEY_* values)"
+  echo "[deploy] Creating placeholder victron-secrets.env (edit ADVKEY_* values; or set ADVKEY_* in .env — .env overrides this file)"
   cat > victron-secrets.env <<'ENV'
 # ADVKEY placeholders (32-hex). Update with your device keys.
 ADVKEY_BATTERY_1=

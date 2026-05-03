@@ -6,11 +6,11 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Load env (provides MQTT_USER/MQTT_PASSWORD/MAIN_UID/PUBLISH_CONFIG_THROTTLE_SEC)
-if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
-
-# Load secrets as env too (ADVKEY_*) so we can sanitize before passing to Docker
+# Load victron-secrets.env first, then .env so .env wins on duplicate keys.
+# (deploy.sh ships victron-secrets.env with empty ADVKEY_* placeholders; if those
+# were sourced after .env they would wipe ADVKEY_* that only exist in .env.)
 if [[ -f ./victron-secrets.env ]]; then set -a; . ./victron-secrets.env; set +a; fi
+if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
 
 # Sanitize ADVKEY_* to 32 hex chars (strip non-hex, trim to 32)
 sanitize_advkey() {
