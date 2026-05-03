@@ -26,16 +26,14 @@ mqtt_username = os.getenv("MQTT_USER", "")
 mqtt_password = os.getenv("MQTT_PASSWORD", "")  # <- NO hardcoded secret
 
 # List of Victron BLE devices to monitor (no secrets here)
+# ADVKEY_* bind by name slug: ADVKEY_BATTERY_1, ADVKEY_BATTERY_2, ADVKEY_SOLAR_CONTROLLER
+# (keep these `name` values aligned with .env unless you also add ADVKEY_<MAC> per device).
 devices = [
     {
-        "mac": "d4:ef:fb:b3:d7:0c",  # Replace with actual MAC
+        # Physical battery 1 (SmartShunt) — CB:0D:C2:0A:AE:0F
+        "mac": "cb:0d:c2:0a:ae:0f",
         "type": "SmartShunt",
         "name": "Battery 1",
-        # Optional per-device display precision overrides
-        # Example: make Battery 1 show clean 2 decimals for V, 1 for A, 1 for % SOC, 2 for W
-        # Per-sensor display precision overrides
-        # Valid keys for Battery monitors: voltage, current, power, soc, consumed_ah,
-        # midpoint_voltage, midpoint_shift, midpoint_shift_percent, remaining_mins
         "precision": {
             "voltage": 2,
             "current": 3,
@@ -47,15 +45,16 @@ devices = [
             "midpoint_shift_percent": 2,
             "remaining_mins": 0
         },
-        # "advertisement_key" will be injected from env below
     },
     {
-        "mac": "d7:69:eb:1f:f8:3d",  # Replace with actual MAC
+        # Victron BLE dongle / MPPT (solar charger) — D7:69:EB:1F:F8:3D
+        "mac": "d7:69:eb:1f:f8:3d",
         "type": "BlueSolar",
         "name": "Solar-controller",
     },
     {
-        "mac": "cb:0d:c2:0a:ae:0f",  # Replace with actual MAC
+        # Physical battery 2 (SmartShunt) — D4:EF:FB:B3:D7:0C
+        "mac": "d4:ef:fb:b3:d7:0c",
         "type": "SmartShunt",
         "name": "Battery 2",
     },
