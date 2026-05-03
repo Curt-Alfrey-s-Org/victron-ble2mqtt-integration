@@ -12,6 +12,7 @@ services:
       - TZ=America/New_York  # Change to your timezone
     volumes:
       - /opt/homeassistant:/config   # preserve your existing data (host path detected)
+      - /run/dbus:/run/dbus:ro       # Bluetooth integration → host BlueZ
     ports:
       - "8123:8123"
   # Optional serial device mapping. If you have a specific USB serial device

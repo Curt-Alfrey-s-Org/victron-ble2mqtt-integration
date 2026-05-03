@@ -477,12 +477,26 @@ keepalive: 60
 MQTTYAML
 fi
 
+# Bluetooth / hci0 in HA needs host D-Bus (see HA logs: "DBus service not found").
+ha_has_dbus_mount() {
+  docker inspect homeassistant -f '{{range $m := .Mounts}}{{println $m.Destination}}{{end}}' 2>/dev/null | grep -q '^/run/dbus$'
+}
+
+if docker ps -a --format '{{.Names}}' | grep -qw homeassistant; then
+  if ! ha_has_dbus_mount; then
+    echo "[deploy] Recreating homeassistant container (add /run/dbus for Bluetooth integration)..."
+    docker rm -f homeassistant >/dev/null 2>&1 || true
+  fi
+fi
+
 if docker ps -a --format '{{.Names}}' | grep -qw homeassistant; then
   docker start homeassistant >/dev/null || true
 else
   docker run -d --name homeassistant --restart unless-stopped \
   --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \
-  --network host -e TZ="$HA_TZ" -v "$HA_CONFIG_DIR":/config \
+  --network host -e TZ="$HA_TZ" \
+  -v "$HA_CONFIG_DIR":/config \
+  -v /run/dbus:/run/dbus:ro \
     ghcr.io/home-assistant/home-assistant:stable >/dev/null
 fi
 
