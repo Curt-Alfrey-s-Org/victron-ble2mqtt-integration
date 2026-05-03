@@ -6,6 +6,9 @@ services:
     restart: unless-stopped
     # Allow HA to see services running on the host (mosquitto at localhost)
     network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     env_file:
       - ./ha-discovery.env
     environment:

@@ -477,14 +477,20 @@ keepalive: 60
 MQTTYAML
 fi
 
-# Bluetooth / hci0 in HA needs host D-Bus (see HA logs: "DBus service not found").
-ha_has_dbus_mount() {
-  docker inspect homeassistant -f '{{range $m := .Mounts}}{{println $m.Destination}}{{end}}' 2>/dev/null | grep -q '^/run/dbus$'
+# Bluetooth on HA Container: D-Bus + caps (see HA repairs / habluetooth.manager).
+# https://www.home-assistant.io/integrations/bluetooth/#requirements-for-linux-systems
+ha_homeassistant_bluetooth_ok() {
+  docker inspect homeassistant -f '{{range $m := .Mounts}}{{println $m.Destination}}{{end}}' 2>/dev/null | grep -q '^/run/dbus$' || return 1
+  local caps
+  caps="$(docker inspect homeassistant -f '{{range .HostConfig.CapAdd}}{{.}} {{end}}' 2>/dev/null || true)"
+  [[ "$caps" == *NET_ADMIN* ]] || return 1
+  [[ "$caps" == *NET_RAW* ]] || return 1
+  return 0
 }
 
 if docker ps -a --format '{{.Names}}' | grep -qw homeassistant; then
-  if ! ha_has_dbus_mount; then
-    echo "[deploy] Recreating homeassistant container (add /run/dbus for Bluetooth integration)..."
+  if ! ha_homeassistant_bluetooth_ok; then
+    echo "[deploy] Recreating homeassistant container (Bluetooth: /run/dbus + NET_ADMIN/NET_RAW per HA docs)..."
     docker rm -f homeassistant >/dev/null 2>&1 || true
   fi
 fi
@@ -495,6 +501,7 @@ else
   docker run -d --name homeassistant --restart unless-stopped \
   --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \
   --network host -e TZ="$HA_TZ" \
+  --cap-add NET_ADMIN --cap-add NET_RAW \
   -v "$HA_CONFIG_DIR":/config \
   -v /run/dbus:/run/dbus:ro \
     ghcr.io/home-assistant/home-assistant:stable >/dev/null

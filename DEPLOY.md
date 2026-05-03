@@ -55,7 +55,7 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
 
 Notes:
 - **Home Assistant → MQTT:** broker **`127.0.0.1`**, port **`1883`**, same **`MQTT_USER` / `MQTT_PASSWORD` as `.env`**, TLS **off**. Preflight on the Pi: `set -a; . ./.env; set +a` then `mosquitto_sub -h 127.0.0.1 -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" -t '$SYS/broker/uptime' -C 1` — if that fails, check Mosquitto before the HA UI (`journalctl -u mosquitto -n 40`).
-- **Home Assistant → Bluetooth:** the `homeassistant` container is created with **`-v /run/dbus:/run/dbus:ro`** so the **Bluetooth** integration can talk to **BlueZ** on the host. If you created HA before this mount existed, run **`sudo bash scripts/deploy.sh`** again — it will **recreate** the HA container (your **`/opt/homeassistant`** config volume is unchanged).
+- **Home Assistant → Bluetooth:** the `homeassistant` container gets **`-v /run/dbus:/run/dbus:ro`**, **`--cap-add NET_ADMIN`**, and **`--cap-add NET_RAW`** (required since HA ~2025.9 for adapter recovery / full BlueZ access; see [Bluetooth — Docker](https://www.home-assistant.io/integrations/bluetooth/#requirements-for-linux-systems)). If an older container lacked these, **`sudo bash scripts/deploy.sh`** recreates it (**`/opt/homeassistant`** volume unchanged).
 - Uses host networking for Bluetooth and MQTT (see `docker-compose.victron.yml`).
 - If you prefer prebuilt images, push to GHCR and adjust compose to pull.
 - Logging/operations hardening included:
