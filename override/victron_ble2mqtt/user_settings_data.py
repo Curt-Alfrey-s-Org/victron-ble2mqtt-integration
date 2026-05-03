@@ -26,12 +26,10 @@ mqtt_username = os.getenv("MQTT_USER", "")
 mqtt_password = os.getenv("MQTT_PASSWORD", "")  # <- NO hardcoded secret
 
 # List of Victron BLE devices to monitor (no secrets here)
-# ADVKEY_* bind by name slug: ADVKEY_BATTERY_1, ADVKEY_BATTERY_2, ADVKEY_SOLAR_CONTROLLER
-# (keep these `name` values aligned with .env unless you also add ADVKEY_<MAC> per device).
+# ADVKEY_* bind by `name` slug (ADVKEY_BATTERY_1, …). Shunt at …:0f uses ADVKEY_BATTERY_2 (key …734c).
 devices = [
     {
-        # Physical battery 1 (SmartShunt) — CB:0D:C2:0A:AE:0F
-        "mac": "cb:0d:c2:0a:ae:0f",
+        "mac": "d4:ef:fb:b3:d7:0c",
         "type": "SmartShunt",
         "name": "Battery 1",
         "precision": {
@@ -47,14 +45,12 @@ devices = [
         },
     },
     {
-        # Victron BLE dongle / MPPT (solar charger) — D7:69:EB:1F:F8:3D
         "mac": "d7:69:eb:1f:f8:3d",
         "type": "BlueSolar",
         "name": "Solar-controller",
     },
     {
-        # Physical battery 2 (SmartShunt) — D4:EF:FB:B3:D7:0C
-        "mac": "d4:ef:fb:b3:d7:0c",
+        "mac": "cb:0d:c2:0a:ae:0f",
         "type": "SmartShunt",
         "name": "Battery 2",
     },
