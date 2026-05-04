@@ -1,6 +1,7 @@
 import time
 from threading import Event
 import types
+from unittest.mock import patch
 
 
 def test_victron_handler_publishes_to_broker():
@@ -19,11 +20,11 @@ def test_victron_handler_publishes_to_broker():
     connected = _Event()
     subscribed = _Event()
 
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(client, userdata, flags, reason_code, properties=None):
         connected.set()
         client.subscribe('#')
 
-    def on_subscribe(client, userdata, mid, granted_qos):
+    def on_subscribe(client, userdata, mid, reason_codes, properties=None):
         subscribed.set()
 
     def on_message(client, userdata, msg):
@@ -61,19 +62,24 @@ def test_victron_handler_publishes_to_broker():
     from paho.mqtt.enums import CallbackAPIVersion as _CAP
     client = mqtt_client.Client(callback_api_version=_CAP.VERSION2)
     client.connect('localhost', 1883, 60)
+    client.loop_start()
+    time.sleep(0.2)
 
     # Call publish - this should result in one or more MQTT publishes
-    handler.publish(
-        ble_device=FakeBLE,
-        raw_data=b'\x00\x01',
-        generic_device=fake_generic,
-        rssi=-55,
-        mqtt_client=client,
-    )
+    with patch.object(handler.main_mqtt_device, "poll_and_publish", lambda *_a, **_k: None):
+        handler.publish(
+            ble_device=FakeBLE,
+            raw_data=b'\x00\x01',
+            generic_device=fake_generic,
+            rssi=-55,
+            mqtt_client=client,
+        )
 
     # Wait for messages
     ok = received.wait(timeout=5.0)
 
+    client.loop_stop()
+    client.disconnect()
     sub.loop_stop()
     sub.disconnect()
 

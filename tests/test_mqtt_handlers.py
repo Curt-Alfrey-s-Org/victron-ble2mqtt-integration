@@ -35,11 +35,13 @@ def test_victron_mqtt_device_handler_publish_uses_handler_map(monkeypatch):
             calls['data_dict'] = data_dict
             calls['rssi'] = rssi
 
-    # Patch get_handler to return our DummyHandler
-    monkeypatch.setattr('victron_ble2mqtt.mqtt.get_handler', lambda victron_device: DummyHandler)
+    # Patch get_handler where publish() resolves it (implementation lives under override/).
+    monkeypatch.setattr('override.victron_ble2mqtt.mqtt.get_handler', lambda victron_device: DummyHandler)
 
     us = UserSettings()
     handler = VictronMqttDeviceHandler(user_settings=us)
+    # CI / dev hosts often lack `iwconfig`; skip system-info side effects in unit tests.
+    monkeypatch.setattr(handler.main_mqtt_device, "poll_and_publish", lambda *_a, **_k: None)
 
     # Create a fake BLEDevice-like object
     FakeBLE = types.SimpleNamespace(address='AA:BB:CC:DD:EE:FF', name='FAKE')

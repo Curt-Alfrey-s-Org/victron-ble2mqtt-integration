@@ -12,8 +12,6 @@ from victron_ble.devices import (
 	SolarCharger,
 	detect_device_type,
 )
-from victron_ble.exceptions import AdvertisementKeyMismatchError
-
 logger = logging.getLogger(__name__)
 
 

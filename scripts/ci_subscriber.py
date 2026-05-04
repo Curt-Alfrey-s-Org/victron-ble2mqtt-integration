@@ -18,7 +18,7 @@ received = Event()
 payload = None
 
 
-def on_connect(client, userdata, flags, rc):
+def on_connect(client, userdata, flags, reason_code, properties=None):
     client.subscribe(TOPIC)
 
 

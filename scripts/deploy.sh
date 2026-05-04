@@ -526,11 +526,32 @@ done
 echo "[deploy] Container status:"
 docker ps --format '{{.Names}}\t{{.Status}}' | egrep 'victron|homeassistant' || true
 
-echo "[deploy] victron_ble2mqtt env (MQTT_* & ADVKEY_*):"
+echo "[deploy] victron_ble2mqtt env (sanitized — passwords and ADVKEY hex hidden):"
 # Config.Env may list the same key twice (--env-file placeholders + -e from redeploy).
 # Last assignment wins at runtime; dedupe so this summary matches what the process sees.
-docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null \
-  | egrep '^(MQTT_|ADVKEY_|BLE_ADAPTER|VICTRON_BLE_ADAPTER)' | tac | awk -F= '!seen[$1]++' | tac || true
+if docker ps -a --format '{{.Names}}' | grep -qw victron_ble2mqtt; then
+  docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null \
+    | egrep '^(MQTT_|ADVKEY_|BLE_ADAPTER|VICTRON_BLE_ADAPTER)' | tac | awk -F= '!seen[$1]++' | tac \
+  | while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    k="${line%%=*}"
+    v="${line#*=}"
+    case "$k" in
+      MQTT_PASSWORD)
+        if [[ -n "$v" ]]; then echo "MQTT_PASSWORD=(set, hidden)"; else echo "MQTT_PASSWORD=(empty)"; fi
+        ;;
+      ADVKEY_*)
+        vl=${#v}
+        if [[ "$vl" -eq 0 ]]; then echo "${k}=(empty)"
+        elif [[ "$vl" -eq 32 ]]; then echo "${k}=(32 hex chars, hidden)"
+        else echo "${k}=(length ${vl}, hidden)"; fi
+        ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done || true
+else
+  echo "(victron_ble2mqtt container not present)"
+fi
 
 echo "[deploy] Tail victron_ble2mqtt logs: docker logs -f victron_ble2mqtt"
 echo "[deploy] Done."

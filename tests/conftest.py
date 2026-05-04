@@ -88,14 +88,14 @@ def ensure_mqtt_broker():
             subscribed_evt = threading.Event()
             received_evt = threading.Event()
 
-            def on_connect(client, userdata, flags, rc):
+            def on_connect(client, userdata, flags, reason_code, properties=None):
                 try:
                     client.subscribe("victron/test-ready")
                 except Exception:
                     pass
                 connected_evt.set()
 
-            def on_subscribe(client, userdata, mid, granted_qos):
+            def on_subscribe(client, userdata, mid, reason_codes, properties=None):
                 subscribed_evt.set()
 
             def on_message(client, userdata, msg):

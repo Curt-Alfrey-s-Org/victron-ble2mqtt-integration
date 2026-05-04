@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Any
 import importlib, os, socket
 
+from ha_services.mqtt4homeassistant.utilities.string_utils import slugify
+
 @dataclass
 class MqttConfig:
     host: str = "localhost"
@@ -51,8 +53,9 @@ class UserSettings:
             or (os.getenv("MQTT_PASSWORD") if (self.mqtt.username or os.getenv("MQTT_USER")) else None)
         )
 
-        # Main UID and throttles
-        self.mqtt.main_uid = getattr(data, "main_uid", None) or os.getenv("MAIN_UID") or socket.gethostname()
+        # Main UID and throttles (ha_services requires uid == slugify(uid); hostnames may contain '-')
+        _raw_main = getattr(data, "main_uid", None) or os.getenv("MAIN_UID") or socket.gethostname() or "victron"
+        self.mqtt.main_uid = slugify(str(_raw_main).strip(), sep="_")
 
         pcs = getattr(data, "publish_config_throttle_seconds", None) or os.getenv("PUBLISH_CONFIG_THROTTLE_SEC")
         if pcs not in (None, ""):

@@ -15,7 +15,9 @@ cd "$WORKDIR"
 if [[ -f "$WORKDIR/.env" ]]; then
   set -a
   # shellcheck disable=SC1090
-  . "$WORKDIR/.env" || true
+  if ! . "$WORKDIR/.env"; then
+    echo "[victron-runner] WARNING: sourcing .env failed (check syntax); BLE_ADAPTER/MQTT_* may be missing" >&2
+  fi
   set +a
 fi
 HCI="${BLE_ADAPTER:-${VICTRON_BLE_ADAPTER:-hci0}}"

@@ -347,8 +347,8 @@ class BatteryMonitorHandler(BaseHandler):
         self.power_sensor.publish(self.mqtt_client)
 
         if data_dict.get('aux_mode', None) == 'midpoint_voltage':
-            # Lazily create midpoint sensors in case aux_mode changed after initial setup
-            if not hasattr(self, 'midpoint_shift'):
+            # Lazily create midpoint sensors if aux_mode switched after first packet (__init__ sets None).
+            if self.midpoint_shift is None:
                 self.midpoint_shift = Sensor(
                     device=self.device,
                     name='Midpoint Shift',

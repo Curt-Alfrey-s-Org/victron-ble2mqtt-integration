@@ -55,5 +55,10 @@ docker run -d --name victron_ble2mqtt --restart unless-stopped \
   "$IMG"
 
 sleep 3
-echo "Container env (MQTT_*)"
-docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt | grep -E 'MQTT_HOST|MQTT_PORT|MQTT_USER|MQTT_PASSWORD' || true
+echo "[redeploy] MQTT connection env (password hidden):"
+docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null | grep -E '^MQTT_HOST=|^MQTT_PORT=|^MQTT_USER=' || true
+if docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' victron_ble2mqtt 2>/dev/null | grep -q '^MQTT_PASSWORD=.\{1,\}'; then
+  echo "MQTT_PASSWORD=(set, hidden)"
+else
+  echo "MQTT_PASSWORD=(empty or unset)"
+fi
