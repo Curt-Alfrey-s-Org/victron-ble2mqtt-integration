@@ -4,6 +4,8 @@
 # - Installs Dockge + /opt/stacks wrappers; removes legacy systemd compose runners
 # - Builds image and starts victron / homeassistant / Watchtower via Compose (restart policies survive reboot)
 # - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_FAILOVER_MONITOR=1, FORCE_HA_MQTT_YAML=1
+# - TrueNAS hub (LAN): ENABLE_DOCKER_REGISTRY_MIRROR=1 (default) merges registry-mirrors http://192.168.0.111:5000 into /etc/docker/daemon.json;
+#   nfs /mnt/cluster/wheels/victron enables PIP_OFFLINE=1 victron image builds and optional HA tarball docker load.
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -78,8 +80,50 @@ fi
 : "${ENABLE_UNATTENDED_UPGRADES:=0}"
 : "${ENABLE_DOCKER_PRUNE:=1}"
 : "${ENABLE_MQTT_WATCHDOG:=1}"
+: "${ENABLE_DOCKER_REGISTRY_MIRROR:=1}"
+: "${DOCKER_REGISTRY_MIRROR:=http://192.168.0.111:5000}"
 
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+prepare_victron_docker_build_env() {
+  mkdir -p "$ROOT_DIR/wheels"
+  export PIP_OFFLINE="${PIP_OFFLINE:-0}"
+  if [[ -d /mnt/cluster/wheels/victron ]]; then
+    echo "[deploy] Syncing pip wheels from TrueNAS hub ..."
+    bash "$ROOT_DIR/scripts/sync-victron-wheels-from-hub.sh" || true
+  else
+    echo "[deploy] Hub wheels path /mnt/cluster/wheels/victron not mounted — pip uses PyPI when PIP_OFFLINE=0."
+  fi
+  local whl_count
+  whl_count="$(find "$ROOT_DIR/wheels" -maxdepth 1 -type f -name '*.whl' 2>/dev/null | wc -l)"
+  whl_count="${whl_count// /}"
+  if [[ "${whl_count:-0}" -gt 0 ]]; then
+    export PIP_OFFLINE=1
+    echo "[deploy] Victron image build: PIP_OFFLINE=1 (${whl_count} wheels in ./wheels)."
+  else
+    export PIP_OFFLINE=0
+    echo "[deploy] Victron image build: PIP_OFFLINE=0 (no wheels in ./wheels)."
+  fi
+}
+
+load_homeassistant_image_from_hub_if_needed() {
+  local img="ghcr.io/home-assistant/home-assistant:stable"
+  if docker image inspect "$img" >/dev/null 2>&1; then
+    return 0
+  fi
+  local tb
+  for tb in \
+    "${HA_IMAGE_TARBALL:-}" \
+    "/mnt/cluster/docker-images/home-assistant-stable.tar.gz" \
+    "/mnt/cluster/docker/images/home-assistant-stable.tar.gz"; do
+    [[ -z "$tb" || ! -f "$tb" ]] && continue
+    echo "[deploy] Loading Home Assistant image from hub tarball: $tb"
+    docker load <"$tb"
+    return 0
+  done
+  echo "[deploy] No Home Assistant tarball on hub — compose may pull from GHCR."
+  return 0
+}
 
 apt_install() {
   local pkgs=("$@")
@@ -390,7 +434,39 @@ DJSON
   fi
 }
 
+merge_docker_registry_mirror_into_daemon_json() {
+  [[ "${ENABLE_DOCKER_REGISTRY_MIRROR:-1}" != "1" ]] && return 0
+  if ! need_cmd python3; then
+    echo "[deploy] python3 missing; skipping registry-mirrors merge." >&2
+    return 0
+  fi
+  local mirror="${DOCKER_REGISTRY_MIRROR:-http://192.168.0.111:5000}"
+  echo "[deploy] Merging Docker registry mirror into $DOCKER_DAEMON_JSON ($mirror) ..."
+  if ! sudo env DOCKER_DAEMON_JSON="$DOCKER_DAEMON_JSON" MIRROR="$mirror" python3 <<'PY'
+import json
+import os
+
+path = os.environ["DOCKER_DAEMON_JSON"]
+mirror = os.environ["MIRROR"]
+with open(path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+existing = list(data.get("registry-mirrors") or [])
+if mirror not in existing:
+    existing.append(mirror)
+data["registry-mirrors"] = existing
+tmp = path + ".tmp.merge"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+os.replace(tmp, path)
+PY
+  then
+    echo "[deploy] WARN: could not merge registry-mirrors into $DOCKER_DAEMON_JSON" >&2
+  fi
+}
+
 ensure_docker_daemon_json
+merge_docker_registry_mirror_into_daemon_json
 ensure_service_active docker
 # Try restart; if it fails due to config, quarantine the file and start with defaults
 if ! sudo systemctl restart docker; then
@@ -460,8 +536,10 @@ fi
 sudo touch /var/log/victron_ble2mqtt.log
 sudo chown "${SUDO_USER:-$USER}":"${SUDO_USER:-$USER}" /var/log/victron_ble2mqtt.log || true
 
-echo "[deploy] Building Docker image (victron_ble2mqtt:local) ..."
-DOCKER_BUILDKIT=1 docker build -t victron_ble2mqtt:local .
+prepare_victron_docker_build_env
+
+echo "[deploy] Building Docker image (victron_ble2mqtt:local, PIP_OFFLINE=${PIP_OFFLINE:-0}) ..."
+DOCKER_BUILDKIT=1 docker build --build-arg "PIP_OFFLINE=${PIP_OFFLINE:-0}" -t victron_ble2mqtt:local .
 
 # ------------------------------------------------------------
 # 5) Dockge + stack wrappers; legacy systemd runners removed
@@ -676,6 +754,7 @@ fi
 
 export TZ="${HA_TZ}"
 ensure_ha_discovery_env_for_compose
+load_homeassistant_image_from_hub_if_needed
 echo "[deploy] Starting Home Assistant via Compose ..."
 if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   (cd /opt/stacks/homeassistant && docker compose up -d)

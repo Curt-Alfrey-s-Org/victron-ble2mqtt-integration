@@ -7,11 +7,12 @@ Preconditions (on the host):
 
 What the installer does (idempotent):
 - Installs Docker Engine + Compose plugin if missing and enables the service
-- Configures safe Docker logging defaults globally (json-file with rotation 10MB x3)
+- Configures safe Docker logging defaults globally (json-file with rotation 10MB x3), then merges **`registry-mirrors`** (`http://192.168.0.111:5000` by default) so Docker Hub pulls route through the TrueNAS mirror when on the Alfa LAN
    - If `/etc/docker/daemon.json` is malformed, it will be backed up, rewritten with valid JSON, and Docker will be restarted
+   - Disable mirror injection with **`ENABLE_DOCKER_REGISTRY_MIRROR=0`** (off‑LAN Pi / no `.111`)
 - Sets journald caps (disk/RAM) and logrotate for app/HA logs
 - Installs Mosquitto (broker + clients) and configures auth if MQTT_USER/MQTT_PASSWORD are set
-- Builds the app image (`victron_ble2mqtt:local`)
+- Builds the app image (`victron_ble2mqtt:local`) with **`PIP_OFFLINE=1`** when **`./wheels`** contains `.whl` files synced from **`/mnt/cluster/wheels/victron`** (see **`docs/ALFA_CLUSTER_INTEGRATION.md`**); otherwise pip resolves from PyPI
 - Removes legacy systemd runners (`victron-ble2mqtt.service`, `victron-tools.service`) if present
 - Installs **Dockge** under **`/opt/dockge`** (host UI **`http://<pi-ip>:5006`**) and writes **`/opt/stacks/<stack>/compose.yaml`** wrappers that `include` the repo Compose files (paths in those files resolve to the repo root)
 - Starts **`victron`**, **`homeassistant`**, and optionally **`tools`** (Watchtower only) via Compose — containers use **`restart: unless-stopped`** so they return after reboot
@@ -47,9 +48,9 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    # ENABLE_DOCKGE=1          # install Dockge + /opt/stacks wrappers (default on)
    # ENABLE_TOOLS=1           # deploy Watchtower stack (docker-compose.tools.yml, default on)
    # ENABLE_FAILOVER_MONITOR=1# enable Wi‑Fi failover monitor@user service
-   # FORCE_HA_MQTT_YAML=1     # write HA mqtt.yaml and include it
-
-3) Verify
+   # ENABLE_DOCKER_REGISTRY_MIRROR=0 # skip LAN registry mirror (default 1)
+   # DOCKER_REGISTRY_MIRROR=http://192.168.0.111:5000  # override mirror URL
+   # HA_IMAGE_TARBALL=/path/to/home-assistant-stable.tar.gz  # optional explicit tarball for docker load
 
    docker ps --filter name=victron_ble2mqtt
    docker logs -f victron_ble2mqtt
@@ -71,7 +72,7 @@ Notes:
    - Mosquitto logs routed to syslog with reduced verbosity
 - Optional automation: HA watchdog, MQTT watchdog, weekly docker prune, VS Code cleanup timer.
 
-Troubleshooting quick wins:
+**TrueNAS hub (same LAN as Alfa):** Mount NFS **`/mnt/cluster`** on the Pi (see **`alfa-ai/docs/HUB_ARTIFACTS.md`**). Seed wheels on `.111` with **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`**, then **`scripts/sync-victron-wheels-from-hub.sh`** runs automatically during **`deploy.sh`** when **`/mnt/cluster/wheels/victron`** exists. Seed **`ghcr.io/home-assistant/home-assistant:stable`** to **`home-assistant-stable.tar.gz`** on the hub so **`deploy.sh`** can **`docker load`** before Compose without pulling GHCR.
 - Docker won’t start after running the installer: check `/etc/docker/daemon.json`. The installer backs up invalid files and writes valid JSON, then restarts Docker.
 - **`victron_ble2mqtt` exits / BLE issues:** verify `bluetoothctl show` reports `Powered: yes`; run **`sudo bash scripts/deploy.sh`** or **`docker restart victron_ble2mqtt`**. Legacy **`victron-ble2mqtt.service`** is removed by deploy — do not re-enable it.
 - No HA entities after discovery: ensure the Victron app is closed (it can stop adverts), and verify ADVKEY_* values are correct.

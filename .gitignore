@@ -25,6 +25,10 @@ _diag/
 .backups/
 *.bak*
 
+# Victron hub wheels (populate via scripts/sync-victron-wheels-from-hub.sh)
+wheels/*
+!wheels/.gitkeep
+
 # Python artifacts
 __pycache__/
 *.py[cod]

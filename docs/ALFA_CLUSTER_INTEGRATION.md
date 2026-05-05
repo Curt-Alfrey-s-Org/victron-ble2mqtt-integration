@@ -29,12 +29,13 @@ Alfa’s **canonical hub** policy and paths are documented in:
 - `alfa-ai` repo: [`docs/HUB_ARTIFACTS.md`](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HUB_ARTIFACTS.md)
 - Shared pattern reference (on the dev server): `/home/ansible/docs/DOCKER_BUILD_PATTERNS.md`
 
-**victron-ble2mqtt-integration** builds a **small** app image (`python:3.11-bookworm` + `pip` from `requirements.lock`). Routine `docker build` / `scripts/deploy.sh` on the Pi is normal.
+**victron-ble2mqtt-integration** builds a **small** app image (`python:3.11-bookworm` + locked pip deps). On the Pi, **`scripts/deploy.sh`**:
 
-Use the hub when you need **air-gapped or no-public-internet** builds on the LAN:
+1. **Docker Hub pulls** — merges **`registry-mirrors: ["http://192.168.0.111:5000"]`** into **`/etc/docker/daemon.json`** (disable with **`ENABLE_DOCKER_REGISTRY_MIRROR=0`**).
+2. **PyPI wheels** — when NFS **`/mnt/cluster/wheels/victron`** is mounted, runs **`scripts/sync-victron-wheels-from-hub.sh`** into repo **`./wheels`** and builds with **`PIP_OFFLINE=1`** (see **`DOCKER_BUILD_PATTERN.md`**). Seed on `.111`: **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`**.
+3. **Home Assistant (GHCR)** — the hub mirror does **not** proxy GHCR. Seed on `.111`: `docker pull ghcr.io/home-assistant/home-assistant:stable` then **`alfa-ai/scripts/publish-built-image-to-hub.sh`** … **`home-assistant-stable.tar.gz`**. On the Pi, **`deploy.sh`** runs **`docker load`** from **`/mnt/cluster/docker-images/home-assistant-stable.tar.gz`** (or alternate hub paths / **`HA_IMAGE_TARBALL`**) before Compose starts HA.
 
-1. On **TrueNAS `.111`**, seed once: `docker.io/library/python:3.11-bookworm`, `ghcr.io/home-assistant/home-assistant:stable`, and your tagged `victron_ble2mqtt:local` tarball under the hub’s **docker-images** layout (see `HUB_ARTIFACTS.md`).
-2. On the **Pi**, `docker load` from NFS/SMB or pull from your **private registry** on `.111` instead of `docker pull` from the public internet.
+Mount **`/mnt/cluster`** per **`alfa-ai/docs/CLUSTER_SHARED_STORAGE.md`** so these paths resolve.
 
 Do **not** treat the Pi as a worker that should `pip install` multi‑GB CUDA stacks from the hub; that is unrelated to this stack.
 

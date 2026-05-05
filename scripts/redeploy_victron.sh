@@ -40,8 +40,21 @@ ADVKEY_SOLAR_CONTROLLER_SAN="$(sanitize_advkey "${ADVKEY_SOLAR_CONTROLLER:-}")"
 
 # Ensure image
 IMG="victron_ble2mqtt:local"
+mkdir -p ./wheels
+export PIP_OFFLINE="${PIP_OFFLINE:-0}"
+if [[ -d /mnt/cluster/wheels/victron ]]; then
+  bash ./scripts/sync-victron-wheels-from-hub.sh || true
+fi
+whl_count="$(find ./wheels -maxdepth 1 -type f -name '*.whl' 2>/dev/null | wc -l)"
+whl_count="${whl_count// /}"
+if [[ "${whl_count:-0}" -gt 0 ]]; then
+  export PIP_OFFLINE=1
+else
+  export PIP_OFFLINE=0
+fi
+
 if ! docker image inspect "$IMG" >/dev/null 2>&1; then
-  DOCKER_BUILDKIT=1 docker build -t "$IMG" .
+  DOCKER_BUILDKIT=1 docker build --build-arg "PIP_OFFLINE=${PIP_OFFLINE}" -t "$IMG" .
 fi
 
 # Stop old container
