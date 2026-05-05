@@ -13,6 +13,10 @@ IFS=$'\n\t'
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "[deploy] Git $(git rev-parse --short HEAD 2>/dev/null) branch $(git branch --show-current 2>/dev/null || echo detached)"
+fi
+
 # --- trap for helpful errors ---
 trap 'rc=$?; echo "[deploy] Failed at line $LINENO (exit=$rc)" >&2; exit $rc' ERR
 
