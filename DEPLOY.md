@@ -50,7 +50,7 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    # ENABLE_FAILOVER_MONITOR=1# enable Wi‑Fi failover monitor@user service
    # ENABLE_DOCKER_REGISTRY_MIRROR=0 # skip LAN registry mirror (default 1)
    # DOCKER_REGISTRY_MIRROR=http://192.168.0.111:5000  # override mirror URL
-   # ENSURE_TRUENAS_NFS_MOUNT=0 # skip auto NFS mount when hub wheels missing (default 1)
+   # ENABLE_HOME_ASSISTANT=0       # skip Home Assistant compose (no GHCR) until hub tarball exists
    # TRUENAS_IP=192.168.0.111   # TrueNAS address for ping + mount-truenas-hub.sh
    # HA_IMAGE_TARBALL=/path/to/home-assistant-stable.tar.gz  # optional explicit tarball for docker load
 

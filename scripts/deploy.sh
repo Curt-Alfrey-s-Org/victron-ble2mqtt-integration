@@ -6,7 +6,7 @@
 # - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_FAILOVER_MONITOR=1, FORCE_HA_MQTT_YAML=1
 # - TrueNAS hub (LAN): ENABLE_DOCKER_REGISTRY_MIRROR=1 (default) merges registry-mirrors http://192.168.0.111:5000 into /etc/docker/daemon.json;
 #   nfs /mnt/cluster/wheels/victron enables PIP_OFFLINE=1 victron image builds and optional HA tarball docker load.
-#   ENSURE_TRUENAS_NFS_MOUNT=1 (default) tries scripts/mount-truenas-hub.sh when TrueNAS pings but victron wheels are missing from NFS.
+#   ENABLE_HOME_ASSISTANT=0 skips Home Assistant compose (use when hub has no HA tarball and you must avoid GHCR).
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -79,6 +79,7 @@ fi
 : "${MQTT_PORT:=1883}"
 : "${FORCE_HA_MQTT_YAML:=0}"
 : "${ENABLE_HA_WATCHDOG:=1}"
+: "${ENABLE_HOME_ASSISTANT:=1}"
 : "${ENABLE_DOCKGE:=1}"
 : "${ENABLE_TOOLS:=1}"
 : "${ENABLE_VSCODE_CLEANUP:=1}"
@@ -110,8 +111,14 @@ maybe_mount_truenas_hub_for_victron() {
     return 0
   fi
   if mountpoint -q /mnt/cluster 2>/dev/null; then
-    echo "[deploy] /mnt/cluster is mounted but $(victron_hub_wheel_dir) has no .whl files."
-    echo "[deploy] Seed on TrueNAS (.111): sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/seed-victron-wheels-truenas.sh"
+    local hd
+    hd="$(victron_hub_wheel_dir)"
+    if [[ ! -d "$hd" ]]; then
+      echo "[deploy] /mnt/cluster mounted but hub directory is missing: $hd"
+    else
+      echo "[deploy] /mnt/cluster mounted; $hd exists but has no .whl files yet."
+    fi
+    echo "[deploy] On TrueNAS (.111), seed once: sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/seed-victron-wheels-truenas.sh"
     return 0
   fi
   if ! ping -c 1 -W 2 "${TRUENAS_IP:-192.168.0.111}" >/dev/null 2>&1; then
@@ -125,7 +132,28 @@ maybe_mount_truenas_hub_for_victron() {
     return 0
   fi
   if ! victron_hub_has_wheels; then
-    echo "[deploy] NFS mounted but $(victron_hub_wheel_dir) is still empty — seed wheels on .111 (seed-victron-wheels-truenas.sh)."
+    echo "[deploy] NFS mounted; populate $(victron_hub_wheel_dir) on .111: seed-victron-wheels-truenas.sh"
+  fi
+}
+
+ensure_victron_hub_wheel_dir_on_cluster() {
+  local hd parent
+  hd="$(victron_hub_wheel_dir)"
+  parent="$(dirname "$hd")"
+  if ! mountpoint -q /mnt/cluster 2>/dev/null; then
+    return 0
+  fi
+  if [[ ! -d "$parent" ]]; then
+    echo "[deploy] WARN: /mnt/cluster mounted but $parent missing — fix hub layout on TrueNAS." >&2
+    return 0
+  fi
+  if [[ ! -d "$hd" ]]; then
+    echo "[deploy] Creating NFS directory $hd ..."
+    if sudo mkdir -p "$hd"; then
+      echo "[deploy] Created $hd (still empty until seed-victron-wheels-truenas.sh runs on .111)."
+    else
+      echo "[deploy] WARN: could not create $hd — check NFS write permissions." >&2
+    fi
   fi
 }
 
@@ -169,6 +197,7 @@ load_homeassistant_image_from_hub_if_needed() {
   done
   echo "[deploy] No Home Assistant tarball on hub — compose may pull from GHCR."
   echo "[deploy] Seed on .111 after docker pull: sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/publish-built-image-to-hub.sh ghcr.io/home-assistant/home-assistant:stable home-assistant-stable.tar.gz"
+  echo "[deploy] Or skip HA this run: sudo env ENABLE_HOME_ASSISTANT=0 bash scripts/deploy.sh"
   return 0
 }
 
@@ -585,6 +614,8 @@ sudo chown "${SUDO_USER:-$USER}":"${SUDO_USER:-$USER}" /var/log/victron_ble2mqtt
 
 maybe_mount_truenas_hub_for_victron
 
+ensure_victron_hub_wheel_dir_on_cluster
+
 prepare_victron_docker_build_env
 
 echo "[deploy] Building Docker image (victron_ble2mqtt:local, PIP_OFFLINE=${PIP_OFFLINE:-0}) ..."
@@ -758,6 +789,9 @@ fi
 # ------------------------------------------------------------
 # 6) Home Assistant container (host network)
 # ------------------------------------------------------------
+if [[ "${ENABLE_HOME_ASSISTANT:-1}" != "1" ]]; then
+  echo "[deploy] ENABLE_HOME_ASSISTANT=0 — skipping Home Assistant config and Compose (no GHCR pull)."
+else
 HA_TZ="${TZ:-America/Chicago}"
 HA_CONFIG_DIR="/opt/homeassistant"
 sudo mkdir -p "$HA_CONFIG_DIR"
@@ -820,6 +854,7 @@ for i in {1..30}; do
   sleep 2
 done
 
+fi
 # ------------------------------------------------------------
 # 7) Quick sanity: show container status and recent logs snippet
 # ------------------------------------------------------------
