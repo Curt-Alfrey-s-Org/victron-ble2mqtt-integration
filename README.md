@@ -9,7 +9,7 @@ Bridge Victron BLE advertisements → MQTT with Home Assistant discovery. Design
 - ✅ BLE scanning on `hci0` (LE-only) is stable.
 - ✅ Victron **Solar Charger (VE.Direct SmarT / BlueSolar MPPT 75/15 rev3)** is detected and decoded.
 - ✅ MQTT discovery + states arrive in HA (entities like `battery_voltage`, `charge_state`, `solar_power`, etc.).
-- ✅ Optional: Dozzle is running and can be used to tail container logs.
+- ✅ **Dockge** on **`http://<pi-ip>:5006`** manages Compose stacks (`victron`, `homeassistant`, Watchtower); survives reboot via container `restart` policies.
 
 See Home Assistant → Settings → Devices & Services → MQTT for discovered entities.
 
@@ -27,7 +27,7 @@ See Home Assistant → Settings → Devices & Services → MQTT for discovered e
 - Previously, Pi system metrics (CPU, temp, load, wifi, etc.) were only published when a BLE packet was decoded and forwarded. If no Victron BLE adverts were seen, these sensors appeared to “stall.”
 - Now, a periodic publisher runs inside `override/victron_ble2mqtt/__main__.py`, pushing system metrics at a fixed interval regardless of BLE activity. This makes Pi4 data flow consistently, including right after container start.
 - Tuning: `SYSTEM_POLL_THROTTLE_SEC` (default 3s) in `docker-compose.victron.yml`.
-- Reboot-proof via systemd runner installed by `scripts/deploy.sh`.
+- Reboot-proof: **`scripts/deploy.sh`** installs **Dockge** and writes **`/opt/stacks/*/compose.yaml`** wrappers that `include` the repo Compose files; containers use `restart: unless-stopped`.
 
 **Important:** The bridge requires a working Mosquitto broker on port 1883. `deploy.sh` now includes `mosquitto_restart_and_verify()` that checks the listener and authenticated subscribe. If you see "Connection refused", re-run `sudo bash scripts/deploy.sh` after ensuring `MQTT_HOST` in `.env` is the Pi's LAN IP (not localhost).
 
@@ -43,7 +43,7 @@ Run the unified installer:
 sudo bash scripts/deploy.sh
 ```
 
-It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, starts Home Assistant, and installs the `victron-ble2mqtt` systemd runner.
+It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, builds the bridge image, starts **Dockge** (:5006), brings up **victron** / **homeassistant** / **Watchtower** via Compose, and installs watchdog timers (HA, MQTT, optional docker prune, VS Code cleanup).
 See `DEPLOY.md` for options and troubleshooting.
 
 **Same LAN as the Alfa cluster?** See [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) for TrueNAS hub usage, cross-links to **alfa-ai**, and **monitoring** (Prometheus / `node_exporter` on the Pi).
@@ -62,7 +62,7 @@ If VS Code Server uses too much memory:
 - Use the workspace settings in `.vscode/settings.json` (already included) to reduce indexers and watchers.
 - Kill all VS Code Server processes on demand:
   - `bash scripts/kill_vscode_server.sh`
-- Automatic cleanup runs every 10 minutes and removes stale VS Code Server processes older than 15 minutes: see `scripts/vscode_server_cleanup.sh` and systemd units `vscode-server-cleanup@.service` and `.timer`.
+- Automatic cleanup runs every 10 minutes and removes stale VS Code Server processes older than 15 minutes: see `scripts/vscode_server_cleanup.sh` and systemd units `vscode-server-cleanup.service` and `vscode-server-cleanup.timer`.
 
 
 ## One-shot debug run
@@ -110,7 +110,7 @@ mosquitto_sub -h "$MQTT_HOST" -p "${MQTT_PORT:-1883}" -u "$MQTT_USER" -P "$MQTT_
   -t 'homeassistant/#' -t 'victron_ble/#'
 
 
-If you prefer Docker tailing + Dozzle, run your own small alpine container with mosquitto_sub and view logs in Dozzle.
+If you prefer container log streaming, use **Dockge** or `docker logs -f <container>`.
 
 Home Assistant
 
@@ -136,11 +136,9 @@ MQTT_HOST was a placeholder/comment. Set it to the broker’s LAN IP.
 
 Notes
 - The deploy script can repair a malformed `/etc/docker/daemon.json` and restart Docker safely.
-- The systemd unit starts bluetooth safely before running the container (no forced restart).
+- Stacks start on boot via Docker **`restart: unless-stopped`** (no systemd unit for the Victron container). **`deploy.sh`** still enables **bluetooth.service** during prerequisite setup.
 
 License
 
 MIT (or the project’s existing license).
 
-
-::contentReference[oaicite:0]{index=0}

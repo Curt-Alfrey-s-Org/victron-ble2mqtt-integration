@@ -1,62 +1,7 @@
+## Docker Compose v2 — Watchtower only (label-gated updates). Portainer/Dozzle/nginx removed; use Dockge on :5006.
 services:
-  dozzle:
-    image: amir20/dozzle:latest
-    container_name: dozzle
-    restart: unless-stopped
-    networks:
-      - tools_net
-    environment:
-      - DOZZLE_BASE=/dozzle
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    labels:
-      com.centurylinklabs.watchtower.enable: "false"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    healthcheck:
-      disable: true
-
-  portainer:
-    image: portainer/portainer-ce:latest
-    container_name: portainer
-    restart: unless-stopped
-    networks:
-      - tools_net
-    environment:
-      - PUBLIC_URL=/portainer
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
-    labels:
-      com.centurylinklabs.watchtower.enable: "false"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    healthcheck:
-      disable: true
-
-  nginx:
-    image: nginx:stable-alpine
-    container_name: tools_nginx
-    restart: unless-stopped
-    ports:
-      - "443:443"
-    volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - dozzle
-      - portainer
-    networks:
-      - tools_net
-
   watchtower:
-    image: containrrr/watchtower:latest
+    image: containrrr/watchtower:1.7.1
     container_name: watchtower
     restart: unless-stopped
     environment:
@@ -71,10 +16,3 @@ services:
       options:
         max-size: "5m"
         max-file: "2"
-
-volumes:
-  portainer_data:
-
-networks:
-  tools_net:
-    driver: bridge

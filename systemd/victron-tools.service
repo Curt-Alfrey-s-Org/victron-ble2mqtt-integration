@@ -1,5 +1,5 @@
 [Unit]
-Description=Victron tools compose (Dozzle + Portainer + Watchtower)
+Description=(Legacy) Victron tools compose — superseded by Dockge + docker-compose.tools.yml
 Requires=docker.service
 After=docker.service
 

@@ -15,7 +15,7 @@ fi
 
 # 2) Scanner running?
 if ! bluetoothctl show hci0 2>/dev/null | grep -q 'Discovering: yes'; then
-  systemctl restart victron-ble2mqtt.service || true
+  docker restart victron_ble2mqtt 2>/dev/null || sudo docker restart victron_ble2mqtt 2>/dev/null || true
   sleep 2
 fi
 
@@ -25,6 +25,6 @@ if [[ -n "${VICTRON_DEVICE_KEYS:-}" ]]; then
     # Kick BT stack and app if we stopped seeing adverts
     systemctl restart bluetooth.service || true
     sleep 3
-    systemctl restart victron-ble2mqtt.service || true
+    docker restart victron_ble2mqtt 2>/dev/null || sudo docker restart victron_ble2mqtt 2>/dev/null || true
   fi
 fi

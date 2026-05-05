@@ -1,0 +1,21 @@
+# Dockge — Docker Compose stack manager for Pi4 (matches fleet pattern in alfa-ai deploy/petals/docker-compose.dockge.yml).
+# https://github.com/louislam/dockge
+#
+# Host install: scripts/deploy.sh copies this file to /opt/dockge/compose.yaml and runs `docker compose up -d` there.
+# UI: http://<pi-lan-ip>:5006
+
+name: pi4-dockge
+
+services:
+  dockge:
+    image: louislam/dockge:1
+    container_name: pi4-dockge
+    restart: unless-stopped
+    ports:
+      - "5006:5001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/dockge/data:/app/data
+      - /opt/stacks:/opt/stacks
+    environment:
+      - DOCKGE_STACKS_DIR=/opt/stacks

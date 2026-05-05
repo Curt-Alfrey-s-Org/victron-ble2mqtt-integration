@@ -1,4 +1,4 @@
-version: '3.8'
+## Docker Compose v2 format (no top-level 'version' field)
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
@@ -12,39 +12,28 @@ services:
     env_file:
       - ./ha-discovery.env
     environment:
-      - TZ=America/New_York  # Change to your timezone
+      # Override via `.env` on host before `docker compose` or set in ha-discovery.env
+      - TZ=${TZ:-America/Chicago}
     volumes:
-      - /opt/homeassistant:/config   # preserve your existing data (host path detected)
-      - /run/dbus:/run/dbus:ro       # Bluetooth integration → host BlueZ
-    ports:
-      - "8123:8123"
-  # Optional serial device mapping. If you have a specific USB serial device
-  # to pass into the container, uncomment and set the correct host path.
-  # devices:
-  #   - /dev/serial/by-id/usb-serial-if-needed:/dev/serial/by-id/usb-serial-if-needed
-    # Lightweight resource constraints for a Pi4 (tune if needed)
+      - /opt/homeassistant:/config
+      - /run/dbus:/run/dbus:ro
+    # Optional serial device mapping — uncomment and set the correct host path if needed.
+    # devices:
+    #   - /dev/serial/by-id/usb-serial-if-needed:/dev/serial/by-id/usb-serial-if-needed
     mem_limit: 1g
     cpus: 0.7
-    # Limit logs so SD/flash doesn't wear out
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
-    # Container-level healthcheck (applies when container created by compose)
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8123/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
 
-    # If you run with `docker swarm` note that deploy.* is ignored by plain compose
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: '0.7'
-
 # Notes:
-# - This file is for local docker-compose usage. It maps to your live data at /opt/homeassistant
-# - If you recreate the container via compose, make sure the container is stopped first to avoid name conflicts
+# - Maps live config at /opt/homeassistant
+# - network_mode: host — do not add ports: (ignored / warns with Compose)
+# - If you recreate the container, stop/remove the old one first to avoid name conflicts
