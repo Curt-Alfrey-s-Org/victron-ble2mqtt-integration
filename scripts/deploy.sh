@@ -180,25 +180,32 @@ prepare_victron_docker_build_env() {
   fi
 }
 
-load_homeassistant_image_from_hub_if_needed() {
-  local img="ghcr.io/home-assistant/home-assistant:stable"
+load_hub_image_if_needed() {
+  local img="$1" tarball_name="$2" label="$3"
   if docker image inspect "$img" >/dev/null 2>&1; then
     return 0
   fi
   local tb
   for tb in \
-    "${HA_IMAGE_TARBALL:-}" \
-    "/mnt/cluster/docker-images/home-assistant-stable.tar.gz" \
-    "/mnt/cluster/docker/images/home-assistant-stable.tar.gz"; do
-    [[ -z "$tb" || ! -f "$tb" ]] && continue
-    echo "[deploy] Loading Home Assistant image from hub tarball: $tb"
+    "/mnt/cluster/docker-images/${tarball_name}" \
+    "/mnt/cluster/docker/images/${tarball_name}"; do
+    [[ ! -f "$tb" ]] && continue
+    echo "[deploy] Loading ${label} image from hub tarball: $tb"
     docker load <"$tb"
     return 0
   done
-  echo "[deploy] No Home Assistant tarball on hub — compose may pull from GHCR."
-  echo "[deploy] Seed on .111 after docker pull: sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/publish-built-image-to-hub.sh ghcr.io/home-assistant/home-assistant:stable home-assistant-stable.tar.gz"
-  echo "[deploy] Or skip HA this run: sudo env ENABLE_HOME_ASSISTANT=0 bash scripts/deploy.sh"
+  echo "[deploy] No ${label} tarball on hub (${tarball_name}) — compose may pull from the internet."
+  echo "[deploy] Seed on .111: sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/seed-victron-wheels-truenas.sh"
   return 0
+}
+
+load_all_hub_images() {
+  load_hub_image_if_needed "ghcr.io/home-assistant/home-assistant:stable" \
+    "home-assistant-stable.tar.gz" "Home Assistant"
+  load_hub_image_if_needed "louislam/dockge:1" \
+    "dockge-1.tar.gz" "Dockge"
+  load_hub_image_if_needed "containrrr/watchtower:1.7.1" \
+    "watchtower-1.7.1.tar.gz" "Watchtower"
 }
 
 apt_install() {
@@ -618,6 +625,8 @@ ensure_victron_hub_wheel_dir_on_cluster
 
 prepare_victron_docker_build_env
 
+load_all_hub_images
+
 echo "[deploy] Building Docker image (victron_ble2mqtt:local, PIP_OFFLINE=${PIP_OFFLINE:-0}) ..."
 DOCKER_BUILDKIT=1 docker build --build-arg "PIP_OFFLINE=${PIP_OFFLINE:-0}" -t victron_ble2mqtt:local .
 
@@ -837,7 +846,8 @@ fi
 
 export TZ="${HA_TZ}"
 ensure_ha_discovery_env_for_compose
-load_homeassistant_image_from_hub_if_needed
+load_hub_image_if_needed "ghcr.io/home-assistant/home-assistant:stable" \
+    "home-assistant-stable.tar.gz" "Home Assistant"
 echo "[deploy] Starting Home Assistant via Compose ..."
 if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   (cd /opt/stacks/homeassistant && docker compose up -d)
