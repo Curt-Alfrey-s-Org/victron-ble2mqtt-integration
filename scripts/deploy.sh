@@ -219,6 +219,8 @@ if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
   echo "[deploy] Configuring Mosquitto with password auth..."
   sudo rm -f "$ALLOW_ALL_CONF" 2>/dev/null || true
   sudo bash -lc "set -e; mosquitto_passwd -b -c /etc/mosquitto/passwd '$MQTT_USER' '$MQTT_PASSWORD'"
+  sudo chown mosquitto:mosquitto /etc/mosquitto/passwd
+  sudo chmod 640 /etc/mosquitto/passwd
   sudo bash -lc "cat > '$AUTH_CONF' <<CONF
 per_listener_settings true
 listener ${MQTT_PORT} 0.0.0.0
