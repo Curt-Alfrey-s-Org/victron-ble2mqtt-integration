@@ -262,10 +262,23 @@ EOF
   sudo chmod 644 /etc/mosquitto/watchdog.env
 fi
 
-# Ensure main config includes the conf.d directory (critical on Debian/RPi for Mosquitto 2.x)
-if ! grep -q 'include_dir /etc/mosquitto/conf.d' /etc/mosquitto/mosquitto.conf 2>/dev/null; then
-  echo "[deploy] Adding include_dir for conf.d to main mosquitto.conf"
-  echo 'include_dir /etc/mosquitto/conf.d' | sudo tee -a /etc/mosquitto/mosquitto.conf >/dev/null
+# Mosquitto 2.x + per_listener_settings: global options (log_dest, log_type, etc.)
+# placed BEFORE any "listener" directive trigger a hidden default listener on :1883.
+# When conf.d/10-auth.conf then declares "listener 1883 0.0.0.0" the duplicate crashes
+# Mosquitto. Fix: strip the main config to persistence + include_dir only.
+MOSQ_MAIN="/etc/mosquitto/mosquitto.conf"
+if [[ -f "$MOSQ_MAIN" ]]; then
+  if grep -qE '^\s*log_dest\b' "$MOSQ_MAIN" 2>/dev/null; then
+    echo "[deploy] Cleaning mosquitto.conf: removing log_dest (conflicts with per_listener_settings in conf.d)"
+    sudo sed -i '/^\s*log_dest\b/d' "$MOSQ_MAIN"
+  fi
+  if grep -qE '^\s*log_type\b' "$MOSQ_MAIN" 2>/dev/null; then
+    sudo sed -i '/^\s*log_type\b/d' "$MOSQ_MAIN"
+  fi
+  if ! grep -q 'include_dir /etc/mosquitto/conf.d' "$MOSQ_MAIN" 2>/dev/null; then
+    echo "[deploy] Adding include_dir for conf.d to mosquitto.conf"
+    echo 'include_dir /etc/mosquitto/conf.d' | sudo tee -a "$MOSQ_MAIN" >/dev/null
+  fi
 fi
 
 mosquitto_restart_and_verify
