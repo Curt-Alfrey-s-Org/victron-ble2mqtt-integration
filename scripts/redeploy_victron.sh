@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Recreate victron_ble2mqtt container with env from .env and victron-secrets.env
-# - Forces MQTT_HOST=localhost and uses MQTT_USER/PASSWORD from .env
+# - MQTT_HOST from .env, else first address from hostname -I, else 127.0.0.1
 # - Host networking, NET_ADMIN, same mounts as compose
 set -euo pipefail
 
@@ -11,6 +11,24 @@ cd "$(dirname "$0")/.."
 # were sourced after .env they would wipe ADVKEY_* that only exist in .env.)
 if [[ -f ./victron-secrets.env ]]; then set -a; . ./victron-secrets.env; set +a; fi
 if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
+
+# After sourcing victron-secrets.env + .env, MQTT_HOST may still be localhost from
+# an older secrets file. Treat loopback as unset and prefer the Pi's LAN address.
+MQTT_HOST_EFFECTIVE="${MQTT_HOST:-}"
+if [[ -z "$MQTT_HOST_EFFECTIVE" || "$MQTT_HOST_EFFECTIVE" == "localhost" || "$MQTT_HOST_EFFECTIVE" == "127.0.0.1" ]]; then
+  MQTT_HOST_EFFECTIVE="$(hostname -I 2>/dev/null | awk '{print $1}')" || true
+fi
+if [[ -z "$MQTT_HOST_EFFECTIVE" ]]; then
+  MQTT_HOST_EFFECTIVE="127.0.0.1"
+fi
+echo "[redeploy] MQTT_HOST=${MQTT_HOST_EFFECTIVE}" >&2
+
+MQTT_PORT_EFFECTIVE="${MQTT_PORT:-1883}"
+if ! timeout 4 bash -c "exec 3<>/dev/tcp/${MQTT_HOST_EFFECTIVE}/${MQTT_PORT_EFFECTIVE}" 2>/dev/null; then
+  echo "[redeploy] ERROR: nothing accepting TCP on ${MQTT_HOST_EFFECTIVE}:${MQTT_PORT_EFFECTIVE} (broker down or wrong host)." >&2
+  echo "[redeploy] Install/start Mosquitto, then: sudo bash scripts/deploy.sh" >&2
+  exit 1
+fi
 
 # Sanitize ADVKEY_* to 32 hex chars (strip non-hex, trim to 32)
 sanitize_advkey() {
@@ -34,7 +52,7 @@ docker run -d --name victron_ble2mqtt --restart unless-stopped \
   --log-driver json-file --log-opt max-size=10m --log-opt max-file=5 \
   --network host --cap-add NET_ADMIN --privileged \
   --env-file ./victron-secrets.env \
-  -e MQTT_HOST=localhost -e MQTT_PORT=1883 \
+  -e MQTT_HOST="${MQTT_HOST_EFFECTIVE}" -e MQTT_PORT="${MQTT_PORT_EFFECTIVE}" \
   -e MQTT_USER="${MQTT_USER:-}" -e MQTT_PASSWORD="${MQTT_PASSWORD:-}" \
   -e MAIN_UID="${MAIN_UID:-}" -e PUBLISH_CONFIG_THROTTLE_SEC="${PUBLISH_CONFIG_THROTTLE_SEC:-60}" \
   -e SYSTEM_POLL_THROTTLE_SEC="${SYSTEM_POLL_THROTTLE_SEC:-3}" \

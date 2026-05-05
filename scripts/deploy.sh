@@ -26,11 +26,13 @@ ensure_dotenv_for_mqtt() {
     else
       echo "[deploy] Creating .env with MQTT placeholders (dotenv.sample missing from checkout)."
       cat > ./.env <<'EOS'
-# MQTT — set for Mosquitto + Home Assistant + victron container
-MQTT_HOST=127.0.0.1
+# MQTT broker settings for Mosquitto, Home Assistant, and the victron_ble2mqtt container.
+# Use the Pi's real LAN IP (from `hostname -I`) instead of localhost/127.0.0.1 for reliable connectivity.
+# The new deploy verification will fail loudly if Mosquitto cannot bind port 1883 or auth fails.
+MQTT_HOST=192.168.0.XX
 MQTT_PORT=1883
-MQTT_USER=
-MQTT_PASSWORD=
+MQTT_USER=victron
+MQTT_PASSWORD=your_secure_password_here
 EOS
     fi
     touched=true
@@ -54,6 +56,17 @@ ensure_dotenv_for_mqtt
 
 # --- load env if present ---
 if [[ -f ./.env ]]; then set -a; . ./.env; set +a; fi
+
+# Force a real LAN IP for MQTT_HOST if it is still localhost/127.0.0.1.
+# This is critical for the container to reach the broker when using network_mode: host.
+if [[ "${MQTT_HOST:-}" == "localhost" || "${MQTT_HOST:-}" == "127.0.0.1" || -z "${MQTT_HOST:-}" ]]; then
+  LAN_IP="$(hostname -I 2>/dev/null | awk '{print $1}' || echo '')"
+  if [[ -n "$LAN_IP" && "$LAN_IP" != "127.0.0.1" ]]; then
+    echo "[deploy] Setting MQTT_HOST=${LAN_IP} in .env (Pi LAN IP). Edit .env to change."
+    sed -i "s/^MQTT_HOST=.*/MQTT_HOST=${LAN_IP}/" ./.env 2>/dev/null || echo "MQTT_HOST=${LAN_IP}" >> ./.env
+    MQTT_HOST="$LAN_IP"
+  fi
+fi
 
 : "${MQTT_HOST:=127.0.0.1}"
 : "${MQTT_PORT:=1883}"
@@ -89,6 +102,34 @@ ensure_group_member() {
 ensure_service_active() {
   local svc="$1"
   sudo systemctl enable --now "$svc" 2>/dev/null || sudo systemctl restart "$svc" 2>/dev/null || true
+}
+
+# Mosquitto: do not swallow start failures (ensure_service_active alone can hide a broken config).
+mosquitto_restart_and_verify() {
+  echo "[deploy] Restarting and verifying Mosquitto (listener on port ${MQTT_PORT} + auth)..."
+  sudo systemctl restart mosquitto
+  sleep 3
+  if ! systemctl is-active --quiet mosquitto; then
+    echo "[deploy] ERROR: mosquitto.service failed to start." >&2
+    sudo systemctl --no-pager -l status mosquitto >&2
+    sudo journalctl -u mosquitto -n 80 --no-pager >&2
+    exit 1
+  fi
+  if ! ss -lntp 2>/dev/null | grep -qE ":${MQTT_PORT}\\b.*mosquitto"; then
+    echo "[deploy] ERROR: no listener on TCP port ${MQTT_PORT} (check config or firewall)." >&2
+    sudo journalctl -u mosquitto -n 60 --no-pager >&2
+    exit 1
+  fi
+  local sub_args=("-h" "127.0.0.1" "-p" "${MQTT_PORT}" "-t" '$SYS/broker/uptime' "-C" "1" "-W" "10")
+  if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
+    sub_args+=("-u" "$MQTT_USER" "-P" "$MQTT_PASSWORD")
+  fi
+  if ! mosquitto_sub "${sub_args[@]}" >/dev/null 2>&1; then
+    echo "[deploy] ERROR: subscribe test failed (wrong credentials or broker not ready)." >&2
+    sudo journalctl -u mosquitto -n 30 --no-pager >&2
+    exit 1
+  fi
+  echo "[deploy] Mosquitto OK (listening on ${MQTT_PORT}, subscribe test passed)."
 }
 
 render_unit_with_user_path() {
@@ -182,7 +223,29 @@ log_dest syslog
 CONF"
   fi
 fi
-ensure_service_active mosquitto
+
+# mqtt-watchdog.timer uses mosquitto_sub; when allow_anonymous is false it must use credentials.
+if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
+  sudo tee /etc/mosquitto/watchdog.env >/dev/null <<EOF
+MQTT_PORT=${MQTT_PORT}
+MQTT_USER=${MQTT_USER@Q}
+MQTT_PASSWORD=${MQTT_PASSWORD@Q}
+EOF
+  sudo chmod 600 /etc/mosquitto/watchdog.env
+else
+  sudo tee /etc/mosquitto/watchdog.env >/dev/null <<EOF
+MQTT_PORT=${MQTT_PORT}
+EOF
+  sudo chmod 644 /etc/mosquitto/watchdog.env
+fi
+
+# Ensure main config includes the conf.d directory (critical on Debian/RPi for Mosquitto 2.x)
+if ! grep -q 'include_dir /etc/mosquitto/conf.d' /etc/mosquitto/mosquitto.conf 2>/dev/null; then
+  echo "[deploy] Adding include_dir for conf.d to main mosquitto.conf"
+  echo 'include_dir /etc/mosquitto/conf.d' | sudo tee -a /etc/mosquitto/mosquitto.conf >/dev/null
+fi
+
+mosquitto_restart_and_verify
 
 # ------------------------------------------------------------
 # journald caps to prevent RAM/disk bloat
@@ -417,8 +480,20 @@ if [[ "${ENABLE_MQTT_WATCHDOG}" == "1" ]]; then
 #!/usr/bin/env bash
 set -euo pipefail
 HOST=127.0.0.1
-PORT=${MQTT_PORT:-1883}
-if mosquitto_sub -h "${HOST}" -p "${PORT}" -t '$SYS/broker/uptime' -C 1 -W 5 >/dev/null 2>&1; then
+PORT=1883
+if [[ -f /etc/mosquitto/watchdog.env ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  . /etc/mosquitto/watchdog.env
+  set +a
+  PORT="${MQTT_PORT:-1883}"
+fi
+args=(-h "$HOST" -p "$PORT")
+if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
+  args+=(-u "$MQTT_USER" -P "$MQTT_PASSWORD")
+fi
+args+=(-t '$SYS/broker/uptime' -C 1 -W 8)
+if mosquitto_sub "${args[@]}" >/dev/null 2>&1; then
   exit 0
 fi
 logger -t mqtt-watchdog 'Mosquitto unresponsive; restarting'

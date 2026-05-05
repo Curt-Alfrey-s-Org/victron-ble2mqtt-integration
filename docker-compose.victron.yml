@@ -6,12 +6,12 @@ services:
     container_name: victron_ble2mqtt
     restart: unless-stopped
     environment:
-      # Force local broker to avoid dependency on host IP
-      - MQTT_HOST=localhost
+      # MQTT_HOST: set in `.env` (recommended: Pi LAN IP). If only victron-secrets.env
+      # sets MQTT_HOST=localhost, remove that line there or override in `.env`.
       - MQTT_PORT=1883
       - MQTT_USER=${MQTT_USER}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
-      - MAIN_UID=${MAIN_UID}
+      - MAIN_UID=${MAIN_UID:-}
       # System info publish interval (seconds). Keep small for responsive HA sensors.
       - SYSTEM_POLL_THROTTLE_SEC=${SYSTEM_POLL_THROTTLE_SEC:-3}
       - PUBLISH_CONFIG_THROTTLE_SEC=${PUBLISH_CONFIG_THROTTLE_SEC:-60}

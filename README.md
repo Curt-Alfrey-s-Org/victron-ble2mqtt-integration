@@ -29,6 +29,8 @@ See Home Assistant → Settings → Devices & Services → MQTT for discovered e
 - Tuning: `SYSTEM_POLL_THROTTLE_SEC` (default 3s) in `docker-compose.victron.yml`.
 - Reboot-proof via systemd runner installed by `scripts/deploy.sh`.
 
+**Important:** The bridge requires a working Mosquitto broker on port 1883. `deploy.sh` now includes `mosquitto_restart_and_verify()` that checks the listener and authenticated subscribe. If you see "Connection refused", re-run `sudo bash scripts/deploy.sh` after ensuring `MQTT_HOST` in `.env` is the Pi's LAN IP (not localhost).
+
 > If you run tails/clients in Docker, set `MQTT_HOST` to the broker’s **LAN IP**, not `localhost`.
 
 ---
