@@ -198,6 +198,31 @@ install_dockge_host_stack() {
   (cd /opt/dockge && sudo docker compose up -d)
 }
 
+# docker-compose.homeassistant.yml references env_file: ./ha-discovery.env (gitignored).
+ensure_ha_discovery_env_for_compose() {
+  local dst="$ROOT_DIR/ha-discovery.env"
+  if [[ -f "$dst" ]]; then
+    return 0
+  fi
+  if [[ -f "$ROOT_DIR/swarm/ha-discovery.env" ]]; then
+    cp "$ROOT_DIR/swarm/ha-discovery.env" "$dst"
+    echo "[deploy] Copied swarm/ha-discovery.env → ./ha-discovery.env"
+  elif [[ -f "$ROOT_DIR/swarm/ha-discovery.env.example" ]]; then
+    cp "$ROOT_DIR/swarm/ha-discovery.env.example" "$dst"
+    echo "[deploy] Created ./ha-discovery.env from swarm/ha-discovery.env.example (set MQTT_PASSWORD etc. if empty)."
+  else
+    {
+      printf '# Minimal stub — compose requires this path.\n'
+      printf 'MQTT_HOST=%s\n' "${MQTT_HOST:-127.0.0.1}"
+      printf 'MQTT_PORT=%s\n' "${MQTT_PORT:-1883}"
+      printf 'MQTT_USER=%s\n' "${MQTT_USER:-}"
+      printf 'MQTT_PASSWORD=%s\n' "${MQTT_PASSWORD:-}"
+    } >"$dst"
+    echo "[deploy] Created ./ha-discovery.env with MQTT_* from current deploy environment."
+  fi
+  chmod 600 "$dst" 2>/dev/null || true
+}
+
 file_has_line() { local f="$1"; shift; local pattern="$*"; grep -Fqx "$pattern" "$f" 2>/dev/null; }
 
 # ------------------------------------------------------------
@@ -650,6 +675,7 @@ if docker ps -a --format '{{.Names}}' | grep -qw homeassistant; then
 fi
 
 export TZ="${HA_TZ}"
+ensure_ha_discovery_env_for_compose
 echo "[deploy] Starting Home Assistant via Compose ..."
 if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   (cd /opt/stacks/homeassistant && docker compose up -d)
