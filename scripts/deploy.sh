@@ -107,26 +107,49 @@ ensure_service_active() {
 # Mosquitto: do not swallow start failures (ensure_service_active alone can hide a broken config).
 mosquitto_restart_and_verify() {
   echo "[deploy] Restarting and verifying Mosquitto (listener on port ${MQTT_PORT} + auth)..."
-  sudo systemctl restart mosquitto
-  sleep 3
+
+  # Use || true so set -e does not kill the script before we can print diagnostics.
+  if ! sudo systemctl restart mosquitto; then
+    echo "[deploy] ERROR: mosquitto.service failed to restart. Config or unit problem." >&2
+    echo "--- systemctl status mosquitto ---" >&2
+    sudo systemctl --no-pager -l status mosquitto >&2 || true
+    echo "--- journalctl -u mosquitto (last 80 lines) ---" >&2
+    sudo journalctl -u mosquitto -n 80 --no-pager >&2 || true
+    echo "--- /etc/mosquitto/mosquitto.conf ---" >&2
+    sudo cat /etc/mosquitto/mosquitto.conf >&2 || true
+    echo "--- /etc/mosquitto/conf.d/ ---" >&2
+    sudo ls -la /etc/mosquitto/conf.d/ >&2 || true
+    for f in /etc/mosquitto/conf.d/*.conf; do
+      [[ -f "$f" ]] || continue
+      echo "--- $f ---" >&2
+      sudo cat "$f" >&2 || true
+    done
+    exit 1
+  fi
+  sleep 2
+
   if ! systemctl is-active --quiet mosquitto; then
-    echo "[deploy] ERROR: mosquitto.service failed to start." >&2
-    sudo systemctl --no-pager -l status mosquitto >&2
-    sudo journalctl -u mosquitto -n 80 --no-pager >&2
+    echo "[deploy] ERROR: mosquitto.service is not active after restart." >&2
+    sudo journalctl -u mosquitto -n 80 --no-pager >&2 || true
     exit 1
   fi
-  if ! ss -lntp 2>/dev/null | grep -qE ":${MQTT_PORT}\\b.*mosquitto"; then
-    echo "[deploy] ERROR: no listener on TCP port ${MQTT_PORT} (check config or firewall)." >&2
-    sudo journalctl -u mosquitto -n 60 --no-pager >&2
+
+  # Check that something is actually listening on the MQTT port.
+  if ! ss -lntp 2>/dev/null | grep -qE ":${MQTT_PORT}\b"; then
+    echo "[deploy] ERROR: no listener on TCP port ${MQTT_PORT}." >&2
+    echo "--- ss -lntp (all listeners) ---" >&2
+    ss -lntp >&2 || true
+    sudo journalctl -u mosquitto -n 40 --no-pager >&2 || true
     exit 1
   fi
+
   local sub_args=("-h" "127.0.0.1" "-p" "${MQTT_PORT}" "-t" '$SYS/broker/uptime' "-C" "1" "-W" "10")
   if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
     sub_args+=("-u" "$MQTT_USER" "-P" "$MQTT_PASSWORD")
   fi
   if ! mosquitto_sub "${sub_args[@]}" >/dev/null 2>&1; then
     echo "[deploy] ERROR: subscribe test failed (wrong credentials or broker not ready)." >&2
-    sudo journalctl -u mosquitto -n 30 --no-pager >&2
+    sudo journalctl -u mosquitto -n 30 --no-pager >&2 || true
     exit 1
   fi
   echo "[deploy] Mosquitto OK (listening on ${MQTT_PORT}, subscribe test passed)."
