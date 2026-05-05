@@ -6,6 +6,7 @@
 # - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_FAILOVER_MONITOR=1, FORCE_HA_MQTT_YAML=1
 # - TrueNAS hub (LAN): ENABLE_DOCKER_REGISTRY_MIRROR=1 (default) merges registry-mirrors http://192.168.0.111:5000 into /etc/docker/daemon.json;
 #   nfs /mnt/cluster/wheels/victron enables PIP_OFFLINE=1 victron image builds and optional HA tarball docker load.
+#   ENSURE_TRUENAS_NFS_MOUNT=1 (default) tries scripts/mount-truenas-hub.sh when TrueNAS pings but victron wheels are missing from NFS.
 set -Eeuo pipefail
 IFS=$'\n\t'
 
@@ -82,17 +83,58 @@ fi
 : "${ENABLE_MQTT_WATCHDOG:=1}"
 : "${ENABLE_DOCKER_REGISTRY_MIRROR:=1}"
 : "${DOCKER_REGISTRY_MIRROR:=http://192.168.0.111:5000}"
+: "${TRUENAS_IP:=192.168.0.111}"
+: "${ENSURE_TRUENAS_NFS_MOUNT:=1}"
 
 need_cmd() { command -v "$1" >/dev/null 2>&1; }
+
+victron_hub_wheel_dir() {
+  echo "${CLUSTER_WHEELS_VICTRON:-/mnt/cluster/wheels/victron}"
+}
+
+victron_hub_has_wheels() {
+  local dir f
+  dir="$(victron_hub_wheel_dir)"
+  [[ -d "$dir" ]] || return 1
+  f="$(find "$dir" -maxdepth 1 -type f -name '*.whl' -print -quit 2>/dev/null || true)"
+  [[ -n "$f" ]]
+}
+
+maybe_mount_truenas_hub_for_victron() {
+  [[ "${ENSURE_TRUENAS_NFS_MOUNT:-1}" != "1" ]] && return 0
+  if victron_hub_has_wheels; then
+    return 0
+  fi
+  if mountpoint -q /mnt/cluster 2>/dev/null; then
+    echo "[deploy] /mnt/cluster is mounted but $(victron_hub_wheel_dir) has no .whl files."
+    echo "[deploy] Seed on TrueNAS (.111): sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/seed-victron-wheels-truenas.sh"
+    return 0
+  fi
+  if ! ping -c 1 -W 2 "${TRUENAS_IP:-192.168.0.111}" >/dev/null 2>&1; then
+    echo "[deploy] TrueNAS ${TRUENAS_IP:-192.168.0.111} unreachable — skip NFS mount (PyPI / GHCR fallback)."
+    return 0
+  fi
+  echo "[deploy] Victron hub wheels not visible — mounting TrueNAS NFS at /mnt/cluster ..."
+  if ! TRUENAS_IP="${TRUENAS_IP:-192.168.0.111}" bash "$ROOT_DIR/scripts/mount-truenas-hub.sh"; then
+    echo "[deploy] WARN: mount-truenas-hub.sh failed — hub offline path unavailable." >&2
+    echo "[deploy] Manual: sudo bash scripts/mount-truenas-hub.sh  (see docs/ALFA_CLUSTER_INTEGRATION.md)" >&2
+    return 0
+  fi
+  if ! victron_hub_has_wheels; then
+    echo "[deploy] NFS mounted but $(victron_hub_wheel_dir) is still empty — seed wheels on .111 (seed-victron-wheels-truenas.sh)."
+  fi
+}
 
 prepare_victron_docker_build_env() {
   mkdir -p "$ROOT_DIR/wheels"
   export PIP_OFFLINE="${PIP_OFFLINE:-0}"
-  if [[ -d /mnt/cluster/wheels/victron ]]; then
-    echo "[deploy] Syncing pip wheels from TrueNAS hub ..."
-    bash "$ROOT_DIR/scripts/sync-victron-wheels-from-hub.sh" || true
+  local hub_dir
+  hub_dir="$(victron_hub_wheel_dir)"
+  if [[ -d "$hub_dir" ]]; then
+    echo "[deploy] Syncing pip wheels from TrueNAS hub ($hub_dir) ..."
+    CLUSTER_WHEELS_VICTRON="$hub_dir" bash "$ROOT_DIR/scripts/sync-victron-wheels-from-hub.sh" || true
   else
-    echo "[deploy] Hub wheels path /mnt/cluster/wheels/victron not mounted — pip uses PyPI when PIP_OFFLINE=0."
+    echo "[deploy] Hub wheels path $hub_dir not present — pip uses PyPI when PIP_OFFLINE=0."
   fi
   local whl_count
   whl_count="$(find "$ROOT_DIR/wheels" -maxdepth 1 -type f -name '*.whl' 2>/dev/null | wc -l)"
@@ -122,6 +164,7 @@ load_homeassistant_image_from_hub_if_needed() {
     return 0
   done
   echo "[deploy] No Home Assistant tarball on hub — compose may pull from GHCR."
+  echo "[deploy] Seed on .111 after docker pull: sudo bash /mnt/HDDs/Alfa-AI/repo/alfa-ai/scripts/publish-built-image-to-hub.sh ghcr.io/home-assistant/home-assistant:stable home-assistant-stable.tar.gz"
   return 0
 }
 
@@ -535,6 +578,8 @@ fi
 # Log file for container bind mount
 sudo touch /var/log/victron_ble2mqtt.log
 sudo chown "${SUDO_USER:-$USER}":"${SUDO_USER:-$USER}" /var/log/victron_ble2mqtt.log || true
+
+maybe_mount_truenas_hub_for_victron
 
 prepare_victron_docker_build_env
 

@@ -50,6 +50,8 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    # ENABLE_FAILOVER_MONITOR=1# enable Wi‑Fi failover monitor@user service
    # ENABLE_DOCKER_REGISTRY_MIRROR=0 # skip LAN registry mirror (default 1)
    # DOCKER_REGISTRY_MIRROR=http://192.168.0.111:5000  # override mirror URL
+   # ENSURE_TRUENAS_NFS_MOUNT=0 # skip auto NFS mount when hub wheels missing (default 1)
+   # TRUENAS_IP=192.168.0.111   # TrueNAS address for ping + mount-truenas-hub.sh
    # HA_IMAGE_TARBALL=/path/to/home-assistant-stable.tar.gz  # optional explicit tarball for docker load
 
    docker ps --filter name=victron_ble2mqtt
@@ -72,7 +74,7 @@ Notes:
    - Mosquitto logs routed to syslog with reduced verbosity
 - Optional automation: HA watchdog, MQTT watchdog, weekly docker prune, VS Code cleanup timer.
 
-**TrueNAS hub (same LAN as Alfa):** Mount NFS **`/mnt/cluster`** on the Pi (see **`alfa-ai/docs/HUB_ARTIFACTS.md`**). Seed wheels on `.111` with **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`**, then **`scripts/sync-victron-wheels-from-hub.sh`** runs automatically during **`deploy.sh`** when **`/mnt/cluster/wheels/victron`** exists. Seed **`ghcr.io/home-assistant/home-assistant:stable`** to **`home-assistant-stable.tar.gz`** on the hub so **`deploy.sh`** can **`docker load`** before Compose without pulling GHCR.
+**TrueNAS hub (same LAN as Alfa):** **`deploy.sh`** tries **`scripts/mount-truenas-hub.sh`** when **`ENSURE_TRUENAS_NFS_MOUNT=1`** (default) and TrueNAS **`TRUENAS_IP`** (default **`192.168.0.111`**) pings but **`wheels/victron`** is empty locally — same NFS layout as **`alfa-ai/scripts/mount_nfs_models.sh`**. Seed wheels on `.111` with **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`** so **`sync-victron-wheels-from-hub`** can fill **`./wheels`** and set **`PIP_OFFLINE=1`**. Seed the HA image tarball (**`publish-built-image-to-hub.sh`** → **`home-assistant-stable.tar.gz`**) or Compose will pull **GHCR** (~1.5 GB). Disable auto-mount with **`ENSURE_TRUENAS_NFS_MOUNT=0`** if the Pi is off‑LAN.
 - Docker won’t start after running the installer: check `/etc/docker/daemon.json`. The installer backs up invalid files and writes valid JSON, then restarts Docker.
 - **`victron_ble2mqtt` exits / BLE issues:** verify `bluetoothctl show` reports `Powered: yes`; run **`sudo bash scripts/deploy.sh`** or **`docker restart victron_ble2mqtt`**. Legacy **`victron-ble2mqtt.service`** is removed by deploy — do not re-enable it.
 - No HA entities after discovery: ensure the Victron app is closed (it can stop adverts), and verify ADVKEY_* values are correct.

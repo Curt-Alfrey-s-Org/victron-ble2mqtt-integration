@@ -35,7 +35,7 @@ Alfa’s **canonical hub** policy and paths are documented in:
 2. **PyPI wheels** — when NFS **`/mnt/cluster/wheels/victron`** is mounted, runs **`scripts/sync-victron-wheels-from-hub.sh`** into repo **`./wheels`** and builds with **`PIP_OFFLINE=1`** (see **`DOCKER_BUILD_PATTERN.md`**). Seed on `.111`: **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`**.
 3. **Home Assistant (GHCR)** — the hub mirror does **not** proxy GHCR. Seed on `.111`: `docker pull ghcr.io/home-assistant/home-assistant:stable` then **`alfa-ai/scripts/publish-built-image-to-hub.sh`** … **`home-assistant-stable.tar.gz`**. On the Pi, **`deploy.sh`** runs **`docker load`** from **`/mnt/cluster/docker-images/home-assistant-stable.tar.gz`** (or alternate hub paths / **`HA_IMAGE_TARBALL`**) before Compose starts HA.
 
-Mount **`/mnt/cluster`** per **`alfa-ai/docs/CLUSTER_SHARED_STORAGE.md`** so these paths resolve.
+Mount **`/mnt/cluster`** per **`alfa-ai/docs/CLUSTER_SHARED_STORAGE.md`** so these paths resolve. If it is not mounted yet, **`scripts/deploy.sh`** (default **`ENSURE_TRUENAS_NFS_MOUNT=1`**) runs **`scripts/mount-truenas-hub.sh`** when **`.111`** responds to ping and victron wheels are not visible — or run **`sudo bash scripts/mount-truenas-hub.sh`** once yourself.
 
 Do **not** treat the Pi as a worker that should `pip install` multi‑GB CUDA stacks from the hub; that is unrelated to this stack.
 
