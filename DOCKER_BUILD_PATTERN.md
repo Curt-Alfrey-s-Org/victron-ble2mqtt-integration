@@ -5,7 +5,7 @@ This image uses **`python:3.11-bookworm`** plus **`pip install -r requirements.l
 | Situation | What to do |
 |-----------|------------|
 | Normal Pi / internet | `sudo bash scripts/deploy.sh` — **`PIP_OFFLINE=0`** if `./wheels` has no `.whl` files. |
-| LAN + NFS **`/mnt/cluster`** mounted | **`deploy.sh`** runs **`scripts/sync-victron-wheels-from-hub.sh`** when **`/mnt/cluster/wheels/victron`** exists; if wheels land in **`./wheels`**, build uses **`PIP_OFFLINE=1`**. |
+| LAN + NFS **`/mnt/cluster`** mounted | **`deploy.sh`** auto-mounts when **`ENSURE_TRUENAS_NFS_MOUNT=1`** (default) if `.111` pings and **`wheels/victron`** was missing — or run **`sudo bash scripts/mount-truenas-hub.sh`** once. Then **`deploy.sh`** syncs **`./wheels`** and builds with **`PIP_OFFLINE=1`** when `.whl` files exist. |
 | Seed wheels on `.111` | `sudo bash alfa-ai/scripts/seed-victron-wheels-truenas.sh` (arm64 + amd64). |
 | Large base images | **`deploy.sh`** merges **`registry-mirrors: ["http://192.168.0.111:5000"]`** into **`daemon.json`** so Docker Hub pulls use the LAN mirror. **Home Assistant** comes from **GHCR** — mirror it via **`docker pull`** on `.111` then **`alfa-ai/scripts/publish-built-image-to-hub.sh`** → **`home-assistant-stable.tar.gz`**; **`deploy.sh`** **`docker load`**s from **`/mnt/cluster/docker-images/`** when present. |
 
