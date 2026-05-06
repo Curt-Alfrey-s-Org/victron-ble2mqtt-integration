@@ -1,0 +1,7 @@
+[Unit]
+Description=MQTT broker watchdog
+After=mosquitto.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/mqtt-watchdog.sh

@@ -9,6 +9,8 @@ services:
     image: victron_ble2mqtt:local
     container_name: victron_ble2mqtt
     restart: unless-stopped
+    labels:
+      autoheal: "true"
     environment:
       # MQTT_HOST: set in `.env` (recommended: Pi LAN IP). If only victron-secrets.env
       # sets MQTT_HOST=localhost, remove that line there or override in `.env`.

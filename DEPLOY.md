@@ -15,8 +15,8 @@ What the installer does (idempotent):
 - Builds the app image (`victron_ble2mqtt:local`) with **`PIP_OFFLINE=1`** when **`./wheels`** contains `.whl` files synced from **`/mnt/cluster/wheels/victron`** (see **`docs/ALFA_CLUSTER_INTEGRATION.md`**); otherwise pip resolves from PyPI
 - Removes legacy systemd runners (`victron-ble2mqtt.service`, `victron-tools.service`) if present
 - Installs **Dockge** under **`/opt/dockge`** (host UI **`http://<pi-ip>:5006`**) and writes **`/opt/stacks/<stack>/compose.yaml`** wrappers that `include` the repo Compose files (paths in those files resolve to the repo root)
-- Starts **`victron`**, **`homeassistant`**, and optionally **`tools`** (Watchtower only) via Compose — containers use **`restart: unless-stopped`** so they return after reboot
-- Starts optional helper timers (docker prune, MQTT watchdog, VS Code cleanup)
+- Starts **`victron`**, **`homeassistant`**, **`autoheal`** ([willfarrell/autoheal](https://hub.docker.com/r/willfarrell/autoheal)), and optionally **`tools`** (Watchtower only) via Compose — workloads use **`restart: unless-stopped`**; **`healthcheck`** + **`autoheal`** restart **wedged** containers labeled **`autoheal=true`**
+- Starts optional helper timers (docker prune, MQTT watchdog, VS Code cleanup). Legacy systemd **`ha-watchdog.timer`** is **off** by default (`ENABLE_HA_WATCHDOG=0`); use **`ENABLE_HA_WATCHDOG=1`** only if you deliberately want duplicate HTTP probes alongside Compose.
 
 Steps (copy/paste):
 
@@ -47,6 +47,8 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    # ENABLE_PERF_TUNING=1     # apply systemd+udev performance tweaks
    # ENABLE_DOCKGE=1          # install Dockge + /opt/stacks wrappers (default on)
    # ENABLE_TOOLS=1           # deploy Watchtower stack (docker-compose.tools.yml, default on)
+   # ENABLE_AUTOHEAL=0        # skip docker-compose.autoheal.yml (default 1 — recommended)
+   # ENABLE_HA_WATCHDOG=1     # legacy systemd HTTP probe + docker restart (default 0)
    # ENABLE_FAILOVER_MONITOR=1# enable Wi‑Fi failover monitor@user service
    # ENABLE_DOCKER_REGISTRY_MIRROR=0 # skip LAN registry mirror (default 1)
    # DOCKER_REGISTRY_MIRROR=http://192.168.0.111:5000  # override mirror URL
@@ -61,7 +63,8 @@ bash scripts/bootstrap_pi4_victron_ble2mqtt_integration.sh
    If `docker ps` as your normal user says **permission denied**, deploy already added you to the **docker** group — **log out and back in** (or `newgrp docker`) so the socket is usable interactively.
 
 Notes:
-- **Dockge:** Stacks appear under **`/opt/stacks`** (`victron`, `homeassistant`, `tools`). Compose **`include`** points at files in your git checkout — edit Compose in the repo, then **Compose → Update** in Dockge or re-run **`sudo bash scripts/deploy.sh`** to refresh wrappers.
+- **Sources of truth:** Application Compose files live in this repo (`docker-compose.*.yml`). Dockge wrappers under **`/opt/stacks/<stack>/compose.yaml`** only **`include`** those paths. Mosquitto is a **host `systemd` service** (`mosquitto.service`) with config under **`/etc/mosquitto`** (written by `deploy.sh`). Secrets: **`.env`** and **`victron-secrets.env`** (chmod 600); MQTT watchdog client credentials: **`/etc/mosquitto/watchdog.env`** (written by deploy when Mosquitto auth is enabled).
+- **Dockge:** Stacks appear under **`/opt/stacks`** (`victron`, `homeassistant`, `autoheal`, and `tools` when enabled). Compose **`include`** points at files in your git checkout — edit Compose in the repo, then **Compose → Update** in Dockge or re-run **`sudo bash scripts/deploy.sh`** to refresh wrappers.
 - **Mosquitto broker:** `deploy.sh` runs `mosquitto_restart_and_verify()` after writing config. It checks that the service is active, a listener exists on the port, and `mosquitto_sub` succeeds (with credentials when auth is enabled). The MQTT watchdog timer sources `/etc/mosquitto/watchdog.env`.
 - **MQTT_HOST recommendation:** Set `MQTT_HOST` in `.env` to the Pi's **LAN IP** (e.g. `192.168.0.50`). `redeploy_victron.sh` will use it instead of `localhost` if `localhost` or `127.0.0.1` is detected. This avoids connection refused when the container tries to connect.
 - **Home Assistant → MQTT:** Use the same broker address as above (`MQTT_HOST` value or `127.0.0.1` if it works for HA). Preflight: `set -a; . ./.env; set +a` then `mosquitto_sub -h "${MQTT_HOST:-127.0.0.1}" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" -t '$SYS/broker/uptime' -C 1 -W 8 -v`. If it fails, run `journalctl -u mosquitto -n 60`.
@@ -72,7 +75,9 @@ Notes:
    - Docker daemon log rotation (10MB x3) via `/etc/docker/daemon.json` (auto-repaired if broken)
    - journald caps and logrotate for app/HA logs
    - Mosquitto logs routed to syslog with reduced verbosity
-- Optional automation: HA watchdog, MQTT watchdog, weekly docker prune, VS Code cleanup timer.
+- Optional automation: legacy HA systemd watchdog (`ENABLE_HA_WATCHDOG=1`), MQTT watchdog, weekly docker prune, VS Code cleanup timer.
+
+**Verify autoheal (on the Pi):** `docker inspect homeassistant --format '{{json .State.Health}}'` — after intentional stall, container should return **`healthy`** following an **`autoheal`** restart (`docker logs autoheal`).
 
 **TrueNAS hub (same LAN as Alfa):** **`deploy.sh`** tries **`scripts/mount-truenas-hub.sh`** when **`ENSURE_TRUENAS_NFS_MOUNT=1`** (default) and TrueNAS **`TRUENAS_IP`** (default **`192.168.0.111`**) pings but **`wheels/victron`** is empty locally — same NFS layout as **`alfa-ai/scripts/mount_nfs_models.sh`**. Seed wheels on `.111` with **`alfa-ai/scripts/seed-victron-wheels-truenas.sh`** so **`sync-victron-wheels-from-hub`** can fill **`./wheels`** and set **`PIP_OFFLINE=1`**. Seed the HA image tarball (**`publish-built-image-to-hub.sh`** → **`home-assistant-stable.tar.gz`**) or Compose will pull **GHCR** (~1.5 GB). Disable auto-mount with **`ENSURE_TRUENAS_NFS_MOUNT=0`** if the Pi is off‑LAN.
 - Docker won’t start after running the installer: check `/etc/docker/daemon.json`. The installer backs up invalid files and writes valid JSON, then restarts Docker.

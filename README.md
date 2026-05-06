@@ -9,7 +9,7 @@ Bridge Victron BLE advertisements → MQTT with Home Assistant discovery. Design
 - ✅ BLE scanning on `hci0` (LE-only) is stable.
 - ✅ Victron **Solar Charger (VE.Direct SmarT / BlueSolar MPPT 75/15 rev3)** is detected and decoded.
 - ✅ MQTT discovery + states arrive in HA (entities like `battery_voltage`, `charge_state`, `solar_power`, etc.).
-- ✅ **Dockge** on **`http://<pi-ip>:5006`** manages Compose stacks (`victron`, `homeassistant`, Watchtower); survives reboot via container `restart` policies.
+- ✅ **Dockge** on **`http://<pi-ip>:5006`** manages Compose stacks (`victron`, `homeassistant`, `autoheal`, Watchtower); survives reboot via container `restart` policies plus **Compose `healthcheck`** + **`autoheal`** for wedged services.
 
 See Home Assistant → Settings → Devices & Services → MQTT for discovered entities.
 
@@ -43,7 +43,7 @@ Run the unified installer:
 sudo bash scripts/deploy.sh
 ```
 
-It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, builds the bridge image, starts **Dockge** (:5006), brings up **victron** / **homeassistant** / **Watchtower** via Compose, and installs watchdog timers (HA, MQTT, optional docker prune, VS Code cleanup).
+It installs prerequisites, configures logging (Docker daemon json-file rotation and journald caps), sets up Mosquitto, builds the bridge image, starts **Dockge** (:5006), brings up **victron** / **homeassistant** / **autoheal** / **Watchtower** via Compose, and installs helper timers (MQTT broker watchdog, optional docker prune, VS Code cleanup). Legacy systemd **HA** HTTP watchdog is **off** by default — Compose **`healthcheck`** + **`autoheal`** cover Home Assistant liveness.
 See `DEPLOY.md` for options and troubleshooting.
 
 **Same LAN as the Alfa cluster?** See [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) for TrueNAS hub usage, cross-links to **alfa-ai**, and **monitoring** (Prometheus / `node_exporter` on the Pi).

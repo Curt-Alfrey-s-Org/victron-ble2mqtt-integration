@@ -1,0 +1,6 @@
+[Unit]
+Description=Docker prune (images/containers/volumes) with retention window
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash -lc 'docker image prune -af --filter "until=240h"; docker container prune -f --filter "until=240h"; docker volume prune -f'

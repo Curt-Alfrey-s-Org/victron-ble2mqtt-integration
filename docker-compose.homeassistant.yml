@@ -4,6 +4,8 @@ services:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
+    labels:
+      autoheal: "true"
     # Allow HA to see services running on the host (mosquitto at localhost)
     network_mode: host
     cap_add:

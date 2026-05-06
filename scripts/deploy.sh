@@ -3,7 +3,8 @@
 # - Verifies and installs prerequisites (Docker, Compose, BlueZ, Mosquitto)
 # - Installs Dockge + /opt/stacks wrappers; removes legacy systemd compose runners
 # - Builds image and starts victron / homeassistant / Watchtower via Compose (restart policies survive reboot)
-# - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_FAILOVER_MONITOR=1, FORCE_HA_MQTT_YAML=1
+# - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_AUTOHEAL=1 (default),
+#   ENABLE_FAILOVER_MONITOR=1, FORCE_HA_MQTT_YAML=1
 # - TrueNAS hub (LAN): ENABLE_DOCKER_REGISTRY_MIRROR=1 (default) merges registry-mirrors http://192.168.0.111:5000 into /etc/docker/daemon.json;
 #   nfs /mnt/cluster/wheels/victron enables PIP_OFFLINE=1 victron image builds and optional HA tarball docker load.
 #   ENABLE_HOME_ASSISTANT=0 skips Home Assistant compose (use when hub has no HA tarball and you must avoid GHCR).
@@ -78,10 +79,11 @@ fi
 : "${MQTT_HOST:=127.0.0.1}"
 : "${MQTT_PORT:=1883}"
 : "${FORCE_HA_MQTT_YAML:=0}"
-: "${ENABLE_HA_WATCHDOG:=1}"
+: "${ENABLE_HA_WATCHDOG:=0}"
 : "${ENABLE_HOME_ASSISTANT:=1}"
 : "${ENABLE_DOCKGE:=1}"
 : "${ENABLE_TOOLS:=1}"
+: "${ENABLE_AUTOHEAL:=1}"
 : "${ENABLE_VSCODE_CLEANUP:=1}"
 : "${ENABLE_UNATTENDED_UPGRADES:=0}"
 : "${ENABLE_DOCKER_PRUNE:=1}"
@@ -640,6 +642,9 @@ if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   install_dockge_host_stack
   write_dockge_stack_wrapper victron "$ROOT_DIR/docker-compose.victron.yml"
   write_dockge_stack_wrapper homeassistant "$ROOT_DIR/docker-compose.homeassistant.yml"
+  if [[ "${ENABLE_AUTOHEAL:-1}" == "1" ]]; then
+    write_dockge_stack_wrapper autoheal "$ROOT_DIR/docker-compose.autoheal.yml"
+  fi
   if [[ "${ENABLE_TOOLS}" == "1" ]]; then
     write_dockge_stack_wrapper tools "$ROOT_DIR/docker-compose.tools.yml"
   fi
@@ -652,6 +657,15 @@ if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   (cd /opt/stacks/victron && docker compose up -d --build)
 else
   (cd "$ROOT_DIR" && docker compose -f docker-compose.victron.yml up -d --build)
+fi
+
+if [[ "${ENABLE_AUTOHEAL:-1}" == "1" ]]; then
+  echo "[deploy] Starting autoheal (restarts unhealthy containers labeled autoheal=true) ..."
+  if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
+    (cd /opt/stacks/autoheal && docker compose up -d)
+  else
+    (cd "$ROOT_DIR" && docker compose -f docker-compose.autoheal.yml up -d)
+  fi
 fi
 
 if [[ "${ENABLE_TOOLS}" == "1" ]]; then
@@ -673,15 +687,20 @@ if [[ "${ENABLE_FAILOVER_MONITOR:-0}" == "1" ]]; then
   fi
 fi
 
-# Home Assistant availability watchdog (default on)
+# Legacy systemd HA watchdog (duplicates Compose HTTP healthcheck). Prefer ENABLE_AUTOHEAL + Compose labels.
 if [[ "${ENABLE_HA_WATCHDOG}" == "1" ]]; then
   if [[ -f "$ROOT_DIR/scripts/ha-watchdog.sh" && -f "$ROOT_DIR/systemd/ha-watchdog.service" && -f "$ROOT_DIR/systemd/ha-watchdog.timer" ]]; then
-    echo "[deploy] Installing HA watchdog service + timer ..."
+    echo "[deploy] Installing HA watchdog service + timer (legacy; ENABLE_HA_WATCHDOG=1) ..."
     sudo install -m 0755 -D "$ROOT_DIR/scripts/ha-watchdog.sh" /usr/local/bin/ha-watchdog.sh
     sudo install -m 0644 -D "$ROOT_DIR/systemd/ha-watchdog.service" /etc/systemd/system/ha-watchdog.service
     sudo install -m 0644 -D "$ROOT_DIR/systemd/ha-watchdog.timer" /etc/systemd/system/ha-watchdog.timer
     sudo systemctl daemon-reload
     sudo systemctl enable --now ha-watchdog.timer || true
+  fi
+else
+  if systemctl is-enabled --quiet ha-watchdog.timer 2>/dev/null; then
+    echo "[deploy] ENABLE_HA_WATCHDOG=0 — disabling legacy ha-watchdog.timer (Compose healthcheck + autoheal)."
+    sudo systemctl disable --now ha-watchdog.timer || true
   fi
 fi
 
@@ -718,80 +737,19 @@ fi
 
 # Docker prune (weekly) – optional, conservative retention
 if [[ "${ENABLE_DOCKER_PRUNE}" == "1" ]]; then
-  echo "[deploy] Installing docker prune weekly timer ..."
-  sudo bash -lc "cat > /etc/systemd/system/docker-prune.service <<UNIT
-[Unit]
-Description=Docker prune (images/containers/volumes) with retention window
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/bash -lc 'docker image prune -af --filter \"until=240h\"; docker container prune -f --filter \"until=240h\"; docker volume prune -f'
-UNIT"
-  sudo bash -lc "cat > /etc/systemd/system/docker-prune.timer <<UNIT
-[Unit]
-Description=Run docker-prune.service weekly
-
-[Timer]
-OnCalendar=weekly
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-UNIT"
+  echo "[deploy] Installing docker prune weekly timer (tracked systemd units) ..."
+  sudo install -m 0644 -D "$ROOT_DIR/systemd/docker-prune.service" /etc/systemd/system/docker-prune.service
+  sudo install -m 0644 -D "$ROOT_DIR/systemd/docker-prune.timer" /etc/systemd/system/docker-prune.timer
   sudo systemctl daemon-reload
   sudo systemctl enable --now docker-prune.timer || true
 fi
 
 # MQTT broker watchdog (minute) – optional
 if [[ "${ENABLE_MQTT_WATCHDOG}" == "1" ]]; then
-  echo "[deploy] Installing MQTT watchdog timer ..."
-  # Do not nest this heredoc inside sudo bash -lc "..." — deploy.sh has set -u and
-  # would expand "$HOST"/"$PORT" from the outer shell before the heredoc is written.
-  sudo tee /usr/local/bin/mqtt-watchdog.sh >/dev/null <<'WDOG'
-#!/usr/bin/env bash
-set -euo pipefail
-HOST=127.0.0.1
-PORT=1883
-if [[ -f /etc/mosquitto/watchdog.env ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  . /etc/mosquitto/watchdog.env
-  set +a
-  PORT="${MQTT_PORT:-1883}"
-fi
-args=(-h "$HOST" -p "$PORT")
-if [[ -n "${MQTT_USER:-}" && -n "${MQTT_PASSWORD:-}" ]]; then
-  args+=(-u "$MQTT_USER" -P "$MQTT_PASSWORD")
-fi
-args+=(-t '$SYS/broker/uptime' -C 1 -W 8)
-if mosquitto_sub "${args[@]}" >/dev/null 2>&1; then
-  exit 0
-fi
-logger -t mqtt-watchdog 'Mosquitto unresponsive; restarting'
-systemctl restart mosquitto || true
-WDOG
-  sudo chmod +x /usr/local/bin/mqtt-watchdog.sh
-  sudo bash -lc "cat > /etc/systemd/system/mqtt-watchdog.service <<UNIT
-[Unit]
-Description=MQTT broker watchdog
-After=mosquitto.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/mqtt-watchdog.sh
-UNIT"
-  sudo bash -lc "cat > /etc/systemd/system/mqtt-watchdog.timer <<UNIT
-[Unit]
-Description=Run MQTT watchdog every minute
-
-[Timer]
-OnBootSec=1min
-OnUnitActiveSec=1min
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-UNIT"
+  echo "[deploy] Installing MQTT watchdog (tracked script + systemd units) ..."
+  sudo install -m 0755 -D "$ROOT_DIR/scripts/mqtt-watchdog.sh" /usr/local/bin/mqtt-watchdog.sh
+  sudo install -m 0644 -D "$ROOT_DIR/systemd/mqtt-watchdog.service" /etc/systemd/system/mqtt-watchdog.service
+  sudo install -m 0644 -D "$ROOT_DIR/systemd/mqtt-watchdog.timer" /etc/systemd/system/mqtt-watchdog.timer
   sudo systemctl daemon-reload
   sudo systemctl enable --now mqtt-watchdog.timer || true
 fi
@@ -869,7 +827,7 @@ fi
 # 7) Quick sanity: show container status and recent logs snippet
 # ------------------------------------------------------------
 echo "[deploy] Container status:"
-docker ps --format '{{.Names}}\t{{.Status}}' | egrep 'victron|homeassistant|dockge|watchtower' || true
+docker ps --format '{{.Names}}\t{{.Status}}' | egrep 'victron|homeassistant|dockge|watchtower|autoheal' || true
 
 if [[ "${ENABLE_DOCKGE}" == "1" ]]; then
   echo "[deploy] Dockge UI: http://${MQTT_HOST}:5006 (stack files live under /opt/stacks; included Compose paths resolve to ${ROOT_DIR})."

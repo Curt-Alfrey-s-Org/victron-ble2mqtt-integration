@@ -4,7 +4,7 @@ This class mirrors the behaviour needed for tests without inheriting BaseScanner
 starting event loops. Use dependency injection to supply mocks for DeviceHandler,
 VictronMqttDeviceHandler and mqtt_client.
 """
-from typing import Optional, Any
+from typing import Any
 
 
 class MqttPublisherHelper:
@@ -30,7 +30,6 @@ class MqttPublisherHelper:
             self.rssi_info[device.address] = advertisement.rssi
         except Exception:
             pass
-        return None
 
     def callback(self, ble_device: Any, raw_data: bytes):
         # emulate the CLI behavior: ask device_handler for generic device

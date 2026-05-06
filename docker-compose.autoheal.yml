@@ -1,0 +1,19 @@
+## Docker Compose v2 — restart unhealthy labeled containers (willfarrell/autoheal).
+## Only services explicitly labeled autoheal=true are restarted (homeassistant, victron_ble2mqtt).
+## Compose restart: unless-stopped handles exits; healthcheck + autoheal handles wedged processes.
+## Ref: https://docs.docker.com/reference/compose-file/services/#healthcheck
+services:
+  autoheal:
+    image: willfarrell/autoheal:1.2.0
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal=true
+      AUTOHEAL_INTERVAL: 30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
