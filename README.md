@@ -204,7 +204,8 @@ Close the Victron phone app if sensors stay empty.
 | [docs/DEVICES.md](docs/DEVICES.md) | Add / remove Victron, Sungold, HA-only devices |
 | [docs/PI5_HOUSE_EDGE.md](docs/PI5_HOUSE_EDGE.md) | House Pi 5: AdGuard DNS + BLE → Pi 4 MQTT |
 | [docs/TAILSCALE.md](docs/TAILSCALE.md) | Optional: view Home Assistant away from home |
-| [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) | Sungold USB, udev, smoke test |
+| [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) | Sungold USB, udev, smoke test (optional; this site not connected) |
+| [docs/SOLAR_POWER_BALANCE.md](docs/SOLAR_POWER_BALANCE.md) | 24 V watt in vs watt out (3 MPPTs, shunts, EM16 A3/B2) |
 | [DEPLOY.md](DEPLOY.md) | Installer flags, Dockge, troubleshooting |
 | [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) | Optional: same LAN as the Alfa / TrueNAS hub |
 

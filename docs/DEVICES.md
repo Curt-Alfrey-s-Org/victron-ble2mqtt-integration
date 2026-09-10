@@ -19,7 +19,7 @@ Secrets stay in `.env` and `victron-secrets.env` (never commit those files).
 |--------|-----------------|---------|-------------|------------------------|
 | **Victron** SmartShunt / MPPT | Bluetooth (BLE) | On, if you set keys | Add MAC + `ADVKEY_*` | Delete that device block and its `ADVKEY_*` line |
 | **Pi4 host** (CPU, temp, Wi‑Fi) | Built into the Victron container | On with Victron | Nothing extra | Stop `victron_ble2mqtt` (you also lose Victron) |
-| **Sungold SPH302480A** | USB Modbus (read-only) | **Off** | `ENABLE_SUNGOLD=1` + USB | `ENABLE_SUNGOLD=0` or unplug USB |
+| **Sungold SPH302480A** | USB Modbus (read-only) | **Off** | `ENABLE_SUNGOLD=1` + USB | `ENABLE_SUNGOLD=0` or unplug USB. **This site: not hooked up** (2026-09-10). |
 | **Home Assistant** | Browser `:8123` | On | `ENABLE_HOME_ASSISTANT=1` (default) | `ENABLE_HOME_ASSISTANT=0` |
 | **House BLE sensors** (Govee, Xiaomi, …) | BLE on **Pi 5** → MQTT on this Pi | Off until Pi 5 deploy | `HOST_ROLE=pi5` on the house Pi | `docker compose … down` on Pi 5 |
 | **Ecobee / Rheem / other Wi‑Fi HVAC** | HomeKit Device / EcoNet (LAN), not BLE | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
@@ -188,6 +188,8 @@ Add these in the Home Assistant UI, not in this git repo:
 **Settings → Devices & services → Add integration**
 
 They do not need `ENABLE_*` flags here. Removing them is also done in that same HA screen.
+
+This site's EM16: **A3** is the main load leg (total watts). **B2** is a wall-outlet branch on that leg -- do not add A3+B2. Live log: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
 Home Assistant must be connected to MQTT for **Victron / Sungold / Pi host / house BLE (Theengs)** sensors. The installer does that for you (HA 2026+). Do not paste broker settings into `configuration.yaml`.
 

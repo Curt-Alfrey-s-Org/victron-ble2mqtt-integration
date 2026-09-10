@@ -65,5 +65,6 @@ Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
 | Cursor / agents across repos | Multi-root: alfa-ai + victron + monitoring |
 | Hub / large artifacts | `alfa-ai/docs/HUB_ARTIFACTS.md` |
 | Pi metrics in Grafana | `monitoring` + `hosts/pi4-victron/` |
-| Sungold inverter (optional USB sidecar) | `docs/SUNGOLD_SPH302480A.md` — not Petals / not Victron BLE |
+| Sungold inverter (optional USB sidecar) | `docs/SUNGOLD_SPH302480A.md` -- not Petals / not Victron BLE. **This site: not hooked up** (2026-09-10) |
+| 24 V watt in vs watt out | `docs/SOLAR_POWER_BALANCE.md` -- 3 identical MPPTs, two shunts, Renogy 2000 W, EM16 A3/B2 |
 | **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |

@@ -22,7 +22,8 @@ Broker settings in `configuration.yaml` / `mqtt.yaml` are **invalid**. Use `scri
 - [docs/PI5_HOUSE_EDGE.md](docs/PI5_HOUSE_EDGE.md) — Pi 5 AdGuard + house BLE → Pi 4 MQTT
 - [hosts/README.md](hosts/README.md) — `HOST_ROLE=pi4` vs `pi5`
 - [docs/TAILSCALE.md](docs/TAILSCALE.md) — optional away-from-home Home Assistant (no host IPs or names in git)
-- [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) — Sungold USB Modbus sidecar
+- [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) — Sungold USB Modbus sidecar (optional; this site not connected)
+- [docs/SOLAR_POWER_BALANCE.md](docs/SOLAR_POWER_BALANCE.md) — 24 V watt in vs watt out (A3 = total load)
 - [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) — hub + Cursor + Prometheus wiring
 - [docs/ENGINEERING_STANDARDS_PLAN.md](docs/ENGINEERING_STANDARDS_PLAN.md) — phased plan: Compose health + supervision, deploy hygiene, CI, security
 - [DEPLOY.md](DEPLOY.md) — installer behaviour and flags
