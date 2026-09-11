@@ -6,6 +6,8 @@ Sibling sidecar to **victron_ble2mqtt**. Publishes **sensors and binary_sensors 
 
 ## Hardware
 
+**This site:** the SPH302480A sits on a **dolly cart** with **2x LiTime 24 V 100 Ah** in parallel (emergency backup). It is **not** wired into the T2/KU trailer buses. Trailer layout: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
+
 | Item | Value |
 |------|--------|
 | Model | Sungold **SPH302480A** (SRNE-class hybrid) |
