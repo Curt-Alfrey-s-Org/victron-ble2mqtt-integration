@@ -47,7 +47,7 @@ Eight suitcase panels total: **6** on the three Victron chargers, **2** on the P
 | Renogy 2 kW (KU) | KU | Cargo trailer + optional RV, via ATS then manual TS. **This is the path for fan, dehumidifier, and alfa-ai hosts** in the 10-11 Sep EM16 shots. |
 | EM16 A3 | KU AC (assumed) | Main load clamp -- **do not add B2**. |
 | EM16 B2 | branch of A3 | Wall outlet on that leg. |
-| EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53. Candidate: **T2 Renogy idle** (no RV). Do not add to A3. |
+| EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53; **0.0 W** at 16:11. Candidate: **T2 Renogy idle** (no RV), then that inverter off. Do not add to A3. |
 | Sungold SPH302480A | cart | Emergency dolly. **2x 24 V 100 Ah LiTime in parallel.** USB sidecar optional ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)). Not in the T2/KU watt log. |
 
 ### Parallel jumper (T2 RV unused)
@@ -61,12 +61,13 @@ If the jumper were low-R on **both** poles, T2 and KU voltages would stay within
 | Shot | T2 V | KU V | Split |
 |------|------|------|-------|
 | 11 Sep 11:33 | 29.1 | 29.1 | 0.0 V |
-| 11 Sep 14:10 | 28.5 | 26.5 | **2.0 V** (KU loaded) |
-| 11 Sep 14:53 | 28.5 | 26.6 | **1.9 V** |
+| 11 Sep 14:10 | 28.5 | 26.5 | **2.0 V** (KU HVAC+cluster) |
+| 11 Sep 14:53 | 28.5 | 26.6 | **1.9 V** (KU HVAC+cluster) |
+| 11 Sep 16:11 | 27.2 | 27.0 | **0.2 V** (cluster only; sun done) |
 
-Until that split goes away, size the **loaded** overnight bank as **KU 230 Ah / 5.9 kWh**, not 460 Ah. T2 230 Ah is spare charge sitting behind a weak jumper.
+Split depends on KU load. Under **HVAC+cluster (~720 W)** size overnight as **KU 230 Ah / 5.9 kWh** -- T2 sits behind a weak jumper. Under **cluster only (~279 W)** the buses were within **0.2 V**; T2 at 100% can share if that holds. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages stay matched under the load you run all night.
 
-Each shunt capacity in VictronConnect: **230 Ah**. 14:53 KU **91.7% / -15.4 Ah** is 15.4 / 230 = **6.7%** used (implied **93.3%**). The ~185 Ah guess is retired.
+Each shunt capacity in VictronConnect: **230 Ah**. 14:53 KU **91.7% / -15.4 Ah** is 15.4 / 230 = **6.7%** used (implied **93.3%**). 16:11 **85.4% / -33.7 Ah** is 33.7 / 230 = **14.6%** used (implied **85.4%**). The ~185 Ah guess is retired.
 
 ## How to read the meters
 
@@ -93,7 +94,7 @@ What each SmartShunt shows ([operation](https://www.victronenergy.com/media/pg/S
 
 Charger-to-inverter watts: **MPPT solar** (T2 = reporter; KU Victron = 2x reporter) and **EM16** on the AC side. PWM is extra on KU and unmetered. `DC_leftover` below is an estimate, not a clamp.
 
-Charge-state **bulk** on the reporter means it is still pushing current. **Absorption** means it has reached the absorb voltage and current is tapering. LiTime 24 V 230 Ah charge is **28.8 V +/- 0.4 V** (recommended **28.4-29.2 V**) -- T2 **29.1 V** then **28.5 V** matches that. KU **SoC 0%** at ~27-29 V was unsynced. 14:53 **91.7% / -15.4 Ah** fits **230 Ah**. T2 **28.5 V** vs KU **26.6 V** is the jumper not equalizing while KU is loaded.
+Charge-state **bulk** on the reporter means it is still pushing current. **Absorption** means it has reached the absorb voltage and current is tapering. LiTime 24 V 230 Ah charge is **28.8 V +/- 0.4 V** (recommended **28.4-29.2 V**) -- T2 **29.1 V** then **28.5 V** matches that. KU **SoC 0%** at ~27-29 V was unsynced. 14:53 **91.7% / -15.4 Ah** and 16:11 **85.4% / -33.7 Ah** fit **230 Ah**. T2 **28.5 V** vs KU **26.6 V** at 14:53 is the jumper not equalizing under HVAC+cluster. At 16:11 (cluster only) T2 **27.2 V** vs KU **27.0 V**.
 
 ## Formulas
 
@@ -116,7 +117,7 @@ Expect BLE fields from different advertisements to disagree by a few watts. A3 a
 | Wrong (early chat) | Correct |
 |--------------------|---------|
 | One Renogy 2000 W for the whole site | **Two** Renogy 2 kW inverters: T2 -> 30A RV (unplugged); KU -> ATS -> trailer. Cluster AC is on **KU**. |
-| Parallel jumper = one 460 Ah bank since day one | Jumper is on because **T2 RV is unused**, to share T2 charge into KU. **~2 V** split under KU load means it is not equalizing. |
+| Parallel jumper = one 460 Ah bank since day one | Jumper is on because **T2 RV is unused**. **~2 V** split under HVAC+cluster; **0.2 V** at cluster-only (16:11). Count T2 only when voltages stay matched under that night's load. |
 | All PV = 3 x Victron reporter | Three Victron strings yes; **plus** 2 suitcase panels on **PWM into KU** (not in HA). |
 | ~720-940 W extra PV from a Sungold hybrid MPPT | Sungold is the **dolly cart** (2x 24 V 100 Ah), not on T2/KU. |
 | Used = A3 + B2 (~1,380 W) | **A3 is the trailer-leg total.** B2 is a branch of A3. |
@@ -125,9 +126,16 @@ Expect BLE fields from different advertisements to disagree by a few watts. A3 a
 | Shunt should show charger-to-inverter amps at float | Battery monitor shows **that LiTime** only. Chargers on the SYSTEM MINUS bus of that shunt is correct. |
 | Battery 2 capacity ~185 Ah from 91.7% / 15.4 Ah | **230 Ah** LiTime. 15.4 / 230 = 6.7% used, implied **93.3%**. |
 
-Battery 2 **consumed Ah** was stuck near **-579 to -598 Ah** with SoC **0%** through 11 Sep 11:33. At 14:10 it showed **44.4% / -12.4 Ah** (SoC still wrong vs 230 Ah). At 14:53 it showed **91.7% / -15.4 Ah / 956 min remaining** while still discharging. **15.4 Ah of 230 Ah** is **6.7%** used (**93.3%** implied). Prefer voltage, current, and power when % and Ah disagree.
+Battery 2 **consumed Ah** was stuck near **-579 to -598 Ah** with SoC **0%** through 11 Sep 11:33. At 14:10 it showed **44.4% / -12.4 Ah** (SoC still wrong vs 230 Ah). At 14:53 it showed **91.7% / -15.4 Ah / 956 min remaining** while still discharging. **15.4 Ah of 230 Ah** is **6.7%** used (**93.3%** implied). At 16:11 **85.4% / -33.7 Ah** is **14.6%** of 230. Prefer voltage, current, and power when % and Ah disagree.
 
-**Overnight energy (17.5 h dark, 09:30-16:00 charge window):** KU AC at **720 W** is **~12.6 kWh**. KU LiTime is **5.9 kWh**. A working jumper would add T2's **5.9 kWh** (~11.8 kWh nameplate, ~9.4 kWh at 80%). The jumper is **not** doing that while KU is **2 V** below T2. PWM helps KU only while the sun is up.
+**Overnight energy (17.5 h dark, 09:30-16:00 charge window):** two KU AC operating points. PWM helps KU only while the sun is up.
+
+| Mix | A3 | Dark-hours energy | KU 5.9 kWh pack | Jumper under that load |
+|-----|----|-------------------|-----------------|------------------------|
+| HVAC + cluster (14:53) | ~720 W | **~12.6 kWh** | about half a night | **~2 V** split -- T2 not sharing |
+| Cluster only (16:11, fan+Midea off) | **~279 W** | **~4.9 kWh** | covers tonight (KU was **~5.0 kWh** left at 85%) | **0.2 V** -- can share if it holds |
+
+A working jumper adds T2's **5.9 kWh** (~11.8 kWh nameplate, ~9.4 kWh at 80%). That still misses **12.6 kWh** at a sane DoD. It is spare at **4.9 kWh**. See [Now vs double load](#now-vs-double-load).
 
 ## Snapshot log (10 Sep 2026)
 
@@ -177,6 +185,7 @@ A3 **400 W** AC vs **~437 W** DC on the battery-2 path is inverter/wiring loss, 
 | 11:33 | Same loads; **shunt BLE incomplete** -- do not close the balance | 271.0 | 813 | 0.0* | -- | -- | 420.0 | 419.9 |
 | **14:10** | Fan + dehum + **servers on**; shunts recovered | **273.0** | **819** | **+267.2** | **-363.4** | **-96** | **723** | **708.4** |
 | **14:53** | Same loads; still inside **09:30-16:00** window | **256.0** | **768** | **+239.2** | **-371.6** | **-132** | **713.0** | **707.1** |
+| **16:11** | Fan+Midea **off**; cluster up; **past 16:00** window | **35.0** | **105** | **+187.3** | **-129.6** | **+58** | **278.7** | **277.8** |
 
 Other EM16 channels were **0.0 W** through 11:33. At 11:21: reporter **bulk**, 9.6 A at 27.4 V (I x V 263 W vs 273 W PV). Shunt 1 **9.8 A** at 27.5 V. Shunt 2 **2.9 A** at 27.3 V, SoC still **0%**, consumed Ah **-597.9** (was about **-579** on 10 Sep). Yield today **400 Wh**.
 
@@ -258,15 +267,39 @@ Load mix is unchanged vs 14:10 (A3 **713 vs 723**). PV dropped **273 to 256 W**,
 
 **A2 72.8 W / B4 71.9 W:** not added to A3. Candidate is **T2 Renogy idle** (30A RV unplugged). Confirm which clamp is on which inverter.
 
+### 16:11 close (fan and Midea off; sun done)
+
+Operator shed the fan and Midea. **Past the 09:30-16:00 window.** Reporter **bulk**, **1.5 A** at **27.0 V**, solar **35.0 W**, yield **1,445 Wh** (+105 Wh since 14:53, ~81 W average as the array died). Do **not** treat 35 W or `PV x3 = 105` as a daytime average, and do **not** close a 3x DC balance at dusk (chargers 2/3 and PWM will not track charger 1).
+
+Shunt 1 **+187.3 W / 6.9 A** at **27.2 V / 100%** -- internally consistent (6.9 x 27.2), but **does not track** the MPPT (**1.5 A / 35 W**). All afternoon they matched. Same class of warning as 11:33: do not treat shunt 1 vs MPPT as a closed charger-track. Remaining Unknown.
+
+Shunt 2 **-129.6 W / -4.8 A** at **27.0 V**, SoC **85.4%**, consumed **-33.7 Ah**, remaining **3,223 min**. **-33.7 / 230 = 14.6%** used (implied **85.4%**). A3 **278.7 W** (2.4 A, PF -1.0, 34,668 Wh this month). B2 **277.8 W** / 2.4 A / 35,044 Wh. **A2 0.0 W**, **B4 0.0 W** (month totals still ~2,229 / 2,113 Wh).
+
+A3 dropped **713 to 279 W** (**-434 W**). That is more than the 10 Sep fan+dehum shed (**688 to 418 = ~270 W**). Compressor likely on hard, or something else went with them. Remaining **279 W** is cluster + KU Renogy. 10 Sep 14:57 same mix was **~418 W**.
+
+Jumper split **0.2 V** (27.2 vs 27.0) vs **~2 V** at 14:53. Light KU load, buses close.
+
+Do not use shunt 1 **+187 W** as T2 solar (MPPT was **35 W**). The 11:33 `*` footnote above is a different BLE bug.
+
+## Now vs double load
+
+Bottleneck is **KU overnight kWh**, not inverter watts (KU Renogy is 2 kW). Charge window **09:30-16:00** (~6.5 h sun, **17.5 h** dark). Extra panels on **T2** do not feed the trailer overnight unless the jumper equalizes **under that night's load**.
+
+**Cluster only (this shot, ~279 W):** dark hours **~4.9 kWh**. KU had **~5.0 kWh** left at 85%. **Tonight fits on KU alone.** Doubling *this* load (~560 W) is **~9.8 kWh** dark -- more than one 5.9 kWh pack, about even with a working jumper at 80% (~9.4 kWh). Needs the jumper to hold at 560 W (unproven; it failed at 720 W) or more **KU** storage. KU PV still helps only in the 6.5 h window.
+
+**HVAC + cluster (~720 W, 14:53):** dark hours **~12.6 kWh**. KU **5.9 kWh** is about half a night. Jumper was **~2 V** -- do not count T2. Doubling *that* mix (~1.4 kW AC) is **~25 kWh** dark. Inverter still OK (~1.4 kW on 2 kW). Need **~2x PV and ~2x battery on KU**, not on T2. Generator on the ATS is the overnight backup until storage matches.
+
+**Short:** fan+Midea off changes tonight from "KU cannot finish the night" to "KU can." It does not change the 720 W HVAC+cluster math if those loads come back. Doubling cluster-only is a jumper-or-more-KU-Ah problem. Doubling HVAC+cluster is still 2x KU solar and 2x KU storage.
+
 ## What is still open
 
 1. **MQTT** for Victron chargers 2 and 3 (MAC + 32-hex Instant Readout keys) so KU does not rely on 2x scaling. See [DEVICES.md](DEVICES.md#victron-bluetooth).
-2. **Battery 2 SoC** -- VictronConnect capacity **230 Ah**. 14:53 **91.7% / -15.4 Ah** fits. 14:10 **44.4%** did not.
+2. **Battery 2 SoC** -- VictronConnect capacity **230 Ah**. 14:53 **91.7% / -15.4 Ah** and 16:11 **85.4% / -33.7 Ah** fit. 14:10 **44.4%** did not.
 3. **Do not** move charger negatives onto BATTERY MINUS. Optional: a SmartShunt as a Victron **DC energy meter** on one circuit ([operation 5.8](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-4. **T2-KU jumper** -- both poles, size, lugs. Goal under KU load: T2 and KU **within ~0.05 V**. Victron one-bank layout is a **single** shunt after the packs are truly paralleled.
-5. **EM16 map** -- confirm A3/B2 = KU trailer, A2/B4 = T2 30A / idle inverter (or something else).
+4. **T2-KU jumper** -- both poles, size, lugs. Goal under the load you run overnight: T2 and KU **within ~0.05 V**. 16:11 was **0.2 V** at 279 W; 14:53 was **~2 V** at 720 W. Victron one-bank layout is a **single** shunt after the packs are truly paralleled.
+5. **EM16 map** -- confirm A3/B2 = KU trailer. A2/B4 were ~73 W then **0** at 16:11 (T2 inverter off, or that load shed).
 6. **PWM** -- Voyager lithium **24 V** setting; optional HA/meter so it is not invisible in `PV_victron`.
-7. **11:33 shunt BLE** recovered by 14:10.
+7. **11:33 shunt BLE** recovered by 14:10. **16:11 shunt 1 vs MPPT** still mismatched -- do not close that pair.
 
 ## Related
 
