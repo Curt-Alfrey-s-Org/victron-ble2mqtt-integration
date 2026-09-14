@@ -234,17 +234,22 @@ def main() -> None:
                 last = self._last_pub.get(ble_device.address, 0.0)
                 if (now - last) >= self._pub_gap:
                     self._last_pub[ble_device.address] = now
-                    self.victron_mqtt_handler.publish(
+                    if self.victron_mqtt_handler.publish(
                         ble_device=ble_device,
                         raw_data=raw_data,
                         generic_device=generic,
                         rssi=self._last_rssi.get(ble_device.address),
                         mqtt_client=self.mqtt_client,
-                    )
-                    try:
-                        touch_ble_publish_heartbeat()
-                    except OSError as e:
-                        logger.warning("Cannot touch BLE publish heartbeat file: %s", e)
+                    ):
+                        try:
+                            touch_ble_publish_heartbeat()
+                        except OSError as e:
+                            logger.warning("Cannot touch BLE publish heartbeat file: %s", e)
+                    else:
+                        logger.warning(
+                            "Instant Readout MQTT publish failed for %s; BLE publish heartbeat not updated",
+                            ble_device.address,
+                        )
                 else:
                     # Occasionally log that we skipped (throttled)
                     lw = self._last_warn.get(ble_device.address, 0.0)

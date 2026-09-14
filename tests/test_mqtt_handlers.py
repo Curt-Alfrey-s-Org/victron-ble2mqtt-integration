@@ -2,6 +2,20 @@ import types
 from pathlib import Path
 from unittest.mock import Mock
 
+from paho.mqtt.client import MQTTMessageInfo
+from paho.mqtt.enums import MQTTErrorCode
+
+
+class _FakeMainMqttDevice:
+    """Avoid ha-services psutil temperature probes in unit tests."""
+
+    def __init__(self, **kwargs):
+        pass
+
+    def poll_and_publish(self, *_args, **_kwargs):
+        return None
+
+
 def test_calc_midpoint_shift_and_percent():
     from victron_ble2mqtt.mqtt import calc_midpoint_shift, calc_midpoint_shift_percent
 
@@ -36,14 +50,14 @@ def test_victron_mqtt_device_handler_publish_uses_handler_map(monkeypatch):
             calls['published'] = True
             calls['data_dict'] = data_dict
             calls['rssi'] = rssi
+            return True
 
     # Patch get_handler where publish() resolves it (implementation lives under override/).
     monkeypatch.setattr('override.victron_ble2mqtt.mqtt.get_handler', lambda victron_device: DummyHandler)
+    monkeypatch.setattr('override.victron_ble2mqtt.mqtt.MainMqttDevice', _FakeMainMqttDevice)
 
     us = UserSettings()
     handler = VictronMqttDeviceHandler(user_settings=us)
-    # CI / dev hosts often lack `iwconfig`; skip system-info side effects in unit tests.
-    monkeypatch.setattr(handler.main_mqtt_device, "poll_and_publish", lambda *_a, **_k: None)
 
     # Create a fake BLEDevice-like object
     FakeBLE = types.SimpleNamespace(address='AA:BB:CC:DD:EE:FF', name='FAKE')
@@ -59,19 +73,65 @@ def test_victron_mqtt_device_handler_publish_uses_handler_map(monkeypatch):
     fake_generic = FakeGenericDevice()
     fake_mqtt_client = Mock()
 
-    # Call publish; this should construct a DummyHandler and then call its publish
-    handler.publish(
+    assert handler.publish(
         ble_device=FakeBLE,
         raw_data=b'\x01\x02',
         generic_device=fake_generic,
         rssi=-70,
         mqtt_client=fake_mqtt_client,
-    )
-
+    ) is True
     assert calls.get('constructed') is True
     assert calls.get('published') is True
     assert calls.get('data_dict') == {'model_name': 'FAKE', 'voltage': 12.3}
     assert calls.get('rssi') == -70
+
+
+def test_mqtt_publish_results_ok_requires_success_rc():
+    from override.victron_ble2mqtt.mqtt import _mqtt_publish_results_ok
+
+    ok_info = MQTTMessageInfo(mid=1)
+    ok_info.rc = MQTTErrorCode.MQTT_ERR_SUCCESS
+    bad_info = MQTTMessageInfo(mid=2)
+    bad_info.rc = MQTTErrorCode.MQTT_ERR_NO_CONN
+
+    assert _mqtt_publish_results_ok((None, ok_info)) is True
+    assert _mqtt_publish_results_ok((ok_info, ok_info)) is True
+    assert _mqtt_publish_results_ok((None, bad_info)) is False
+    assert _mqtt_publish_results_ok((None, None)) is False
+
+
+def test_victron_mqtt_device_handler_publish_returns_false_on_handler_failure(monkeypatch):
+    from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler
+    from victron_ble2mqtt.user_settings import UserSettings
+
+    class FailingHandler:
+        def __init__(self, **kwargs):
+            pass
+
+        def publish(self, *, data_dict, rssi):
+            return False
+
+    monkeypatch.setattr('override.victron_ble2mqtt.mqtt.get_handler', lambda victron_device: FailingHandler)
+    monkeypatch.setattr('override.victron_ble2mqtt.mqtt.MainMqttDevice', _FakeMainMqttDevice)
+
+    handler = VictronMqttDeviceHandler(user_settings=UserSettings())
+
+    FakeBLE = types.SimpleNamespace(address='AA:BB:CC:DD:EE:FF', name='FAKE')
+
+    class FakeGenericDevice:
+        def __init__(self):
+            self.victron_device = object()
+
+        def parse(self, raw_data: bytes):
+            return {'model_name': 'FAKE', 'voltage': 12.3}
+
+    assert handler.publish(
+        ble_device=FakeBLE,
+        raw_data=b'\x01\x02',
+        generic_device=FakeGenericDevice(),
+        rssi=-70,
+        mqtt_client=Mock(),
+    ) is False
 
 
 def test_main_imports_override_mqtt():
@@ -89,6 +149,8 @@ def test_main_imports_override_mqtt():
     assert "MANUFACTURER_SPECIFIC_DATA" in src
     assert "BLE scanner started" in src
     assert "touch_scanner_ok" in src
+    assert "touch_ble_publish_heartbeat" in src
+    assert "BLE publish heartbeat not updated" in src
     assert "prepare_seen_data_for_republish" in src
 
 

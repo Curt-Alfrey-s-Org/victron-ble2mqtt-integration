@@ -4,7 +4,8 @@ import socket
 from bleak import BLEDevice
 from ha_services.mqtt4homeassistant.components.sensor import Sensor
 from ha_services.mqtt4homeassistant.device import MainMqttDevice, MqttDevice
-from paho.mqtt.client import Client
+from paho.mqtt.client import Client, MQTTMessageInfo
+from paho.mqtt.enums import MQTTErrorCode
 from victron_ble.devices import BatteryMonitor, Device, SolarCharger
 
 import victron_ble2mqtt
@@ -12,6 +13,25 @@ from victron_ble2mqtt.user_settings import UserSettings
 from victron_ble2mqtt.victron_ble_utils import GenericDevice
 
 logger = logging.getLogger(__name__)
+
+# paho-mqtt 2.x: Client.publish() -> MQTTMessageInfo; rc is MQTT_ERR_SUCCESS when queued.
+# https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.Client.publish
+PublishResults = tuple[MQTTMessageInfo | None, MQTTMessageInfo | None]
+
+
+def _mqtt_publish_results_ok(*results: PublishResults) -> bool:
+    """True when every attempted publish queued and at least one state topic was sent."""
+    published_state = False
+    for config_info, state_info in results:
+        for info in (config_info, state_info):
+            if info is None:
+                continue
+            if info.rc != MQTTErrorCode.MQTT_ERR_SUCCESS:
+                return False
+        if state_info is not None:
+            published_state = True
+    return published_state
+
 
 # Sensor discovery `name` strings follow VictronConnect readout wording.
 # SmartShunt: https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
@@ -134,13 +154,15 @@ class BaseHandler:
             if sensor is not None:
                 sensor.retain = True
 
-    def publish(self, *, data_dict: dict, rssi: int | None) -> None:
+    def publish(self, *, data_dict: dict, rssi: int | None) -> bool:
         if self.device is None:
             self.setup(data_dict=data_dict)
         self._enable_mqtt_state_retain()
 
+        results: list[PublishResults] = []
+
         self.rssi_sensor.set_state(rssi)
-        self.rssi_sensor.publish(self.mqtt_client)
+        results.append(self.rssi_sensor.publish(self.mqtt_client))
 
         for key, value in data_dict.items():
             if key == "model_name":
@@ -148,9 +170,11 @@ class BaseHandler:
 
             if sensor := self.sensors.get(key):
                 sensor.set_state(self._apply_precision(sensor, value))
-                sensor.publish(self.mqtt_client)
+                results.append(sensor.publish(self.mqtt_client))
             else:
                 pass  # logger.warning(f'No sensor for key: {key}')
+
+        return _mqtt_publish_results_ok(*results)
 
 
 def calc_midpoint_shift(voltage: float, midpoint_voltage: float) -> float:
@@ -354,15 +378,18 @@ class BatteryMonitorHandler(BaseHandler):
             # Non-fatal if overrides fail
             pass
 
-    def publish(self, *, data_dict: dict, rssi: int | None) -> None:
-        super().publish(data_dict=data_dict, rssi=rssi)
+    def publish(self, *, data_dict: dict, rssi: int | None) -> bool:
+        if not super().publish(data_dict=data_dict, rssi=rssi):
+            return False
 
         # Extra sensors
+
+        extra: list[PublishResults] = []
 
         self.power_sensor.set_state(
             self._apply_precision(self.power_sensor, data_dict["voltage"] * data_dict["current"])
         )
-        self.power_sensor.publish(self.mqtt_client)
+        extra.append(self.power_sensor.publish(self.mqtt_client))
 
         if data_dict.get("aux_mode", None) == "midpoint_voltage":
             # Lazily create midpoint sensors if aux_mode switched after first packet (__init__ sets None).
@@ -414,7 +441,7 @@ class BatteryMonitorHandler(BaseHandler):
             self.midpoint_shift.set_state(
                 self._apply_precision(self.midpoint_shift, midpoint_shift)
             )
-            self.midpoint_shift.publish(self.mqtt_client)
+            extra.append(self.midpoint_shift.publish(self.mqtt_client))
 
             midpoint_shift_percent = calc_midpoint_shift_percent(
                 data_dict["voltage"], data_dict["midpoint_voltage"]
@@ -422,7 +449,9 @@ class BatteryMonitorHandler(BaseHandler):
             self.midpoint_shift_percent.set_state(
                 self._apply_precision(self.midpoint_shift_percent, midpoint_shift_percent)
             )
-            self.midpoint_shift_percent.publish(self.mqtt_client)
+            extra.append(self.midpoint_shift_percent.publish(self.mqtt_client))
+
+        return _mqtt_publish_results_ok(*extra)
 
 
 class SolarChargerHandler(BaseHandler):
@@ -515,10 +544,13 @@ class SolarChargerHandler(BaseHandler):
             suggested_display_precision=1,
         )
 
-    def publish(self, *, data_dict: dict, rssi: int | None) -> None:
-        super().publish(data_dict=data_dict, rssi=rssi)
+    def publish(self, *, data_dict: dict, rssi: int | None) -> bool:
+        if not super().publish(data_dict=data_dict, rssi=rssi):
+            return False
 
         # Extra sensors
+
+        extra: list[PublishResults] = []
 
         self.charging_power.set_state(
             self._apply_precision(
@@ -526,7 +558,7 @@ class SolarChargerHandler(BaseHandler):
                 data_dict["battery_voltage"] * data_dict["battery_charging_current"],
             )
         )
-        self.charging_power.publish(self.mqtt_client)
+        extra.append(self.charging_power.publish(self.mqtt_client))
 
         self.load_power.set_state(
             self._apply_precision(
@@ -534,7 +566,9 @@ class SolarChargerHandler(BaseHandler):
                 data_dict["battery_voltage"] * data_dict["external_device_load"],
             )
         )
-        self.load_power.publish(self.mqtt_client)
+        extra.append(self.load_power.publish(self.mqtt_client))
+
+        return _mqtt_publish_results_ok(*extra)
 
 
 class FallbackHandler(BaseHandler):
@@ -592,7 +626,7 @@ class VictronMqttDeviceHandler:
         generic_device: GenericDevice,
         rssi: int | None,
         mqtt_client: Client,
-    ) -> None:
+    ) -> bool:
         logger.debug("MQTT data from %s", ble_device.name)
 
         mac_address = ble_device.address
@@ -608,7 +642,7 @@ class VictronMqttDeviceHandler:
                 user_settings=self.user_settings,
             )
 
-        handler.publish(
+        return handler.publish(
             data_dict=generic_device.parse(raw_data=raw_data),
             rssi=rssi,
         )

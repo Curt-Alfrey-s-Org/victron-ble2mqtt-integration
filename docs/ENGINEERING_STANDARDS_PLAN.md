@@ -234,7 +234,10 @@ reported `healthy`. The probe now requires all three (see
 2. **Scanner started** — `BLE_SCANNER_OK_FILE` exists after `BLE scanner started` in logs
    (removed at process start so a reused `/tmp` cannot keep a stale ok).
 3. **BLE publish** — `BLE_PUBLISH_HEARTBEAT_FILE` mtime within `BLE_PUBLISH_MAX_AGE_SEC`
-   (default 600s) after each successful Victron Instant Readout MQTT publish.
+   (default 600s) only after Instant Readout MQTT state publishes queue with
+   `MQTT_ERR_SUCCESS` on every attempted `paho-mqtt` `publish()` (`MQTTMessageInfo.rc`;
+   see [paho `Client.publish`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html)),
+   not merely when the handler returns without raising.
 
 Dockerfile `HEALTHCHECK` and Compose `healthcheck` call
 `victron_ble2mqtt.liveness.check()` (exit 0 healthy / 1 unhealthy; do not use 2).
