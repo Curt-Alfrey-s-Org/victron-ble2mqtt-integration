@@ -1,6 +1,7 @@
 ## Docker Compose v2 — restart unhealthy labeled containers (willfarrell/autoheal).
 ## Only services explicitly labeled autoheal=true are restarted (homeassistant, victron_ble2mqtt).
 ## Compose restart: unless-stopped handles exits; healthcheck + autoheal handles wedged processes.
+## On .105: run this compose file next to homeassistant; do not use scripts/deploy.sh.
 ## Ref: https://docs.docker.com/reference/compose-file/services/#healthcheck
 services:
   autoheal:
