@@ -1,6 +1,5 @@
 import logging
 import socket
-import time
 
 from bleak import BLEDevice
 from ha_services.mqtt4homeassistant.components.sensor import Sensor
@@ -115,20 +114,30 @@ class BaseHandler:
         # Final fallback to UID
         return f"Victron {default_uid}"
 
+    def _enable_mqtt_state_retain(self) -> None:
+        """Retain Victron device state so HA restart keeps the last reading.
+
+        ha-services 2.11+ publishes with ``retain=self.retain`` (default False).
+        Discovery config is already retained; state is not.
+        https://www.home-assistant.io/integrations/sensor.mqtt/
+        """
+        sensors = [self.rssi_sensor, *self.sensors.values()]
+        for name in (
+            "power_sensor",
+            "midpoint_shift",
+            "midpoint_shift_percent",
+            "charging_power",
+            "load_power",
+        ):
+            sensors.append(getattr(self, name, None))
+        for sensor in sensors:
+            if sensor is not None:
+                sensor.retain = True
+
     def publish(self, *, data_dict: dict, rssi: int | None) -> None:
         if self.device is None:
             self.setup(data_dict=data_dict)
-        # Throttle system info polling/publishing
-        if not hasattr(self.main_mqtt_device, "_last_sys_poll"):
-            self.main_mqtt_device._last_sys_poll = 0.0
-        if not hasattr(self.user_settings.mqtt, "system_poll_throttle_seconds"):
-            self.user_settings.mqtt.system_poll_throttle_seconds = 3
-        now = time.monotonic()
-        if (now - self.main_mqtt_device._last_sys_poll) >= float(
-            self.user_settings.mqtt.system_poll_throttle_seconds or 3
-        ):
-            self.main_mqtt_device._last_sys_poll = now
-            self.main_mqtt_device.poll_and_publish(self.mqtt_client)
+        self._enable_mqtt_state_retain()
 
         self.rssi_sensor.set_state(rssi)
         self.rssi_sensor.publish(self.mqtt_client)

@@ -20,7 +20,7 @@ class MqttConfig:
     publish_config_throttle_seconds: int = 60
     # New throttles
     publish_throttle_seconds: int = 3  # min gap between device publishes
-    system_poll_throttle_seconds: int = 3  # min gap between system info polls
+    system_poll_throttle_seconds: int = 60  # min gap between system info polls
     log_throttle_seconds: int = 3  # min gap between repeated debug/warn logs
 
 

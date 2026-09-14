@@ -81,8 +81,13 @@ def test_main_imports_override_mqtt():
     )
     assert "from .mqtt import VictronMqttDeviceHandler" in src
     assert "from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler" not in src
+    assert "from .instant_readout import prepare_seen_data_for_republish" in src
     assert "def callback(self, ble_device: BLEDevice, raw_data: bytes):" in src
     assert "advertisement.rssi" in src
+    assert "asyncio.to_thread" in src
+    assert 'scanning_mode": scanning_mode' in src or "scanning_mode=scanning_mode" in src
+    assert "BLE scanner started" in src
+    assert "prepare_seen_data_for_republish" in src
 
 
 def test_compose_sets_pythonsafepath():
@@ -90,6 +95,7 @@ def test_compose_sets_pythonsafepath():
         encoding="utf-8"
     )
     assert "PYTHONSAFEPATH=1" in src
+    assert "SYSTEM_POLL_THROTTLE_SEC=${SYSTEM_POLL_THROTTLE_SEC:-60}" in src
 
 
 def test_victronconnect_sensor_names():
@@ -116,3 +122,5 @@ def test_victronconnect_sensor_names():
     assert 'name="Auxiliary Mode"' not in src
     assert 'name="Charge State"' not in src
     assert 'name="Yield Today"' not in src
+    assert "poll_and_publish" not in src
+    assert "sensor.retain = True" in src

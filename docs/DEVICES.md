@@ -115,9 +115,17 @@ You do not need to wipe Home Assistant. Old MQTT entities may linger until you r
 
 ### Victron still missing in HA?
 
-- Close the VictronConnect app.
+Home Assistant MQTT sensors stay **Unknown** until a **state** payload arrives.
+Discovery config can be retained while state is not
+([MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/)).
+
+- Close the VictronConnect app (it can starve Instant Readout ads).
 - Confirm `sudo bluetoothctl show` says **Powered: yes**.
-- Weak built-in radio: plug a USB Bluetooth dongle, set `BLE_ADAPTER=hci1` in `.env`, redeploy.
+- Weak built-in radio: plug a USB Bluetooth dongle, set `BLE_ADAPTER=hci1` in `.env`, recreate `victron_ble2mqtt`.
+- Pi4 Theengs (`pi4-theengs-gateway`) and Victron share **hci0**. The sidecar starts Bleak in **`passive`** scan first so it does not call a second BlueZ `StartDiscovery` against Theengs **active** scan ([Bleak Linux `scanning_mode`](https://bleak.readthedocs.io/en/stable/api/scanner.html)). Do not stop Theengs unless logs show both `passive` and `active` start failed.
+- `victron-ble` 0.9.2 drops identical Instant Readout payloads forever (`_seen_data` in [scanner.py](https://github.com/keshavdv/victron-ble/blob/v0.9.2/victron_ble/scanner.py)). The sidecar discards that de-dupe on each publish throttle so a stable bus still refreshes HA after a broker/HA restart.
+- Pi host metrics (`iwconfig`, CPU, eth0/wlan0/tailscale) run in `asyncio.to_thread` on a **60s** default (`SYSTEM_POLL_THROTTLE_SEC`), not on every BLE packet ([`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)). A `healthy` heartbeat only proves system-info MQTT, not Victron BLE.
+- After editing `override/victron_ble2mqtt/__main__.py` or `mqtt.py`, recreate **only** `victron_ble2mqtt` (no `--remove-orphans`). Confirm logs contain `BLE scanner started` and `Throttled publish` (or state topics updating).
 
 ---
 

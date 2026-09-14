@@ -27,6 +27,7 @@ from victron_ble.scanner import BaseScanner
 # https://docs.python.org/3/reference/import.html#package-relative-imports
 # https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH
 from .cli_app.settings import get_settings
+from .instant_readout import prepare_seen_data_for_republish
 from .mqtt import VictronMqttDeviceHandler
 from .victron_ble_utils import DeviceHandler
 
@@ -107,14 +108,12 @@ def main() -> None:
             #   BLE_ADAPTER=hci1   (or VICTRON_BLE_ADAPTER=hci1)
             # bleak 3.x: 'adapter=' kwarg is deprecated -> bluez={'adapter': ...}
             # (https://github.com/hbldh/bleak/blob/develop/CHANGELOG.rst, v3.0.0)
-            _adapter = (os.getenv("BLE_ADAPTER") or os.getenv("VICTRON_BLE_ADAPTER") or "").strip()
-            if _adapter:
-                self._scanner = BleakScanner(
-                    detection_callback=self._detection_callback,
-                    bluez={"adapter": _adapter},
-                )
+            self._ble_adapter = (os.getenv("BLE_ADAPTER") or os.getenv("VICTRON_BLE_ADAPTER") or "").strip()
+            self._rebuild_scanner("passive")
+            if self._ble_adapter:
                 logger.info(
-                    "BLE scanner using adapter %s (BLE_ADAPTER / VICTRON_BLE_ADAPTER)", _adapter
+                    "BLE scanner using adapter %s (BLE_ADAPTER / VICTRON_BLE_ADAPTER)",
+                    self._ble_adapter,
                 )
             self.device_handler = DeviceHandler(keys)
             self.victron_mqtt_handler = VictronMqttDeviceHandler(user_settings=user_settings)
@@ -125,20 +124,61 @@ def main() -> None:
             self._log_gap = float(getattr(user_settings.mqtt, "log_throttle_seconds", 3) or 3)
             self._last_warn: dict[str, float] = {}
             self._last_rssi: dict[str, int | None] = {}
-            # System info periodic publish interval (seconds)
+            # System info periodic publish interval (seconds). Default 60 so
+            # iwconfig/CPU MQTT does not occupy the Bleak event loop.
             self._sys_poll_gap = float(
-                getattr(user_settings.mqtt, "system_poll_throttle_seconds", 3) or 3
+                getattr(user_settings.mqtt, "system_poll_throttle_seconds", 60) or 60
             )
+
+        def _rebuild_scanner(self, scanning_mode: str) -> None:
+            # Instant Readout is advertisement-only. Passive avoids a second
+            # BlueZ StartDiscovery while Pi4 Theengs uses active scan on hci0.
+            # https://bleak.readthedocs.io/en/stable/api/scanner.html
+            scan_kwargs = {
+                "detection_callback": self._detection_callback,
+                "scanning_mode": scanning_mode,
+            }
+            if self._ble_adapter:
+                scan_kwargs["bluez"] = {"adapter": self._ble_adapter}
+            self._scanner = BleakScanner(**scan_kwargs)
+
+        async def start_with_fallback(self) -> None:
+            last_error: BaseException | None = None
+            for mode in ("passive", "active"):
+                self._rebuild_scanner(mode)
+                logger.info("Starting BLE scanner scanning_mode=%s", mode)
+                try:
+                    await asyncio.wait_for(self.start(), timeout=30)
+                except TimeoutError:
+                    logger.error("BLE scanner start timed out after 30s (mode=%s)", mode)
+                    try:
+                        await self.stop()
+                    except Exception:
+                        logger.exception("BLE scanner stop failed after timeout")
+                    last_error = TimeoutError(f"start timeout mode={mode}")
+                    continue
+                except Exception as exc:
+                    logger.exception("BLE scanner failed to start (mode=%s)", mode)
+                    last_error = exc
+                    continue
+                logger.info("BLE scanner started scanning_mode=%s", mode)
+                return
+            if last_error is not None:
+                logger.error("BLE scanner could not start in passive or active mode")
 
         async def periodic_system_info_publish(self) -> None:
             """Publish Pi4 system info on a fixed interval regardless of BLE traffic.
 
-            This ensures Home Assistant state updates (e.g., CPU, temp, uptime) continue
-            even when Victron BLE devices are out of range or silent.
+            poll_and_publish runs iwconfig and many MQTT config publishes. Run it
+            in a worker thread so Bleak can still deliver Instant Readout ads.
+            https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread
             """
             while True:
                 try:
-                    self.victron_mqtt_handler.main_mqtt_device.poll_and_publish(self.mqtt_client)
+                    await asyncio.to_thread(
+                        self.victron_mqtt_handler.main_mqtt_device.poll_and_publish,
+                        self.mqtt_client,
+                    )
                 except Exception as e:
                     logger.warning("System info publish failed: %s", e)
                 else:
@@ -150,11 +190,29 @@ def main() -> None:
             # Bleak 0.19+ keeps RSSI on AdvertisementData, not BLEDevice.
             # https://bleak.readthedocs.io/en/latest/api/index.html
             self._last_rssi[device.address] = advertisement.rssi
+            data = advertisement.manufacturer_data.get(0x02E1)
+            if not data or not data.startswith(b"\x10"):
+                return
+            last = self._last_pub.get(device.address, 0.0)
+            if not prepare_seen_data_for_republish(
+                payload=data,
+                seen_data=self._seen_data,
+                last_pub=last,
+                now=time.monotonic(),
+                pub_gap=self._pub_gap,
+            ):
+                return
             super()._detection_callback(device, advertisement)
 
         # victron-ble 0.9.2 BaseScanner.callback(device, data)
         # https://github.com/keshavdv/victron-ble/blob/v0.9.2/victron_ble/scanner.py
         def callback(self, ble_device: BLEDevice, raw_data: bytes):
+            try:
+                self._callback_inner(ble_device, raw_data)
+            except Exception:
+                logger.exception("Victron BLE publish failed for %s", ble_device.address)
+
+        def _callback_inner(self, ble_device: BLEDevice, raw_data: bytes):
             now = time.monotonic()
             # Rate-limit noisy debug
             if logger.isEnabledFor(logging.DEBUG):
@@ -188,15 +246,9 @@ def main() -> None:
 
     async def _run():
         scanner = MqttPublisher(keys=keys)
-        # Kick an immediate system-info publish to generate discovery early
-        try:
-            scanner.victron_mqtt_handler.main_mqtt_device.poll_and_publish(scanner.mqtt_client)
-        except Exception:
-            pass
-        # Start periodic system-info publishing in the background
+        # System-info in the background; do not block BLE start on iwconfig.
         asyncio.create_task(scanner.periodic_system_info_publish())
-        # Start BLE scanner (runs until stopped)
-        await scanner.start()
+        await scanner.start_with_fallback()
 
     loop = asyncio.get_event_loop()
     loop.create_task(_run())
