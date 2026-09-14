@@ -21,6 +21,7 @@ services:
       # System info publish interval (seconds). Stay off the BLE event loop;
       # 60s default so iwconfig/CPU MQTT does not starve Instant Readout.
       - SYSTEM_POLL_THROTTLE_SEC=${SYSTEM_POLL_THROTTLE_SEC:-60}
+      - BLE_PUBLISH_MAX_AGE_SEC=${BLE_PUBLISH_MAX_AGE_SEC:-600}
       - PUBLISH_CONFIG_THROTTLE_SEC=${PUBLISH_CONFIG_THROTTLE_SEC:-60}
       # USB BLE dongle is usually hci1; leave unset for built-in hci0
       - BLE_ADAPTER=${BLE_ADAPTER:-}
@@ -51,15 +52,18 @@ services:
         max-file: "5"
     # Use image entrypoint so it can generate /work/victron_ble2mqtt/user_settings.py
     # (Dockerfile sets CMD -> docker-entrypoint.sh which writes user_settings.py)
-    # Liveness probe: the publish loop touches HEARTBEAT_FILE after each successful
-    # system-info MQTT publish; healthcheck fails when the heartbeat is older than
-    # 20x SYSTEM_POLL_THROTTLE_SEC + 60s margin (wedged loop / dead MQTT => autoheal).
+    # Liveness: system-info heartbeat + BLE scanner ok + BLE publish heartbeat.
+    # https://docs.docker.com/reference/compose-file/services/#healthcheck
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import os,sys,time; p=os.environ.get('HEARTBEAT_FILE','/tmp/victron_ble2mqtt.heartbeat'); max_age=20*float(os.environ.get('SYSTEM_POLL_THROTTLE_SEC') or 60)+60; m=os.path.getmtime(p) if os.path.exists(p) else 0; sys.exit(0 if time.time()-m<=max_age else 1)\" || exit 1"]
+      test:
+        - CMD
+        - python
+        - -c
+        - from victron_ble2mqtt.liveness import check; raise SystemExit(check())
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 180s
     deploy:
       resources:
         limits:

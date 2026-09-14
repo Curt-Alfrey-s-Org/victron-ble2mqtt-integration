@@ -29,22 +29,11 @@ from victron_ble.scanner import BaseScanner
 # https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH
 from .cli_app.settings import get_settings
 from .instant_readout import prepare_seen_data_for_republish
+from .liveness import remove_file, touch_ble_publish_heartbeat, touch_scanner_ok, touch_system_heartbeat
 from .mqtt import VictronMqttDeviceHandler
 from .victron_ble_utils import DeviceHandler
 
-# Liveness heartbeat: the publish loop touches this file after each successful
-# system-info publish; the container healthcheck fails when it goes stale.
-HEARTBEAT_FILE = os.getenv("HEARTBEAT_FILE", "/tmp/victron_ble2mqtt.heartbeat")
-
 _module_logger = logging.getLogger(__name__)
-
-
-def touch_heartbeat(path: str = HEARTBEAT_FILE) -> None:
-    try:
-        with open(path, "a"):
-            os.utime(path, None)
-    except OSError as e:
-        _module_logger.warning("Cannot touch heartbeat file %s: %s", path, e)
 
 
 def _build_mqtt_client(
@@ -82,6 +71,13 @@ def main() -> None:
         level = logging.INFO
     logging.basicConfig(level=level)
     logger = logging.getLogger(__name__)
+
+    # Drop stale scanner_ok from a previous crash before BLE starts again.
+    scanner_ok_path = os.getenv("BLE_SCANNER_OK_FILE", "/tmp/victron_ble2mqtt.scanner_ok")
+    try:
+        remove_file(scanner_ok_path)
+    except OSError as e:
+        _module_logger.warning("Cannot remove scanner ok file %s: %s", scanner_ok_path, e)
 
     # Load production settings (override/victron_ble2mqtt/user_settings*.py)
     user_settings = get_settings()
@@ -172,6 +168,10 @@ def main() -> None:
                     last_error = exc
                     continue
                 logger.info("BLE scanner started scanning_mode=%s", mode)
+                try:
+                    touch_scanner_ok()
+                except OSError as e:
+                    logger.warning("Cannot touch scanner ok file: %s", e)
                 return
             if last_error is not None:
                 logger.error("BLE scanner could not start in passive or active mode")
@@ -193,7 +193,10 @@ def main() -> None:
                     logger.warning("System info publish failed: %s", e)
                 else:
                     if self.mqtt_client.is_connected():
-                        touch_heartbeat()
+                        try:
+                            touch_system_heartbeat()
+                        except OSError as e:
+                            logger.warning("Cannot touch system heartbeat file: %s", e)
                 await asyncio.sleep(self._sys_poll_gap)
 
         def _detection_callback(self, device: BLEDevice, advertisement: AdvertisementData):
@@ -238,6 +241,10 @@ def main() -> None:
                         rssi=self._last_rssi.get(ble_device.address),
                         mqtt_client=self.mqtt_client,
                     )
+                    try:
+                        touch_ble_publish_heartbeat()
+                    except OSError as e:
+                        logger.warning("Cannot touch BLE publish heartbeat file: %s", e)
                 else:
                     # Occasionally log that we skipped (throttled)
                     lw = self._last_warn.get(ble_device.address, 0.0)

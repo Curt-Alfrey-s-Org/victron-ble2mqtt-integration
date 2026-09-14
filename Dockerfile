@@ -23,9 +23,8 @@ COPY victron_ble2mqtt /app/victron_ble2mqtt
 COPY override/victron_ble2mqtt /app/override/victron_ble2mqtt
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-# Liveness: the publish loop touches HEARTBEAT_FILE after each successful
-# system-info MQTT publish (override/victron_ble2mqtt/__main__.py).
-# Stale heartbeat (> 20x poll interval + 60s margin) => unhealthy => autoheal restart.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD python -c "import os,sys,time; p=os.environ.get('HEARTBEAT_FILE','/tmp/victron_ble2mqtt.heartbeat'); max_age=20*float(os.environ.get('SYSTEM_POLL_THROTTLE_SEC') or 3)+60; m=os.path.getmtime(p) if os.path.exists(p) else 0; sys.exit(0 if time.time()-m<=max_age else 1)" || exit 1
+# Liveness: victron_ble2mqtt.liveness.check (system + BLE scanner + BLE publish).
+# https://docs.docker.com/reference/compose-file/services/#healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
+    CMD ["python", "-c", "from victron_ble2mqtt.liveness import check; raise SystemExit(check())"]
 CMD ["docker-entrypoint.sh"]

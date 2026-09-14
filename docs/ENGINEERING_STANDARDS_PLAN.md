@@ -34,7 +34,7 @@ This document is the **single roadmap** for aligning **victron-ble2mqtt-integrat
 **Current state**
 
 - `docker-compose.homeassistant.yml` already defines a **`healthcheck`** (HTTP on port 8123).
-- `docker-compose.victron.yml` defines a **`healthcheck`** (import smoke).
+- `docker-compose.victron.yml` defines a **`healthcheck`** (system + BLE scanner + BLE publish; see §7.4).
 - Compose **`restart: unless-stopped`** only restarts on **container exit**, not on **`unhealthy`** ([healthcheck semantics](https://docs.docker.com/reference/compose-file/services/#healthcheck)).
 - **`scripts/ha-watchdog.sh`** + **`ha-watchdog.timer`** duplicate HTTP liveness outside Compose.
 
@@ -222,23 +222,31 @@ by the Dockerfile and CI). Dev tools stay in `[dependency-groups] dev`
 
 ### 7.4 — Healthcheck quality (root-cause liveness, not import smoke)
 
-**Status: Done — 2026-06-09.** The publish loop
-(`override/victron_ble2mqtt/__main__.py`) now touches a heartbeat file
-(`HEARTBEAT_FILE`, default `/tmp/victron_ble2mqtt.heartbeat`) after each
-successful system-info publish **while the MQTT client is connected**. The
-Dockerfile `HEALTHCHECK` and the Compose `healthcheck` fail when the heartbeat is
-older than `20 × SYSTEM_POLL_THROTTLE_SEC + 60s` (default poll 3s → 120s budget;
-`start_period` raised to 60s). A wedged asyncio loop or dead MQTT connection now
-flips the container `unhealthy`, which autoheal (Phase 1) restarts. Original
-finding:
+**Status: Done — 2026-09-14 (BLE gap closed).** The 2026-06-09 probe only touched
+`HEARTBEAT_FILE` after system-info MQTT (`iwconfig`/CPU). That proved the asyncio
+loop and MQTT client were alive but **not** that BLE scan or Instant Readout device
+state publish was working — Solar Victron tiles could stay Unknown while Docker
+reported `healthy`. The probe now requires all three (see
+`override/victron_ble2mqtt/liveness.py`):
 
-Current Compose/Docker healthcheck only does `import victron_ble2mqtt` — it proves
-the interpreter starts, **not** that BLE scanning or MQTT publishing is alive (the
-failure modes autoheal exists to fix). Replace with a real liveness probe: e.g. the
-publish loop touches a heartbeat file (or exposes last-publish timestamp) and the
-healthcheck fails when the last successful publish is older than N×
-`SYSTEM_POLL_THROTTLE_SEC`. Compose healthcheck semantics:
-[Compose file reference — healthcheck](https://docs.docker.com/reference/compose-file/services/#healthcheck).
+1. **System heartbeat** — `HEARTBEAT_FILE` mtime within `20 × SYSTEM_POLL_THROTTLE_SEC + 60s`
+   (default poll 60s) after each successful system-info publish while MQTT is connected.
+2. **Scanner started** — `BLE_SCANNER_OK_FILE` exists after `BLE scanner started` in logs
+   (removed at process start so a reused `/tmp` cannot keep a stale ok).
+3. **BLE publish** — `BLE_PUBLISH_HEARTBEAT_FILE` mtime within `BLE_PUBLISH_MAX_AGE_SEC`
+   (default 600s) after each successful Victron Instant Readout MQTT publish.
+
+Dockerfile `HEALTHCHECK` and Compose `healthcheck` call
+`victron_ble2mqtt.liveness.check()` (exit 0 healthy / 1 unhealthy; do not use 2).
+Compose `test` is exec-form `CMD` (no shell `$` interpolation). `start_period` 180s
+covers Bleak 30s+30s plus first Instant Readout (`start_interval` omitted unless the
+Pi Engine is 25.0+). Failures during `start_period` do not count toward `retries`
+unless a probe already succeeded
+([HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck),
+[Compose healthcheck](https://docs.docker.com/reference/compose-file/services/#healthcheck)).
+`unhealthy` containers labeled `autoheal=true` are restarted by autoheal (Phase 1).
+`AUTOHEAL_CONTAINER_LABEL` must be the label **name** `autoheal` so the Engine
+filter is `autoheal=true` ([autoheal entrypoint](https://github.com/willfarrell/docker-autoheal/blob/master/docker-entrypoint)).
 
 ### 7.5 — Pin the Home Assistant container image
 

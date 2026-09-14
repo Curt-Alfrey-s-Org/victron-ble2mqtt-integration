@@ -8,7 +8,7 @@ services:
     container_name: autoheal
     restart: unless-stopped
     environment:
-      AUTOHEAL_CONTAINER_LABEL: autoheal=true
+      AUTOHEAL_CONTAINER_LABEL: autoheal
       AUTOHEAL_INTERVAL: 30
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro

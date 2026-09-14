@@ -88,6 +88,7 @@ def test_main_imports_override_mqtt():
     assert "or_patterns" in src
     assert "MANUFACTURER_SPECIFIC_DATA" in src
     assert "BLE scanner started" in src
+    assert "touch_scanner_ok" in src
     assert "prepare_seen_data_for_republish" in src
 
 
@@ -97,6 +98,8 @@ def test_compose_sets_pythonsafepath():
     )
     assert "PYTHONSAFEPATH=1" in src
     assert "SYSTEM_POLL_THROTTLE_SEC=${SYSTEM_POLL_THROTTLE_SEC:-60}" in src
+    assert "BLE_PUBLISH_MAX_AGE_SEC=${BLE_PUBLISH_MAX_AGE_SEC:-600}" in src
+    assert "from victron_ble2mqtt.liveness import check" in src
 
 
 def test_victronconnect_sensor_names():
