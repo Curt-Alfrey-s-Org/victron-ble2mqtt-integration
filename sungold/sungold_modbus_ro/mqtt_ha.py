@@ -94,4 +94,6 @@ class MqttHaPublisher:
         self._client.publish(topic, "", retain=True)
 
     def publish_state(self, entity: EntityDef, value: str) -> None:
-        self._client.publish(self._state_topic(entity), value, retain=False)
+        # Retain last reading so HA restart does not blank Solar tiles.
+        # https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
+        self._client.publish(self._state_topic(entity), value, retain=True)

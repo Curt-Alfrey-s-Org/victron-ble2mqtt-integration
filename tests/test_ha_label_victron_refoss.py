@@ -261,6 +261,13 @@ def test_victron_refoss_labels_and_headings(tmp_path: Path) -> None:
         "Sungold",
     ]
     assert heading_changes == ["Mppt charger -> BlueSolar MPPT 75/15"]
+    solar_tiles = [
+        card
+        for section in solar["data"]["config"]["views"][0]["sections"]
+        for card in section["cards"]
+        if card.get("type") == "tile"
+    ]
+    assert all(card.get("name") == {"type": "entity"} for card in solar_tiles)
 
     refoss = json.loads((storage / "lovelace.dashboard_refoss").read_text(encoding="utf-8"))
     view = refoss["data"]["config"]["views"][0]

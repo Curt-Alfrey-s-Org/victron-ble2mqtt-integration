@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 from sungold_modbus_ro import __main__ as sungold_main
-from sungold_modbus_ro import mqtt_ha
+from sungold_modbus_ro import modbus_io, mqtt_ha
 from sungold_modbus_ro.config import Settings
 from sungold_modbus_ro.mqtt_ha import MqttHaPublisher
 from sungold_modbus_ro.registers import (
@@ -145,3 +146,28 @@ def test_poll_loop_does_not_hide_discovery():
     assert "hide_entity" not in mqtt_src
     assert not hasattr(mqtt_ha.MqttHaPublisher, "hide_entity")
     assert "is_register_available" in sungold_main.main.__code__.co_names
+
+
+def test_timeout_does_not_skip_register(monkeypatch, tmp_path):
+    class FakeSerial:
+        baudrate = 9600
+        timeout = 1.0
+
+        def close(self) -> None:
+            return None
+
+    class FakeInstr:
+        serial = FakeSerial()
+
+        def read_register(self, *args, **kwargs):
+            raise OSError("No communication with the instrument (no answer)")
+
+    monkeypatch.setattr(
+        modbus_io.minimalmodbus, "Instrument", lambda *args, **kwargs: FakeInstr()
+    )
+    settings = replace(_settings(), skip_state_file=str(tmp_path / "skip.json"))
+    client = modbus_io.ReadOnlyModbusClient(settings)
+    entity = next(e for e in CURATED_ENTITIES if e.key == "battery/soc")
+    for _ in range(10):
+        assert client.read_entity(entity) is None
+    assert entity.register not in client._register_skip_time

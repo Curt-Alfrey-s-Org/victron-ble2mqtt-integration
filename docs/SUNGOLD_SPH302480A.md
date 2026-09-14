@@ -100,7 +100,7 @@ mosquitto_sub -h "$MQTT_HOST" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
 
 In Home Assistant: **Settings → Devices & services → MQTT** — device **Sungold SPH302480A** with PV, battery, grid, load, and temperature entities.
 
-**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). Tiles bind **live** `entity_id`s from MQTT `unique_id` `sungold_sph302480a-*` (not hardcoded `sensor.sungold_sph302480a_pv_voltage`). The cart stays off T2/KU.
+**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). Tiles bind **live** `entity_id`s from MQTT `unique_id` `sungold_sph302480a-*` and set `name: {type: entity}` so the card shows **PV input voltage**, not `Sungold S...` ([card naming](https://www.home-assistant.io/dashboards/naming/)). The cart stays off T2/KU.
 
 Order: sidecar must already have republished discovery while HA is **running**, then stop HA and apply:
 
@@ -148,7 +148,7 @@ Not published for this model (manual + this hardware):
 - **Transformer temperature** — product is **high frequency transformer-less**.
 - LCD pages **OUTPUT BATT A / KW** and **OUTPUT LOAD KVA** — no verified Modbus address in the SPH manual (manual does not publish a map).
 
-Repeated Modbus failures still **skip** that register for `MODBUS_SKIP_RETRY_INTERVAL` (logged once) so USB is not hammered. Skip does **not** publish an empty MQTT discovery payload. Home Assistant [removes the entity](https://www.home-assistant.io/integrations/mqtt/#discovery-messages) when the discovery topic is an empty retained string; that is used only for `RETIRED_DISCOVERY` (registers this model does not have). USB timeouts (`NoResponseError` / "no communication with the instrument") leave sensors **unavailable**, not deleted.
+Slave **illegal request** (unsupported address) still **skips** that register for `MODBUS_SKIP_RETRY_INTERVAL` ([IllegalRequestError](https://minimalmodbus.readthedocs.io/en/stable/apiminimalmodbus.html#minimalmodbus.IllegalRequestError)). USB timeouts (`NoResponseError` / "no communication with the instrument") do **not** skip: every curated register is polled again on the next cycle so a brief USB drop does not blank half the Solar tiles for an hour. Skip does **not** publish an empty MQTT discovery payload. Home Assistant [removes the entity](https://www.home-assistant.io/integrations/mqtt/#discovery-messages) when the discovery topic is an empty retained string; that is used only for `RETIRED_DISCOVERY`. Last Modbus values are published with MQTT **retain** so an HA restart keeps the last reading until the next poll.
 
 Sidecar-only rebuild on Pi4 (do **not** run full `scripts/deploy.sh` for this; that compose file can rewrite Mosquitto):
 

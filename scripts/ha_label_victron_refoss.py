@@ -60,6 +60,10 @@ SOLAR_HEADING_RENAMES = {
     "Mppt charger": "BlueSolar MPPT 75/15",
 }
 
+# MQTT tiles otherwise show "Solar-contr..." / "Battery 1 A...".
+# https://www.home-assistant.io/dashboards/naming/
+TILE_ENTITY_NAME = {"type": "entity"}
+
 REFOSS_DEVICE_NAME = "Refoss Smart Energy Monitor, EM16"
 REFOSS_IDENT_DOMAIN = "refoss"
 # HA core CHANNEL_DISPLAY_NAME for em16 (homeassistant/components/refoss/const.py).
@@ -245,13 +249,14 @@ def rename_solar_headings(storage: Path) -> list[str]:
     for view in views:
         for section in view.get("sections") or []:
             for card in section.get("cards") or []:
-                if card.get("type") != "heading":
-                    continue
-                old = card.get("heading")
-                new = SOLAR_HEADING_RENAMES.get(old)
-                if new and new != old:
-                    card["heading"] = new
-                    changed.append(f"{old} -> {new}")
+                if card.get("type") == "heading":
+                    old = card.get("heading")
+                    new = SOLAR_HEADING_RENAMES.get(old)
+                    if new and new != old:
+                        card["heading"] = new
+                        changed.append(f"{old} -> {new}")
+                elif card.get("type") == "tile" and card.get("entity"):
+                    card["name"] = dict(TILE_ENTITY_NAME)
     write_store(path, payload)
     return changed
 
@@ -265,7 +270,11 @@ def refoss_sections(found: list[str]) -> list[dict]:
     sections: list[dict] = []
     for channel in EM16_CHANNELS:
         tiles = [
-            {"type": "tile", "entity": em16_entity_id(channel, key)}
+            {
+                "type": "tile",
+                "entity": em16_entity_id(channel, key),
+                "name": dict(TILE_ENTITY_NAME),
+            }
             for key in EM16_SENSOR_KEYS
             if em16_entity_id(channel, key) in found_set
         ]

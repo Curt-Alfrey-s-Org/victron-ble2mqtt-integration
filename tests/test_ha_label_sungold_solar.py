@@ -133,10 +133,14 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
         "heading": "Sungold",
         "icon": "mdi:solar-power-variant",
     }
-    tiles = [c["entity"] for c in sections[1]["cards"][1:]]
-    assert tiles[0] == "sensor.sungold_sph302480a_pv_voltage"
-    assert tiles[1] == "sensor.sungold_sph302480a_load_active_power"
-    assert "sensor.sungold_sph302480a_pv_total_power" not in tiles
+    tiles = [c for c in sections[1]["cards"][1:]]
+    assert tiles[0] == {
+        "type": "tile",
+        "entity": "sensor.sungold_sph302480a_pv_voltage",
+        "name": {"type": "entity"},
+    }
+    assert tiles[1]["entity"] == "sensor.sungold_sph302480a_load_active_power"
+    assert "sensor.sungold_sph302480a_pv_total_power" not in [c["entity"] for c in tiles]
     assert sungold.RETIRED_UNIQUE_IDS.isdisjoint(sungold.PREFERRED_UNIQUE_IDS)
 
 

@@ -32,6 +32,11 @@ ENTITY_PREFIX = "sungold_sph302480a"
 UNIQUE_ID_PREFIX = "sungold_sph302480a-"
 MQTT_IDENT = ["mqtt", "sungold_sph302480a"]
 
+# MQTT discovery sets has_entity_name, so friendly names are
+# "Sungold SPH302480A PV input voltage" and tiles truncate to "Sungold S...".
+# Show the entity name only: https://www.home-assistant.io/dashboards/naming/
+TILE_ENTITY_NAME = {"type": "entity"}
+
 # SPH302480A does not publish these (one MPPT, illegal 0x023A, transformer-less).
 # unique_id is mqtt_topic + key with / replaced by -.
 RETIRED_UNIQUE_IDS = frozenset(
@@ -154,6 +159,17 @@ def ensure_label(storage: Path) -> None:
     )
 
 
+def entity_tile(entity_id: str) -> dict:
+    return {"type": "tile", "entity": entity_id, "name": dict(TILE_ENTITY_NAME)}
+
+
+def apply_entity_tile_names(view: dict) -> None:
+    for section in view.get("sections") or []:
+        for card in section.get("cards") or []:
+            if card.get("type") == "tile" and card.get("entity"):
+                card["name"] = dict(TILE_ENTITY_NAME)
+
+
 def _add_label(labels: list | None) -> list[str]:
     out = list(labels or [])
     if LABEL_ID not in out:
@@ -210,7 +226,7 @@ def sungold_section(entity_ids: list[str]) -> dict:
     cards: list[dict] = [
         {"type": "heading", "heading": HEADING, "icon": LABEL_ICON}
     ]
-    cards.extend({"type": "tile", "entity": eid} for eid in entity_ids)
+    cards.extend(entity_tile(eid) for eid in entity_ids)
     return {"type": "grid", "cards": cards}
 
 
@@ -248,6 +264,7 @@ def upsert_solar_section(storage: Path, entity_ids: list[str]) -> None:
             break
     if not replaced:
         sections.append(section)
+    apply_entity_tile_names(view)
     write_store(path, payload)
 
 

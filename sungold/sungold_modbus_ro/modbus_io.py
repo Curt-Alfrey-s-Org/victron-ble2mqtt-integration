@@ -80,9 +80,17 @@ class ReadOnlyModbusClient:
         if count >= self._settings.modbus_skip_threshold and register not in self._register_skip_time:
             self._register_skip_time[register] = time.time()
             if register not in self._skipped_logged:
-                print(f"Modbus: skipping register 0x{register:04X} after {count} failures")
+                print(f"Modbus: skipping register 0x{register:04X} after {count} illegal requests")
                 self._skipped_logged.add(register)
             self._save_skip_state()
+
+    def _record_timeout(self) -> None:
+        """USB/timeout: reopen serial after a streak, but do not skip the register.
+
+        Skip is only for slave IllegalRequestError (unsupported address).
+        https://minimalmodbus.readthedocs.io/en/stable/apiminimalmodbus.html#minimalmodbus.IllegalRequestError
+        """
+        self._failures += 1
 
     def check_reconnect(self) -> None:
         if self._failures < _MODBUS_FAILURE_THRESHOLD:
@@ -145,13 +153,12 @@ class ReadOnlyModbusClient:
 
             scaled = raw * entity.scale
             return self._format_scaled(scaled, entity.scale, entity.integer)
+        except minimalmodbus.IllegalRequestError as exc:
+            self._record_result(False, register)
+            print(f"Modbus illegal request 0x{register:04X} ({entity.key}): {exc}")
+            return None
         except OSError as exc:
-            self._record_result(False, register)
+            # NoResponseError / InvalidResponseError inherit OSError.
+            self._record_timeout()
             print(f"Modbus read 0x{register:04X} ({entity.key}) failed: {exc}")
-            return None
-        except minimalmodbus.NoResponseError:
-            self._record_result(False, register)
-            return None
-        except minimalmodbus.InvalidResponseError:
-            self._record_result(False, register)
             return None
