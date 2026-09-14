@@ -62,14 +62,14 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
                         "device_id": "dev1",
                     },
                     {
-                        "entity_id": "sensor.sungold_sph302480a_pv_input_voltage",
+                        "entity_id": "sensor.sungold_sph302480a_pv_voltage",
                         "unique_id": "sungold_sph302480a-pv1-voltage",
                         "labels": [],
                         "device_id": "dev1",
                     },
                     {
-                        "entity_id": "sensor.sungold_sph302480a_pv_voltage",
-                        "unique_id": "sungold_sph302480a-pv-voltage",
+                        "entity_id": "sensor.sungold_sph302480a_pv_total_power",
+                        "unique_id": "sungold_sph302480a-pv-total_power",
                         "labels": [],
                         "device_id": "dev1",
                     },
@@ -116,9 +116,9 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
 
     ents = json.loads((storage / "core.entity_registry").read_text(encoding="utf-8"))
     by_id = {e["entity_id"]: e for e in ents["data"]["entities"]}
-    assert "sungold" in by_id["sensor.sungold_sph302480a_pv_input_voltage"]["labels"]
+    assert "sungold" in by_id["sensor.sungold_sph302480a_pv_voltage"]["labels"]
     assert "sungold" in by_id["sensor.sungold_sph302480a_load_active_power"]["labels"]
-    assert "sungold" not in by_id["sensor.sungold_sph302480a_pv_voltage"]["labels"]
+    assert "sungold" not in by_id["sensor.sungold_sph302480a_pv_total_power"]["labels"]
     assert "sungold" not in by_id["sensor.battery_1_voltage"]["labels"]
 
     devs = json.loads((storage / "core.device_registry").read_text(encoding="utf-8"))
@@ -134,9 +134,9 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
         "icon": "mdi:solar-power-variant",
     }
     tiles = [c["entity"] for c in sections[1]["cards"][1:]]
-    assert tiles[0] == "sensor.sungold_sph302480a_pv_input_voltage"
+    assert tiles[0] == "sensor.sungold_sph302480a_pv_voltage"
     assert tiles[1] == "sensor.sungold_sph302480a_load_active_power"
-    assert "sensor.sungold_sph302480a_pv_voltage" not in tiles
+    assert "sensor.sungold_sph302480a_pv_total_power" not in tiles
     assert sungold.RETIRED_UNIQUE_IDS.isdisjoint(sungold.PREFERRED_UNIQUE_IDS)
 
 

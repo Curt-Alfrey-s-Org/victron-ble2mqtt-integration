@@ -49,9 +49,6 @@ RETIRED_ENTITY_IDS = frozenset(
         "sensor.sungold_sph302480a_pv_total_power",
         "sensor.sungold_sph302480a_grid_power",
         "sensor.sungold_sph302480a_temperature_transformer",
-        "sensor.sungold_sph302480a_pv_voltage",
-        "sensor.sungold_sph302480a_pv_current",
-        "sensor.sungold_sph302480a_pv_power",
     }
 )
 
