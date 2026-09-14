@@ -22,7 +22,7 @@ That starts:
 
 It does **not** run Home Assistant, Mosquitto, or Victron. It is **not** a
 router: the AXE300 stays DHCP/NAT. Wi-Fi thermostats (Ecobee, Rheem) already
-talk IP to HA; add **HomeKit Device** / **EcoNet** on the Pi 4, not here.
+talk IP to HA; add **HomeKit Device** / **EcoNet** on **`.105`**, not here.
 
 Optional: if a house-bank **VE.Direct USB** shunt is plugged into this Pi,
 set `ENABLE_BMS_SUPERVISOR=1` in `.env` (see [docs/PI4_BMS_SOFTWARE.md](../../docs/PI4_BMS_SOFTWARE.md)).

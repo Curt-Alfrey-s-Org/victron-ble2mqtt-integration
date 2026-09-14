@@ -21,12 +21,12 @@ Secrets stay in `.env` and `victron-secrets.env` (never commit those files).
 | **Pi4 host** (CPU, temp, Wi‑Fi) | Built into the Victron container | On with Victron | Nothing extra | Stop `victron_ble2mqtt` (you also lose Victron) |
 | **Sungold SPH302480A** | USB Modbus (read-only) | **Off** | `ENABLE_SUNGOLD=1` + USB | `ENABLE_SUNGOLD=0` or unplug USB. **This site: emergency dolly cart** (2x 24 V 100 Ah), not T2/KU (2026-09-11). |
 | **Pi battery supervisor** | VE.Direct USB (read-only Text) | **Off** | `ENABLE_BMS_SUPERVISOR=1` + USB | `ENABLE_BMS_SUPERVISOR=0` or unplug USB. Bench/spare pack first; not T2/KU/well v1. See [PI4_BMS_SOFTWARE.md](PI4_BMS_SOFTWARE.md). |
-| **Home Assistant** | Browser `:8123` | On | `ENABLE_HOME_ASSISTANT=1` (default) | `ENABLE_HOME_ASSISTANT=0` |
-| **House BLE sensors** (Govee, Xiaomi, …) | BLE on **Pi 5** → MQTT on this Pi | Off until Pi 5 deploy | `HOST_ROLE=pi5` on the house Pi | `docker compose … down` on Pi 5 |
-| **Solar-site Govee** (e.g. H5075 `A4:C1:38:CA:AF:6F`) | BLE on **Pi 4** Theengs → same broker | Off until `hosts/pi4/docker-compose.theengs.yml` up | See [PI5_HOUSE_EDGE.md](PI5_HOUSE_EDGE.md) Pi 4 Theengs | `docker compose … down` in `hosts/pi4/` |
+| **Home Assistant** | Browser `:8123` on **`.105`** | On (`.105` only) | `docker-compose.homeassistant.yml` on `.105` | Do **not** enable HA on Pi4/Pi5. Do **not** run `scripts/deploy.sh` on `.105`. |
+| **House BLE sensors** (Govee, Xiaomi, …) | BLE on **Pi 5** → MQTT on **`.105`** | Off until Pi 5 deploy | `HOST_ROLE=pi5` on the house Pi | `docker compose … down` on Pi 5 |
+| **Solar-site Govee** (e.g. H5075 `A4:C1:38:CA:AF:6F`) | BLE on **Pi 4** Theengs → same broker | Gateway up; **cells dead 2026-09-14** | Replace cells; tiles stay Unknown until state ([MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/)) | `docker compose … down` in `hosts/pi4/` |
 | **Ecobee / Rheem / other Wi‑Fi HVAC** | HomeKit Device / EcoNet (LAN), not BLE | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
 | **Refoss / Govee / other HA gear** | Home Assistant integrations | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
-| **Away-from-home view** | Tailscale VPN (optional) | Off (not in deploy) | Install Tailscale on Pi + phone | Uninstall / log out of Tailscale |
+| **Away-from-home view** | Tailscale VPN (optional) | Off (not in deploy) | Install Tailscale on **`.105`** + phone ([TAILSCALE.md](TAILSCALE.md)) | Uninstall / log out of Tailscale |
 
 Victron and Sungold both publish into the **same** Mosquitto broker. They do not replace each other.
 
@@ -184,11 +184,13 @@ HA MQTT tiles stay **Unknown** until a **state** payload arrives on
 retained discovery alone is not enough. H5072/H5075 need **active** scan
 ([Govee BLE](https://www.home-assistant.io/integrations/govee_ble/)). After blacklisting Victron
 MACs in compose, wait at least **`TIME_BETWEEN` + `SCAN_TIME`** (~55 s) before concluding failure.
-If discovery exists but state never arrives, check Theengs logs for `org.bluez.Error.InProgress`
-(hci0 contention with `victron_ble2mqtt`) or weak RSSI (range). The official `theengs/gateway`
-image documents no container health probe ([Docker Hub](https://hub.docker.com/r/theengs/gateway));
-use retained **`online`** on `LWT_TOPIC` ([`-Lt` / `LWT_TOPIC`](https://gateway.theengs.io/use/use.html)).
-Do **not** add `expire_after` on retained MQTT sensor state in HA.
+**This site (2026-09-14):** H5075 `A4:C1:38:CA:AF:6F` has **dead cells**. Leave those tiles Unknown;
+do not treat that as Theengs/`hci0` failure and do not add a Docker HEALTHCHECK
+(official `theengs/gateway` has none — [gateway-docker Dockerfile](https://github.com/theengs/gateway-docker/blob/main/Dockerfile)).
+If discovery exists but state never arrives on a **live** sensor, check Theengs logs for `org.bluez.Error.InProgress`
+(hci0 contention with `victron_ble2mqtt`) or weak RSSI (range). Retained **`online`** on `LWT_TOPIC`
+([`-Lt` / `LWT_TOPIC`](https://gateway.theengs.io/use/use.html)) is MQTT availability, not proof of
+`BTtoMQTT` publishes. Do **not** add `expire_after` on retained MQTT sensor state in HA.
 
 ---
 
@@ -202,11 +204,21 @@ Do **not** run a second Home Assistant on the Pi 5. Do **not** put Victron `ADVK
 keys on Theengs.
 
 Full notes: [PI5_HOUSE_EDGE.md](PI5_HOUSE_EDGE.md), [hosts/pi5/README.md](../hosts/pi5/README.md).
-Topic: `home/TheengsGateway-pi5/BTtoMQTT`.
+Topic: `home/TheengsGateway-pi5/BTtoMQTT`. Retained LWT `online` can stay set after an MQTT
+[keep-alive timeout](https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html)
+while logs show `Failed to send message`. Recreate **only** that gateway (no `--remove-orphans`):
+
+```bash
+cd ~/victron-ble2mqtt-integration/hosts/pi5
+sudo docker compose -f docker-compose.theengs.yml up -d --force-recreate theengs-gateway
+```
+
+([`docker compose up --force-recreate`](https://docs.docker.com/reference/cli/docker/compose/up/)).
+Confirm `BTtoMQTT` payloads, not only LWT.
 
 ## Wi‑Fi HVAC (Ecobee, Rheem)
 
-These are **not** Victron-style BLE. Add them on the **existing** Home Assistant on the Pi 4 (`:8123`). Do not add a second HA on the Pi 5.
+These are **not** Victron-style BLE. Add them on the **existing** Home Assistant on **`.105`** (`:8123`). Do not add a second HA on the Pi 4 or Pi 5.
 
 ### Ecobee (local)
 
@@ -217,7 +229,7 @@ Use **HomeKit Device**, not **HomeKit Bridge**, and not **ecobee** (that one is 
 3. In HA: **Settings → Devices & services**. If it is not already discovered, **Add integration → HomeKit Device**.
 4. Enter the pairing code. You should get a `climate.*` entity plus any Eco sensors.
 
-`configuration.yaml` on this Pi must include `zeroconf:` (or `default_config:`) so mDNS discovery works. HA and the thermostat must be on the same LAN subnet.
+`configuration.yaml` on **`.105`** (`/opt/homeassistant`) must include `zeroconf:` (or `default_config:`) so mDNS discovery works ([HomeKit Device](https://www.home-assistant.io/integrations/homekit_controller/)). HA and the thermostat must be on the same LAN subnet.
 
 Cloud fallback (internet, more features): **Add integration → ecobee** with the ecobee.com email/password. Leave **API key** blank. **HA 2026.6+** is required for that login (MFA / Auth0). 2026.4.x crashes with “Unknown error occurred” (`IndexError` in python-ecobee-api 0.3.2). This stack pins **2026.7.3**. SMS/push MFA is unsupported; use an authenticator app.
 
@@ -247,16 +259,18 @@ Home Assistant must be connected to MQTT for **Victron / Sungold / Pi host / hou
 
 ## Away from home (Tailscale)
 
-Not a device in this repo. Install Tailscale on the Pi and on your phone to open the **same** Home Assistant dashboard on cellular. Do not put Tailscale keys or machine names in git. Full steps: [TAILSCALE.md](TAILSCALE.md).
+Not a device in this repo. Install Tailscale on **`.105`** and on your phone to open the **same** Home Assistant dashboard on cellular. Do not put Tailscale keys or machine names in git. Full steps: [TAILSCALE.md](TAILSCALE.md).
 
 ---
 
 ## Home Assistant itself
 
-| Flag in `.env` | Result |
-|----------------|--------|
-| `ENABLE_HOME_ASSISTANT=1` (default) | Dashboard at `http://PI-IP:8123` |
-| `ENABLE_HOME_ASSISTANT=0` | No HA container (MQTT + Victron still run) |
+Canonical HA is the Container on **`.105`** ([alfa-ai HOMEASSISTANT_105_OPERATOR](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOMEASSISTANT_105_OPERATOR.md)). On a Pi, leave `ENABLE_HOME_ASSISTANT=0` so `deploy.sh` does not start a second instance.
+
+| Flag in Pi `.env` | Result |
+|-------------------|--------|
+| `ENABLE_HOME_ASSISTANT=0` | No HA container on the Pi (MQTT collectors still run) |
+| `ENABLE_HOME_ASSISTANT=1` | **Do not use on this cluster** — would start HA on the Pi |
 
 ---
 
@@ -266,10 +280,10 @@ Copy this and tick as you go:
 
 - [ ] Pi on the network; `hostname -I` written down
 - [ ] `git clone` + `cp dotenv.sample .env`
-- [ ] `MQTT_HOST` / `MQTT_USER` / `MQTT_PASSWORD` set
+- [ ] `MQTT_HOST=192.168.0.105` / `MQTT_USER` / `MQTT_PASSWORD` set
 - [ ] Victron: MACs in `user_settings_data.py`, keys in `victron-secrets.env`
-- [ ] `sudo bash scripts/deploy.sh` finished; `docker ps` shows `victron_ble2mqtt` and `homeassistant`
-- [ ] Browser: `http://PI-IP:8123` — account created
+- [ ] `sudo bash scripts/deploy.sh` finished on **Pi4**; `docker ps` shows `victron_ble2mqtt` (not `homeassistant`)
+- [ ] Browser: Home Assistant on **`.105:8123`** — account created
 - [ ] MQTT devices visible in HA
 - [ ] Sungold only if USB is plugged: `ENABLE_SUNGOLD=1`
 - [ ] Optional away-from-home: [TAILSCALE.md](TAILSCALE.md) (no keys in git)

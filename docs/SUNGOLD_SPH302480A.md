@@ -94,6 +94,8 @@ Compose [healthcheck](https://docs.docker.com/reference/compose-file/services/#h
 
 Each poll cycle touches the heartbeat only after at least one **curated** register was read **and** its retained state MQTT publish completed successfully. The sidecar uses Eclipse Paho [`Client.publish()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.Client.publish) → [`MQTTMessageInfo`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo): `rc == MQTT_ERR_SUCCESS`, then [`wait_for_publish()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo.wait_for_publish) / [`is_published()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo.is_published) with `loop_start()` running. If the broker is down, `publish()` returns `MQTT_ERR_NO_CONN` or `is_connected()` is false — the heartbeat stays stale and Docker marks the container **unhealthy** even when USB Modbus still answers.
 
+USB timeouts on **some** registers (`No communication with the instrument`) are expected when the cart is idle or a single Modbus read misses; the sidecar keeps polling. The container stays **healthy** while at least one curated register still publishes within the max-age window. If the inverter is powered off, every read fails, the heartbeat goes stale, and autoheal can restart the sidecar.
+
 Manual checks:
 
 ```bash
