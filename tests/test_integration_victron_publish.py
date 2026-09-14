@@ -3,6 +3,10 @@ from threading import Event
 import types
 from unittest.mock import patch
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("ensure_mqtt_broker")
+
 
 def test_victron_handler_publishes_to_broker():
     """Integration test: instantiate VictronMqttDeviceHandler and verify it publishes to the broker.

@@ -10,6 +10,8 @@ services:
     image: adguard/adguardhome:v0.107.79
     container_name: pi5-adguardhome
     restart: unless-stopped
+    labels:
+      autoheal: "true"
     network_mode: host
     volumes:
       - /opt/adguard/conf:/opt/adguardhome/conf

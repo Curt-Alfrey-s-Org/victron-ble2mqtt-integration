@@ -10,7 +10,10 @@ House BLE  ──► Theengs on Pi 5 ──► Mosquitto on .105 :1883 ──►
 Solar-site BLE (Govee, …) ──► Theengs on Pi 4 ──► same broker
 LAN DNS    ──► AdGuard on Pi 5 (:53 / :8080)
 Victron    ──► victron_ble2mqtt on Pi 4 ──► same broker
+Optional house VE.Direct USB ──► bms_supervisor on Pi 5 ──► same broker (ENABLE_BMS_SUPERVISOR=1)
 ```
+
+**Autoheal on Pi5:** `scripts/deploy_pi5.sh` starts repo-root `docker-compose.autoheal.yml` when `ENABLE_AUTOHEAL=1` (default). AdGuard has an HTTP [healthcheck](https://docs.docker.com/reference/compose-file/services/#healthcheck) and `autoheal: "true"`. Official `theengs/gateway` has **no** image HEALTHCHECK ([gateway-docker Dockerfile](https://github.com/theengs/gateway-docker/blob/main/Dockerfile)); do not invent a Docker probe for Pi5 Theengs. MQTT LWT stays broker availability ([Theengs use](https://gateway.theengs.io/use/use.html)). `restart: unless-stopped` covers process **exit** only ([restart policy](https://docs.docker.com/engine/containers/start-containers-automatically/)). Do not pass `--remove-orphans` (would drop AdGuard/Theengs from a single-file compose project).
 
 Pi4 also runs **Theengs** (`hosts/pi4/docker-compose.theengs.yml`) so BLE next to
 the Victron gear (the H5075 at `A4:C1:38:CA:AF:6F`) is heard there. Do **not**

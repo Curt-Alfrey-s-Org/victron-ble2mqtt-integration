@@ -303,6 +303,8 @@ Bottleneck is **KU overnight kWh**, not inverter watts (KU Renogy is 2 kW). Char
 
 ## Related
 
+- [SOLAR_ARRAY_SOLARK.md](SOLAR_ARRAY_SOLARK.md) -- **separate** planned 48 V island (6 x ~440 W + Sol-Ark + Discover AES 900-0062). Not this T2/KU plant.
+- [PI4_BMS_SOFTWARE.md](PI4_BMS_SOFTWARE.md) -- planned Pi4 battery **supervisor** (shunt / MQTT). Does not replace pack BMS and does not mix this 24 V plant with the 48 V island.
 - [DEVICES.md](DEVICES.md) -- add the two silent MPPTs
 - [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md) -- emergency **dolly cart** (2x 24 V 100 Ah); not T2/KU
 - Renogy [Voyager 20A PWM 12/24](https://www.renogy.com/products/new-edition-voyager-20a-pwm-waterproof-solar-charge-controller) -- lithium voltage is a manual set

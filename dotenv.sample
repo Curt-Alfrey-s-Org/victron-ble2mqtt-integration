@@ -25,6 +25,10 @@ MQTT_PASSWORD=your_secure_password_here
 
 # Optional BLE adapter (bluetoothctl list). Default is BlueZ default (usually hci0).
 # BLE_ADAPTER=hci0
+#
+# Pi 4 solar-site Theengs (hosts/pi4/docker-compose.theengs.yml): Victron MACs are
+# blacklisted in that compose file (BLACKLIST env) so Theengs does not compete for
+# Victron bindkeys on shared hci0. See docs/DEVICES.md and gateway.theengs.io/use/use.html.
 
 # Timezone for Home Assistant
 TZ=America/Chicago
@@ -46,3 +50,11 @@ TZ=America/Chicago
 # MQTT_TOPIC=sungold_sph302480a
 # DEVICE_NAME=Sungold SPH302480A
 # POLL_INTERVAL_SEC=5
+# MODBUS_TIMEOUT=1.0
+# --- BMS supervisor (optional read-only VE.Direct shunt sidecar) ---
+# ENABLE_BMS_SUPERVISOR=0
+# BMS_SERIAL_DEVICE=/dev/vedirect
+# BMS_ADAPTER=generic_shunt
+# BMS_BANK_ID=bench
+# BMS_MQTT_TOPIC=bms_supervisor
+# BMS_DEVICE_NAME=Bench shunt

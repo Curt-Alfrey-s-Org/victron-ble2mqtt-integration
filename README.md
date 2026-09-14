@@ -20,6 +20,7 @@ One installer (`scripts/deploy.sh`) sets up Docker, Mosquitto, Home Assistant, a
 |------|---------------------|
 | Victron SmartShunt / MPPT (Bluetooth) | Reads BLE advertisements and creates Home Assistant sensors (voltage, current, SOC, solar power, charge state, …) |
 | Sungold SPH302480A (USB cable) | Optional **read-only** Modbus sidecar — PV, battery, grid, load. Off until you plug USB and set `ENABLE_SUNGOLD=1` |
+| BMS supervisor (VE.Direct USB) | Optional **read-only** shunt sidecar — voltage, current, SoC, alarm. Off until you plug USB and set `ENABLE_BMS_SUPERVISOR=1` |
 | The Raspberry Pi itself | CPU, temperature, Wi‑Fi, uptime — so you can see if the box is healthy |
 | House BLE (second Pi) | Optional **Pi 5** (`HOST_ROLE=pi5`) forwards decoded BLE to this Mosquitto |
 | Refoss / Govee / other Wi‑Fi devices | **Not** installed here. Add those inside Home Assistant → Settings → Devices & services |
@@ -206,6 +207,8 @@ Close the Victron phone app if sensors stay empty.
 | [docs/TAILSCALE.md](docs/TAILSCALE.md) | Optional: view Home Assistant away from home |
 | [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) | Sungold USB, udev, smoke test (optional; this site not connected) |
 | [docs/SOLAR_POWER_BALANCE.md](docs/SOLAR_POWER_BALANCE.md) | 24 V watt in vs watt out (3 MPPTs, shunts, EM16 A3/B2) |
+| [docs/PI4_BMS_SOFTWARE.md](docs/PI4_BMS_SOFTWARE.md) | Pi battery **supervisor** (VE.Direct shunt / MQTT). Not a pack BMS. Default off. |
+| [docs/SOLAR_ARRAY_SOLARK.md](docs/SOLAR_ARRAY_SOLARK.md) | Planned **separate** 48 V island (not T2/KU) |
 | [DEPLOY.md](DEPLOY.md) | Installer flags, Dockge, troubleshooting |
 | [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) | Optional: same LAN as the Alfa / TrueNAS hub |
 

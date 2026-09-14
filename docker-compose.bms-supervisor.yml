@@ -1,0 +1,47 @@
+## Docker Compose v2 -- BMS supervisor read-only VE.Direct Text -> MQTT sidecar
+services:
+  bms_supervisor:
+    build:
+      context: ./bms_supervisor
+      dockerfile: Dockerfile
+    image: bms_supervisor:local
+    container_name: bms_supervisor
+    restart: unless-stopped
+    labels:
+      autoheal: "true"
+    env_file:
+      - ./.env
+    environment:
+      - BMS_SERIAL_DEVICE=/dev/vedirect
+      - BMS_ADAPTER=${BMS_ADAPTER:-generic_shunt}
+      - BMS_BANK_ID=${BMS_BANK_ID:-bench}
+      - BMS_MQTT_TOPIC=${BMS_MQTT_TOPIC:-bms_supervisor}
+      - BMS_DEVICE_NAME=${BMS_DEVICE_NAME:-BMS supervisor}
+      - HEARTBEAT_FILE=/tmp/bms_supervisor.heartbeat
+    devices:
+      - "${BMS_SERIAL_DEVICE:-/dev/vedirect}:/dev/vedirect"
+    network_mode: host
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import os,sys,time; p=os.environ.get('HEARTBEAT_FILE','/tmp/bms_supervisor.heartbeat'); max_age=180; m=os.path.getmtime(p) if os.path.exists(p) else 0; raise SystemExit(0 if time.time()-m<=max_age else 1)
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+# Usage (after VE.Direct USB cable + udev rule):
+#   set ENABLE_BMS_SUPERVISOR=1 and BMS_* in .env
+#   docker compose -f docker-compose.bms-supervisor.yml up -d --build

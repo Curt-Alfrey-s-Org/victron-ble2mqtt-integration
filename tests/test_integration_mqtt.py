@@ -1,6 +1,11 @@
 import time
 from threading import Event
 
+import pytest
+
+pytestmark = pytest.mark.usefixtures("ensure_mqtt_broker")
+
+
 def test_mqtt_broker_publish_subscribe():
     """Integration: ensure a local MQTT broker accepts publishes and delivers messages.
 

@@ -119,4 +119,16 @@ echo ""
 echo "[deploy-pi5] AdGuard UI :8080   DNS :53   node_exporter :9100   adguard-exporter :9617"
 echo "[deploy-pi5] Theengs topic home/TheengsGateway-pi5/BTtoMQTT  (decoded BLE only)"
 echo "[deploy-pi5] Wi-Fi HVAC (Ecobee/Rheem) is not forwarded here — add HomeKit Device / EcoNet on Pi 4 HA."
+
+: "${ENABLE_AUTOHEAL:=1}"
+if [[ "${ENABLE_AUTOHEAL:-1}" == "1" ]]; then
+  echo "[deploy-pi5] starting autoheal (restarts unhealthy containers labeled autoheal=true) ..."
+  docker compose -f "$ROOT_DIR/docker-compose.autoheal.yml" up -d
+fi
+
+# Optional VE.Direct USB shunt on house Pi (same broker on .105; does not run HA here).
+# shellcheck source=scripts/start_bms_supervisor_if_enabled.sh
+source "$ROOT_DIR/scripts/start_bms_supervisor_if_enabled.sh"
+deploy_bms_supervisor_stack_if_enabled
+
 echo "[deploy-pi5] Done."

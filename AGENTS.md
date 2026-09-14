@@ -24,6 +24,8 @@ Broker settings in `configuration.yaml` / `mqtt.yaml` are **invalid**. Use `scri
 - [docs/TAILSCALE.md](docs/TAILSCALE.md) — optional away-from-home Home Assistant (no host IPs or names in git)
 - [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) — Sungold USB Modbus sidecar (optional; this site not connected)
 - [docs/SOLAR_POWER_BALANCE.md](docs/SOLAR_POWER_BALANCE.md) — 24 V watt in vs watt out (A3 = total load)
+- [docs/PI4_BMS_SOFTWARE.md](docs/PI4_BMS_SOFTWARE.md) — Pi battery supervisor sidecar (VE.Direct observe-only v1; default off; do not replace pack BMS)
+- [docs/SOLAR_ARRAY_SOLARK.md](docs/SOLAR_ARRAY_SOLARK.md) — planned 48 V island (isolated from T2/KU)
 - [docs/ALFA_CLUSTER_INTEGRATION.md](docs/ALFA_CLUSTER_INTEGRATION.md) — hub + Cursor + Prometheus wiring
 - [docs/ENGINEERING_STANDARDS_PLAN.md](docs/ENGINEERING_STANDARDS_PLAN.md) — phased plan: Compose health + supervision, deploy hygiene, CI, security
 - [DEPLOY.md](DEPLOY.md) — installer behaviour and flags

@@ -2,7 +2,7 @@
 
 Use this when Home Assistant already works **on your home Wi‑Fi** and you want the same numbers on a phone or laptop **off the LAN** — without opening Home Assistant to the public internet.
 
-This repo’s installer does **not** install Tailscale. You add it on the Pi and on each device you travel with. You do **not** put Tailscale keys, machine names, or IPs in git.
+This repo’s installer does **not** install Tailscale. You add it on **`.105`** and on each device you travel with. You do **not** put Tailscale keys, machine names, or IPs in git.
 
 ## What you get
 
@@ -11,24 +11,28 @@ Phone / laptop (Tailscale on)
         │
         │  private VPN
         ▼
-Raspberry Pi (Tailscale on)  →  Home Assistant :8123
+HA host (.105, Tailscale on)  →  Home Assistant :8123
 ```
 
-With Tailscale connected, open Home Assistant in a browser or the HA app using the Pi’s **Tailscale name or Tailscale IP**, port **8123**. Same sensors as at home (Victron, optional Sungold, Pi metrics).
+Home Assistant Container lives on **`.105`**, not the Pi. Pi4/Pi5 only collect
+and publish MQTT. With Tailscale connected, open HA using **`.105`’s** Tailscale
+name or Tailscale IP, port **8123**. The Pi’s Tailscale address is the wrong
+host after the move. Same sensors as at home (Victron, optional Sungold, house BLE).
 
 Do **not** port-forward `:8123` on your router. Tailscale is the path in.
 
-## 1. Install Tailscale on the Pi
+## 1. Install Tailscale on the HA host
 
-On the Raspberry Pi (the same machine that runs Home Assistant):
+On **`.105`** (the machine that runs Home Assistant). The Pis do not need
+Tailscale for the dashboard:
 
-Follow [Tailscale’s Linux install](https://tailscale.com/download/linux) for Debian / Raspberry Pi OS, then:
+Follow [Tailscale’s Linux install](https://tailscale.com/download/linux) for Ubuntu, then:
 
 ```bash
 sudo tailscale up
 ```
 
-A login URL is printed. Open it on any device, sign in to **your** Tailscale account, and approve the Pi. Pick a machine name you will recognize (anything you like). That name is yours — do not commit it to this repo.
+A login URL is printed. Open it on any device, sign in to **your** Tailscale account, and approve **`.105`**. Pick a machine name you will recognize (anything you like). That name is yours — do not commit it to this repo.
 
 Check it is up:
 
@@ -36,7 +40,7 @@ Check it is up:
 sudo tailscale status
 ```
 
-You should see this Pi listed as online. The console also shows a Tailscale IP (`100.x.x.x`) and, if MagicDNS is on, a name like `your-machine.tailnet-name.ts.net`.
+You should see **`.105`** listed as online. The console also shows a Tailscale IP (`100.x.x.x`) and, if MagicDNS is on, a name like `your-machine.tailnet-name.ts.net`.
 
 ## 2. Install Tailscale on the phone or laptop
 
@@ -56,7 +60,7 @@ or
 http://100.x.x.x:8123
 ```
 
-Use the name or `100.x` address from `sudo tailscale status` on the Pi or from the Tailscale admin console. Replace the placeholders — do not copy anyone else’s.
+Use the name or `100.x` address from `sudo tailscale status` on **`.105`** (not the Pi) or from the Tailscale admin console. Replace the placeholders — do not copy anyone else’s. Live operator URLs: alfa-ai `docs/HOMEASSISTANT_105_OPERATOR.md`.
 
 In the **Home Assistant Companion app**, add that URL as the server (or as the external URL). You still need your Home Assistant login. The phone must have Tailscale on; this is not a public website.
 
@@ -66,8 +70,8 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 
 | Where you are | How to open HA |
 |---------------|----------------|
-| Home LAN | `http://YOUR-LAN-IP:8123` (from `hostname -I` on the Pi) |
-| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address |
+| Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) |
+| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** |
 
 Both talk to the **same** Home Assistant. You are not duplicating the stack.
 
@@ -75,7 +79,7 @@ Both talk to the **same** Home Assistant. You are not duplicating the stack.
 
 | Symptom | What to check |
 |---------|----------------|
-| Page does not load away from home | Tailscale app **on** on the phone? Pi still `tailscale status` online? |
+| Page does not load away from home | Tailscale app **on** on the phone? `.105` still `tailscale status` online? Using `.105`’s address, not the Pi’s? |
 | Works on Wi‑Fi, not on cellular | Phone is using LAN IP. Switch to the Tailscale name / `100.x` URL. |
 | Login loop / old server in the app | Remove the server in the HA app and add the Tailscale URL again. |
 | “Can’t connect” with Tailscale off | Expected. Turn Tailscale on, or wait until you are on home Wi‑Fi. |

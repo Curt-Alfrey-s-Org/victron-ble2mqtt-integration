@@ -1,0 +1,7 @@
+# Stable symlink for Victron VE.Direct to USB (FTDI 0403:6015).
+# Install: sudo cp udev/99-vedirect-usb.rules /etc/udev/rules.d/ && sudo udevadm control --reload && sudo udevadm trigger
+#
+# After plug-in, confirm:
+#   ls -l /dev/vedirect
+#   ls /dev/serial/by-id/
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6015", SYMLINK+="vedirect", GROUP="dialout", MODE="0660"

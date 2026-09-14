@@ -12,7 +12,8 @@ from pathlib import Path
 # Ensure repo root is on sys.path for local test runs
 ROOT = Path(__file__).resolve().parents[1]
 SUNGOLD = ROOT / "sungold"
-for path in (ROOT, SUNGOLD):
+BMS_SUPERVISOR = ROOT / "bms_supervisor"
+for path in (ROOT, SUNGOLD, BMS_SUPERVISOR):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
@@ -56,7 +57,7 @@ def _is_port_open(host: str, port: int) -> bool:
         return False
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")
 def ensure_mqtt_broker():
     """Ensure an MQTT broker is available on localhost:1883 for integration tests.
 
