@@ -29,53 +29,56 @@ LABEL_COLOR = "#FFC107"
 LABEL_DESCRIPTION = "SunGoldPower SPH302480A all-in-one solar charge inverter (USB). Not T2/KU."
 HEADING = "Sungold"
 ENTITY_PREFIX = "sungold_sph302480a"
+UNIQUE_ID_PREFIX = "sungold_sph302480a-"
 MQTT_IDENT = ["mqtt", "sungold_sph302480a"]
 
 # SPH302480A does not publish these (one MPPT, illegal 0x023A, transformer-less).
+# unique_id is mqtt_topic + key with / replaced by -.
+RETIRED_UNIQUE_IDS = frozenset(
+    {
+        "sungold_sph302480a-pv-total_power",
+        "sungold_sph302480a-grid-power",
+        "sungold_sph302480a-temperature-transformer",
+        "sungold_sph302480a-pv-voltage",
+        "sungold_sph302480a-pv-current",
+        "sungold_sph302480a-pv-power",
+    }
+)
 RETIRED_ENTITY_IDS = frozenset(
     {
         "sensor.sungold_sph302480a_pv_total_power",
         "sensor.sungold_sph302480a_grid_power",
         "sensor.sungold_sph302480a_temperature_transformer",
+        "sensor.sungold_sph302480a_pv_voltage",
+        "sensor.sungold_sph302480a_pv_current",
+        "sensor.sungold_sph302480a_pv_power",
     }
 )
 
-# Used when MQTT discovery was hidden after Modbus skips.
-FALLBACK_TILES = (
-    "sensor.sungold_sph302480a_pv_voltage",
-    "sensor.sungold_sph302480a_charge_state",
-    "sensor.sungold_sph302480a_ac_output_voltage",
-    "sensor.sungold_sph302480a_load_power",
-    "sensor.sungold_sph302480a_grid_current",
-    "sensor.sungold_sph302480a_temperature_dc_ac",
-    "sensor.sungold_sph302480a_inverter_state",
-    "sensor.sungold_sph302480a_fail_code",
-    "binary_sensor.sungold_sph302480a_fault_active",
-)
-
-PREFERRED_ORDER = (
-    "sensor.sungold_sph302480a_pv_voltage",
-    "sensor.sungold_sph302480a_pv_current",
-    "sensor.sungold_sph302480a_pv_power",
-    "sensor.sungold_sph302480a_battery_soc",
-    "sensor.sungold_sph302480a_battery_voltage",
-    "sensor.sungold_sph302480a_battery_current",
-    "sensor.sungold_sph302480a_battery_temperature",
-    "sensor.sungold_sph302480a_charge_state",
-    "sensor.sungold_sph302480a_charging_power",
-    "sensor.sungold_sph302480a_ac_output_voltage",
-    "sensor.sungold_sph302480a_ac_output_frequency",
-    "sensor.sungold_sph302480a_load_current",
-    "sensor.sungold_sph302480a_load_power",
-    "sensor.sungold_sph302480a_grid_voltage",
-    "sensor.sungold_sph302480a_grid_current",
-    "sensor.sungold_sph302480a_grid_frequency",
-    "sensor.sungold_sph302480a_inverter_state",
-    "sensor.sungold_sph302480a_temperature_dc_dc",
-    "sensor.sungold_sph302480a_temperature_dc_ac",
-    "sensor.sungold_sph302480a_fail_code",
-    "sensor.sungold_sph302480a_inverter_error_flags",
-    "binary_sensor.sungold_sph302480a_fault_active",
+# MQTT unique_id order (register keys). Lovelace uses live entity_id for each.
+PREFERRED_UNIQUE_IDS = (
+    "sungold_sph302480a-pv1-voltage",
+    "sungold_sph302480a-pv1-current",
+    "sungold_sph302480a-pv1-power",
+    "sungold_sph302480a-battery-soc",
+    "sungold_sph302480a-battery-voltage",
+    "sungold_sph302480a-battery-current",
+    "sungold_sph302480a-battery-temperature",
+    "sungold_sph302480a-battery-charge_state",
+    "sungold_sph302480a-inverter-charging_power",
+    "sungold_sph302480a-inverter-voltage",
+    "sungold_sph302480a-inverter-frequency",
+    "sungold_sph302480a-load-current",
+    "sungold_sph302480a-load-power",
+    "sungold_sph302480a-grid-voltage",
+    "sungold_sph302480a-grid-current",
+    "sungold_sph302480a-grid-frequency",
+    "sungold_sph302480a-inverter-state",
+    "sungold_sph302480a-temperature-dc_dc",
+    "sungold_sph302480a-temperature-dc_ac",
+    "sungold_sph302480a-inverter-failcode",
+    "sungold_sph302480a-inverter-error_flags",
+    "sungold_sph302480a-inverter-fault_active",
 )
 
 STORAGE_VERSION_MAJOR = 1
@@ -161,20 +164,29 @@ def _add_label(labels: list | None) -> list[str]:
     return out
 
 
-def label_entities_and_device(storage: Path) -> list[str]:
+def _is_sungold_entity(ent: dict) -> bool:
+    eid = ent.get("entity_id") or ""
+    uid = ent.get("unique_id") or ""
+    if eid in RETIRED_ENTITY_IDS or uid in RETIRED_UNIQUE_IDS:
+        return False
+    if uid.startswith(UNIQUE_ID_PREFIX):
+        return True
+    return ENTITY_PREFIX in eid
+
+
+def label_entities_and_device(storage: Path) -> list[tuple[str, str]]:
     er_path = storage / "core.entity_registry"
     payload = load_store(er_path)
     entities = payload["data"]["entities"]
-    found: list[str] = []
+    found: list[tuple[str, str]] = []
     device_ids: set[str] = set()
     for ent in entities:
+        if not _is_sungold_entity(ent):
+            continue
         eid = ent.get("entity_id") or ""
-        if ENTITY_PREFIX not in eid:
-            continue
-        if eid in RETIRED_ENTITY_IDS:
-            continue
+        uid = ent.get("unique_id") or ""
         ent["labels"] = _add_label(ent.get("labels"))
-        found.append(eid)
+        found.append((uid, eid))
         if ent.get("device_id"):
             device_ids.add(ent["device_id"])
     write_store(er_path, payload)
@@ -189,9 +201,11 @@ def label_entities_and_device(storage: Path) -> list[str]:
     return found
 
 
-def ordered_entities(found: list[str]) -> list[str]:
-    preferred = [eid for eid in PREFERRED_ORDER if eid in found]
-    extra = sorted(eid for eid in found if eid not in preferred)
+def ordered_entities(found: list[tuple[str, str]]) -> list[str]:
+    by_uid = {uid: eid for uid, eid in found if uid}
+    preferred = [by_uid[uid] for uid in PREFERRED_UNIQUE_IDS if uid in by_uid]
+    used = set(preferred)
+    extra = sorted(eid for _uid, eid in found if eid not in used)
     return preferred + extra
 
 
@@ -257,9 +271,7 @@ def main() -> int:
     found = label_entities_and_device(storage)
     ordered = ordered_entities(found)
     if not ordered:
-        # Lovelace tiles may exist before MQTT rediscovery; keep the cart section.
-        ordered = list(FALLBACK_TILES)
-        print("WARN: no Sungold entities in registry; Solar section uses fallback ids")
+        print("WARN: no Sungold entities in registry; Solar section is heading only")
     upsert_solar_section(storage, ordered)
     print(f"OK: label {LABEL_ID} ({LABEL_NAME}); entities={len(ordered)}")
     for eid in ordered:

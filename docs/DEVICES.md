@@ -20,6 +20,7 @@ Secrets stay in `.env` and `victron-secrets.env` (never commit those files).
 | **Victron** SmartShunt / MPPT | Bluetooth (BLE) | On, if you set keys | Add MAC + `ADVKEY_*` | Delete that device block and its `ADVKEY_*` line |
 | **Pi4 host** (CPU, temp, Wi‑Fi) | Built into the Victron container | On with Victron | Nothing extra | Stop `victron_ble2mqtt` (you also lose Victron) |
 | **Sungold SPH302480A** | USB Modbus (read-only) | **Off** | `ENABLE_SUNGOLD=1` + USB | `ENABLE_SUNGOLD=0` or unplug USB. **This site: emergency dolly cart** (2x 24 V 100 Ah), not T2/KU (2026-09-11). |
+| **Pi battery supervisor** | VE.Direct USB (read-only Text) | **Off** | `ENABLE_BMS_SUPERVISOR=1` + USB | `ENABLE_BMS_SUPERVISOR=0` or unplug USB. Bench/spare pack first; not T2/KU/well v1. See [PI4_BMS_SOFTWARE.md](PI4_BMS_SOFTWARE.md). |
 | **Home Assistant** | Browser `:8123` | On | `ENABLE_HOME_ASSISTANT=1` (default) | `ENABLE_HOME_ASSISTANT=0` |
 | **House BLE sensors** (Govee, Xiaomi, …) | BLE on **Pi 5** → MQTT on this Pi | Off until Pi 5 deploy | `HOST_ROLE=pi5` on the house Pi | `docker compose … down` on Pi 5 |
 | **Ecobee / Rheem / other Wi‑Fi HVAC** | HomeKit Device / EcoNet (LAN), not BLE | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
@@ -34,7 +35,8 @@ The house Pi 5 (`HOST_ROLE=pi5`) publishes decoded BLE into that same broker. Wi
 Victron BLE (Pi 4 radio)               ──► victron_ble2mqtt ──┐
 Sungold USB                            ──► sungold_modbus_ro ─┼──► Mosquitto :1883 ──► Home Assistant
 Pi4 metrics                            ──► victron_ble2mqtt ──┤
-House BLE (Pi 5 radio)                 ──► Theengs Gateway ───┘
+House BLE (Pi 5 radio)                 ──► Theengs Gateway ───┤
+BMS supervisor (optional USB)          ──► bms_supervisor ──────┘
 ```
 
 ---
@@ -144,7 +146,7 @@ SUNGOLD_SERIAL_DEVICE=/dev/sungold
 4. `sudo bash scripts/deploy.sh`  
    Deploy installs the udev rule that creates `/dev/sungold`.
 5. Check: `bash scripts/sungold_smoke.sh` and `docker logs -f sungold_modbus_ro`.
-6. On `.105` (HA stopped): `sudo python3 scripts/ha_label_sungold_solar.py` — HA label **Sungold** and a **Sungold** heading on the Solar dashboard.
+6. On `.105`: wait until MQTT discovery is in the entity registry, **then** stop HA and run `sudo python3 scripts/ha_label_sungold_solar.py` — HA label **Sungold** and a **Sungold** heading whose tiles use live `unique_id`s (`sungold_sph302480a-pv1-voltage`, not `sensor.sungold_sph302480a_pv_voltage`).
 
 ### Turn off
 

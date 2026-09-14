@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+from sungold_modbus_ro import __main__ as sungold_main
+from sungold_modbus_ro import mqtt_ha
 from sungold_modbus_ro.config import Settings
 from sungold_modbus_ro.mqtt_ha import MqttHaPublisher
 from sungold_modbus_ro.registers import (
@@ -88,7 +91,14 @@ def test_sph302480a_lcd_names():
     }
     assert by_key == expected
     retired_keys = {key for _, key in RETIRED_DISCOVERY}
-    assert retired_keys == {"pv/total_power", "grid/power", "temperature/transformer"}
+    assert retired_keys == {
+        "pv/total_power",
+        "grid/power",
+        "temperature/transformer",
+        "pv/voltage",
+        "pv/current",
+        "pv/power",
+    }
     assert retired_keys.isdisjoint(by_key)
 
 
@@ -125,3 +135,13 @@ def test_retire_discovery_topic():
     assert pub.discovery_topic(entity) == (
         "homeassistant/sensor/sungold_sph302480a-battery-soc/config"
     )
+
+
+def test_poll_loop_does_not_hide_discovery():
+    source = Path(__file__).resolve().parents[1] / "sungold" / "sungold_modbus_ro"
+    main_src = (source / "__main__.py").read_text(encoding="utf-8")
+    mqtt_src = (source / "mqtt_ha.py").read_text(encoding="utf-8")
+    assert "hide_entity" not in main_src
+    assert "hide_entity" not in mqtt_src
+    assert not hasattr(mqtt_ha.MqttHaPublisher, "hide_entity")
+    assert "is_register_available" in sungold_main.main.__code__.co_names

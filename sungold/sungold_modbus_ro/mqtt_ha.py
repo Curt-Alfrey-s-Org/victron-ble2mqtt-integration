@@ -23,7 +23,6 @@ class MqttHaPublisher:
             "manufacturer": "SunGoldPower",
             "model": "SPH302480A",
         }
-        self._hidden: set[str] = set()
         self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, protocol=mqtt.MQTTv311)
         self._client.username_pw_set(settings.mqtt_user, settings.mqtt_password)
         self._client.on_connect = self._on_connect
@@ -93,20 +92,6 @@ class MqttHaPublisher:
         field = f"{self._settings.mqtt_topic}-{key.replace('/', '-')}"
         topic = f"homeassistant/{topic_type}/{field}/config"
         self._client.publish(topic, "", retain=True)
-
-    def hide_entity(self, entity: EntityDef) -> None:
-        if entity.key in self._hidden:
-            return
-        self._hidden.add(entity.key)
-        self._client.publish(self.discovery_topic(entity), "", retain=True)
-        print(f"Disabled HA entity for unsupported register: {entity.key}")
-
-    def restore_entity(self, entity: EntityDef) -> None:
-        if entity.key not in self._hidden:
-            return
-        self._hidden.discard(entity.key)
-        self.publish_discovery(entity)
-        print(f"Restored HA entity: {entity.key}")
 
     def publish_state(self, entity: EntityDef, value: str) -> None:
         self._client.publish(self._state_topic(entity), value, retain=False)

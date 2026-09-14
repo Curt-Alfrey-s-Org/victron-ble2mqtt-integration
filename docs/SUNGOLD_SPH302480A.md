@@ -100,7 +100,9 @@ mosquitto_sub -h "$MQTT_HOST" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
 
 In Home Assistant: **Settings → Devices & services → MQTT** — device **Sungold SPH302480A** with PV, battery, grid, load, and temperature entities.
 
-**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). The cart stays off T2/KU. Apply on `.105` with HA stopped:
+**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). Tiles bind **live** `entity_id`s from MQTT `unique_id` `sungold_sph302480a-*` (not hardcoded `sensor.sungold_sph302480a_pv_voltage`). The cart stays off T2/KU.
+
+Order: sidecar must already have republished discovery while HA is **running**, then stop HA and apply:
 
 ```bash
 sudo python3 scripts/ha_label_sungold_solar.py
@@ -110,7 +112,7 @@ Then start the `homeassistant` container and wait for `:8123` ([container common
 
 ## Published entities (curated)
 
-HA MQTT `name` strings follow the SPH302480A **LCD real-time pages** and **fault table**, not SRNE nicknames. MQTT `unique_id` values stay on the register keys so Home Assistant `entity_id`s do not change when a display name is corrected.
+HA MQTT `name` strings follow the SPH302480A **LCD real-time pages** and **fault table**, not SRNE nicknames. MQTT `unique_id` is `{mqtt_topic}-{key with / as -}` (for example `sungold_sph302480a-pv1-voltage`). Changing a **display name** keeps the same `unique_id`. Changing a **register key** (for example `pv/voltage` → `pv1/voltage`) is a new `unique_id`; Lovelace must be rewritten from the live registry.
 
 Official: [SunGoldPower SPH302480A product page](https://sungoldpower.com/products/3000w-24v-solar-inverter-charger) (user manual download: LCD §4.1, fault codes §6.2). Same LCD wording in the 2023-11-28 reprint: [3000W_SPH302480A_20231128.pdf](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf). Product page also states **high frequency transformer-less** and **PV Charging Current** as the 0–80 A rating (LCD field is `PV OUTPUT A`).
 
@@ -146,14 +148,23 @@ Not published for this model (manual + this hardware):
 - **Transformer temperature** — product is **high frequency transformer-less**.
 - LCD pages **OUTPUT BATT A / KW** and **OUTPUT LOAD KVA** — no verified Modbus address in the SPH manual (manual does not publish a map).
 
-Unsupported registers are still **skipped** after repeated read failures (logged once); discovery entries are removed until retry.
+Repeated Modbus failures still **skip** that register for `MODBUS_SKIP_RETRY_INTERVAL` (logged once) so USB is not hammered. Skip does **not** publish an empty MQTT discovery payload. Home Assistant [removes the entity](https://www.home-assistant.io/integrations/mqtt/#discovery-messages) when the discovery topic is an empty retained string; that is used only for `RETIRED_DISCOVERY` (registers this model does not have). USB timeouts (`NoResponseError` / "no communication with the instrument") leave sensors **unavailable**, not deleted.
+
+Sidecar-only rebuild on Pi4 (do **not** run full `scripts/deploy.sh` for this; that compose file can rewrite Mosquitto):
+
+```bash
+sudo docker compose -f docker-compose.sungold.yml up -d --build
+```
+
+Do not pass `--remove-orphans`.
 
 ## Troubleshooting
 
 | Symptom | Action |
 |---------|--------|
 | Deploy skips Sungold | Set `ENABLE_SUNGOLD=1`; confirm `/dev/sungold` or `SUNGOLD_SERIAL_DEVICE` exists |
-| Container unhealthy | No Modbus data yet — check cable, address, baud; `docker logs sungold_modbus_ro` |
+| Container unhealthy | No heartbeat because Modbus is not answering — check inverter power, USB-B, address, baud; `docker logs sungold_modbus_ro`. Solar tiles should stay **Unavailable**, not **Entity not found**. |
+| Solar tiles **Entity not found** | Lovelace still points at retired `entity_id`s, or empty discovery deleted the MQTT entities. Recreate the sidecar, wait until HA has the `sungold_sph302480a-*` unique_ids, then re-run `ha_label_sungold_solar.py` with HA stopped. |
 | No HA entities | Confirm HA MQTT integration uses same broker; check discovery topics with `mosquitto_sub` |
 | Permission denied on serial | User in `dialout` group; udev rule sets `GROUP=dialout` |
 

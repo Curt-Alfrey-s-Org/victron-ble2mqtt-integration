@@ -75,10 +75,16 @@ FAIL_CODES: dict[int, str] = {
 }
 
 # Removed from SPH302480A discovery (unique_id uses mqtt_topic + key).
+# Empty retained config deletes the HA entity:
+# https://www.home-assistant.io/integrations/mqtt/#discovery-messages
 RETIRED_DISCOVERY: tuple[tuple[str, str], ...] = (
     ("sensor", "pv/total_power"),
     ("sensor", "grid/power"),
     ("sensor", "temperature/transformer"),
+    # Pre-pv1 keys (one MPPT; unique_id used to be sungold_sph302480a-pv-voltage).
+    ("sensor", "pv/voltage"),
+    ("sensor", "pv/current"),
+    ("sensor", "pv/power"),
 )
 
 

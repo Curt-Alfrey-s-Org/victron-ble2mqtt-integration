@@ -40,12 +40,11 @@ def main() -> int:
     while running:
         published_any = False
         for entity in CURATED_ENTITIES:
+            # Skip reduces USB retries. Do not publish empty MQTT discovery:
+            # HA deletes the entity
+            # https://www.home-assistant.io/integrations/mqtt/#discovery-messages
             if not modbus.is_register_available(entity.register):
-                if entity.key not in mqtt_pub._hidden:
-                    mqtt_pub.hide_entity(entity)
                 continue
-            if entity.key in mqtt_pub._hidden:
-                mqtt_pub.restore_entity(entity)
 
             value = modbus.read_entity(entity)
             if value is None:
