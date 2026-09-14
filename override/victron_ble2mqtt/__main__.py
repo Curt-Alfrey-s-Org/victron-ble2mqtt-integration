@@ -18,6 +18,7 @@ import time
 from typing import Any
 
 from bleak import AdvertisementData, BleakScanner, BLEDevice
+from bleak.assigned_numbers import AdvertisementDataType
 from paho.mqtt.client import Client as PahoClient
 from paho.mqtt.enums import CallbackAPIVersion
 from victron_ble.scanner import BaseScanner
@@ -109,7 +110,6 @@ def main() -> None:
             # bleak 3.x: 'adapter=' kwarg is deprecated -> bluez={'adapter': ...}
             # (https://github.com/hbldh/bleak/blob/develop/CHANGELOG.rst, v3.0.0)
             self._ble_adapter = (os.getenv("BLE_ADAPTER") or os.getenv("VICTRON_BLE_ADAPTER") or "").strip()
-            self._rebuild_scanner("passive")
             if self._ble_adapter:
                 logger.info(
                     "BLE scanner using adapter %s (BLE_ADAPTER / VICTRON_BLE_ADAPTER)",
@@ -131,23 +131,33 @@ def main() -> None:
             )
 
         def _rebuild_scanner(self, scanning_mode: str) -> None:
-            # Instant Readout is advertisement-only. Passive avoids a second
-            # BlueZ StartDiscovery while Pi4 Theengs uses active scan on hci0.
-            # https://bleak.readthedocs.io/en/stable/api/scanner.html
+            # Instant Readout is advertisement-only. Passive uses BlueZ
+            # AdvertisementMonitor so Pi4 Theengs can keep StartDiscovery on hci0.
+            # Passive requires or_patterns:
+            # https://bleak.readthedocs.io/en/latest/api/args.html
+            # https://github.com/bluez/bluez/blob/master/doc/org.bluez.AdvertisementMonitor.rst
+            # Manufacturer Specific Data 0xFF; Victron company id 0x02E1 LE.
             scan_kwargs = {
                 "detection_callback": self._detection_callback,
                 "scanning_mode": scanning_mode,
             }
+            bluez: dict[str, Any] = {}
             if self._ble_adapter:
-                scan_kwargs["bluez"] = {"adapter": self._ble_adapter}
+                bluez["adapter"] = self._ble_adapter
+            if scanning_mode == "passive":
+                bluez["or_patterns"] = [
+                    (0, AdvertisementDataType.MANUFACTURER_SPECIFIC_DATA, bytes((0xE1, 0x02))),
+                ]
+            if bluez:
+                scan_kwargs["bluez"] = bluez
             self._scanner = BleakScanner(**scan_kwargs)
 
         async def start_with_fallback(self) -> None:
             last_error: BaseException | None = None
             for mode in ("passive", "active"):
-                self._rebuild_scanner(mode)
                 logger.info("Starting BLE scanner scanning_mode=%s", mode)
                 try:
+                    self._rebuild_scanner(mode)
                     await asyncio.wait_for(self.start(), timeout=30)
                 except TimeoutError:
                     logger.error("BLE scanner start timed out after 30s (mode=%s)", mode)

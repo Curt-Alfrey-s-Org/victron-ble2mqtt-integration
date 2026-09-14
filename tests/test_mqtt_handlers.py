@@ -85,7 +85,8 @@ def test_main_imports_override_mqtt():
     assert "def callback(self, ble_device: BLEDevice, raw_data: bytes):" in src
     assert "advertisement.rssi" in src
     assert "asyncio.to_thread" in src
-    assert 'scanning_mode": scanning_mode' in src or "scanning_mode=scanning_mode" in src
+    assert "or_patterns" in src
+    assert "MANUFACTURER_SPECIFIC_DATA" in src
     assert "BLE scanner started" in src
     assert "prepare_seen_data_for_republish" in src
 
