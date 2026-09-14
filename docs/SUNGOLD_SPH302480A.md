@@ -67,6 +67,7 @@ MQTT_TOPIC=sungold_sph302480a
 DEVICE_NAME=Sungold SPH302480A
 MODBUS_ADDRESS=1
 POLL_INTERVAL_SEC=5
+MODBUS_TIMEOUT=1.0
 ```
 
 Uses the same **`MQTT_HOST` / `MQTT_USER` / `MQTT_PASSWORD`** as Victron and Home Assistant.
@@ -99,19 +100,53 @@ mosquitto_sub -h "$MQTT_HOST" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
 
 In Home Assistant: **Settings → Devices & services → MQTT** — device **Sungold SPH302480A** with PV, battery, grid, load, and temperature entities.
 
+**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). The cart stays off T2/KU. Apply on `.105` with HA stopped:
+
+```bash
+sudo python3 scripts/ha_label_sungold_solar.py
+```
+
+Then start the `homeassistant` container and wait for `:8123` ([container common tasks](https://www.home-assistant.io/common-tasks/container/), alfa-ai `wait-http.sh`).
+
 ## Published entities (curated)
 
-| Area | Examples |
-|------|-----------|
-| PV | voltage, current, power |
-| Battery | SOC, voltage, current, temperature, charge state |
-| Grid | voltage, current, frequency, power |
-| Load | current, power |
-| Inverter | state, AC voltage/frequency, charging power, fault codes |
-| Temperature | DC-DC, DC-AC, transformer |
-| Binary | fault active |
+HA MQTT `name` strings follow the SPH302480A **LCD real-time pages** and **fault table**, not SRNE nicknames. MQTT `unique_id` values stay on the register keys so Home Assistant `entity_id`s do not change when a display name is corrected.
 
-Unsupported registers are **skipped** after repeated read failures (logged once); discovery entries are removed until retry.
+Official: [SunGoldPower SPH302480A product page](https://sungoldpower.com/products/3000w-24v-solar-inverter-charger) (user manual download: LCD §4.1, fault codes §6.2). Same LCD wording in the 2023-11-28 reprint: [3000W_SPH302480A_20231128.pdf](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf). Product page also states **high frequency transformer-less** and **PV Charging Current** as the 0–80 A rating (LCD field is `PV OUTPUT A`).
+
+| HA name | Official source |
+|---------|-----------------|
+| PV input voltage | LCD `PV INPUT V` |
+| PV output current | LCD `PV OUTPUT A` (PV output current) |
+| PV output power | LCD `PV OUTPUT KW` |
+| Remaining battery | LCD battery bars ("remaining battery") |
+| Battery input voltage | LCD `INPUT BATT V` |
+| Input battery current | LCD `INPUT BATT A` |
+| Battery temperature | Not an LCD page; SRNE holding register (keep as diagnostic) |
+| Charge state | CHARGE LED (charging / charging completed) plus setup boost / constant-voltage / floating; Modbus integers are SRNE-class, not printed in the SPH manual |
+| Battery input power | LCD `INPUT BATT KW` |
+| Output mode | AC/INV LED: Mains output / Inverter output. LCD does not name Initialization / Standby; unknown codes publish as the raw integer |
+| Inverter error flags | Not an LCD page; SRNE diagnostic |
+| Fault code | LCD middle + §6.2 `【01】`… including BMS `【30】`–`【64】` |
+| Fault state | FAULT LED "Fault state" |
+| AC input voltage | LCD `AC INPUT V` (manual: Mains / AC input, not "grid") |
+| AC input current | Not a numbered LCD page; named to match `AC INPUT V` / `Hz` |
+| AC input frequency | LCD `AC INPUT Hz` |
+| Output load voltage | LCD `OUTPUT LOAD V` |
+| AC output frequency | LCD `AC OUTPUT LOAD Hz` |
+| AC output load current | LCD `AC OUTPUT LOAD A` |
+| Load active power | LCD `INV OUTPUT LOAD KW` |
+| PV charger heatsink temperature | LCD `PV TEMP` |
+| Inverter heat sink temperature | LCD `INV TEMP` / §6.2 "Inverter heat sink" |
+
+Not published for this model (manual + this hardware):
+
+- **PV total power** — one PV port / one MPPT (`PV+` / `PV-` only).
+- **Grid power** — SPH302480A rejected holding register `0x023A` (illegal data address).
+- **Transformer temperature** — product is **high frequency transformer-less**.
+- LCD pages **OUTPUT BATT A / KW** and **OUTPUT LOAD KVA** — no verified Modbus address in the SPH manual (manual does not publish a map).
+
+Unsupported registers are still **skipped** after repeated read failures (logged once); discovery entries are removed until retry.
 
 ## Troubleshooting
 

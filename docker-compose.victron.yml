@@ -23,7 +23,13 @@ services:
       - PUBLISH_CONFIG_THROTTLE_SEC=${PUBLISH_CONFIG_THROTTLE_SEC:-60}
       # USB BLE dongle is usually hci1; leave unset for built-in hci0
       - BLE_ADAPTER=${BLE_ADAPTER:-}
+      # PYTHONPATH puts the bind-mounted override ahead of /work. PYTHONSAFEPATH
+      # (Python 3.11 -P) stops `python -m` from prepending WORKDIR /app, which
+      # would otherwise load the image copy of victron_ble2mqtt/mqtt.py and keep
+      # old Home Assistant discovery names.
+      # https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH
       - PYTHONPATH=/work/override:/work
+      - PYTHONSAFEPATH=1
     env_file:
       - ./victron-secrets.env
       - ./.env

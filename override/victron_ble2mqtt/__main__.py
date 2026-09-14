@@ -22,10 +22,13 @@ from paho.mqtt.client import Client as PahoClient
 from paho.mqtt.enums import CallbackAPIVersion
 from victron_ble.scanner import BaseScanner
 
-# Production settings & handlers from your override package
-from victron_ble2mqtt.cli_app.settings import get_settings
-from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler
-from victron_ble2mqtt.victron_ble_utils import DeviceHandler
+# Same-package imports so `python -m` does not pick /app/victron_ble2mqtt/mqtt.py
+# (WORKDIR /app prepends cwd onto sys.path unless PYTHONSAFEPATH is set).
+# https://docs.python.org/3/reference/import.html#package-relative-imports
+# https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH
+from .cli_app.settings import get_settings
+from .mqtt import VictronMqttDeviceHandler
+from .victron_ble_utils import DeviceHandler
 
 # Liveness heartbeat: the publish loop touches this file after each successful
 # system-info publish; the container healthcheck fails when it goes stale.
@@ -121,6 +124,7 @@ def main() -> None:
             self._pub_gap = float(getattr(user_settings.mqtt, "publish_throttle_seconds", 3) or 3)
             self._log_gap = float(getattr(user_settings.mqtt, "log_throttle_seconds", 3) or 3)
             self._last_warn: dict[str, float] = {}
+            self._last_rssi: dict[str, int | None] = {}
             # System info periodic publish interval (seconds)
             self._sys_poll_gap = float(
                 getattr(user_settings.mqtt, "system_poll_throttle_seconds", 3) or 3
@@ -142,11 +146,15 @@ def main() -> None:
                         touch_heartbeat()
                 await asyncio.sleep(self._sys_poll_gap)
 
-        # victron-ble 0.9.3: BaseScanner.callback() now receives the bleak
-        # AdvertisementData as third argument — RSSI comes straight from it.
-        def callback(
-            self, ble_device: BLEDevice, raw_data: bytes, advertisement: AdvertisementData
-        ):
+        def _detection_callback(self, device: BLEDevice, advertisement: AdvertisementData):
+            # Bleak 0.19+ keeps RSSI on AdvertisementData, not BLEDevice.
+            # https://bleak.readthedocs.io/en/latest/api/index.html
+            self._last_rssi[device.address] = advertisement.rssi
+            super()._detection_callback(device, advertisement)
+
+        # victron-ble 0.9.2 BaseScanner.callback(device, data)
+        # https://github.com/keshavdv/victron-ble/blob/v0.9.2/victron_ble/scanner.py
+        def callback(self, ble_device: BLEDevice, raw_data: bytes):
             now = time.monotonic()
             # Rate-limit noisy debug
             if logger.isEnabledFor(logging.DEBUG):
@@ -159,7 +167,7 @@ def main() -> None:
                         ble_device=ble_device,
                         raw_data=raw_data,
                         generic_device=generic,
-                        rssi=advertisement.rssi,
+                        rssi=self._last_rssi.get(ble_device.address),
                         mqtt_client=self.mqtt_client,
                     )
                 else:

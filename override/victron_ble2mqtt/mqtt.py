@@ -14,6 +14,11 @@ from victron_ble2mqtt.victron_ble_utils import GenericDevice
 
 logger = logging.getLogger(__name__)
 
+# Sensor discovery `name` strings follow VictronConnect readout wording.
+# SmartShunt: https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
+# BlueSolar MPPT: https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html
+# MQTT `uid` values stay fixed so Home Assistant entity_ids do not rename.
+
 
 class BaseHandler:
     VictronDeviceClass = None
@@ -216,7 +221,7 @@ class BatteryMonitorHandler(BaseHandler):
         self.sensors = {
             "aux_mode": Sensor(
                 device=self.device,
-                name="Auxiliary Mode",
+                name="Aux input reading",
                 uid="aux_mode",
             ),
             "consumed_ah": Sensor(
@@ -229,7 +234,7 @@ class BatteryMonitorHandler(BaseHandler):
             ),
             "current": Sensor(
                 device=self.device,
-                name="Current",
+                name="Battery current",
                 uid="current",
                 device_class="current",
                 state_class="measurement",
@@ -238,7 +243,7 @@ class BatteryMonitorHandler(BaseHandler):
             ),
             "midpoint_voltage": Sensor(
                 device=self.device,
-                name="Midpoint Voltage",
+                name="Midpoint voltage",
                 uid="midpoint_voltage",
                 device_class="voltage",
                 state_class="measurement",
@@ -247,14 +252,14 @@ class BatteryMonitorHandler(BaseHandler):
             ),
             "remaining_mins": Sensor(
                 device=self.device,
-                name="Remaining Minutes",
+                name="Time remaining",
                 uid="remaining_mins",
                 state_class="measurement",
                 unit_of_measurement="min",
             ),
             "soc": Sensor(
                 device=self.device,
-                name="State of Charge",
+                name="State of charge",
                 uid="soc",
                 device_class="battery",
                 state_class="measurement",
@@ -263,7 +268,7 @@ class BatteryMonitorHandler(BaseHandler):
             ),
             "voltage": Sensor(
                 device=self.device,
-                name="Voltage",
+                name="Battery voltage",
                 uid="voltage",
                 device_class="voltage",
                 state_class="measurement",
@@ -287,7 +292,7 @@ class BatteryMonitorHandler(BaseHandler):
         if data_dict.get("aux_mode", None) == "midpoint_voltage":
             self.midpoint_shift = Sensor(
                 device=self.device,
-                name="Midpoint Shift",
+                name="Midpoint shift",
                 uid="midpoint_shift",
                 device_class="voltage",
                 state_class="measurement",
@@ -296,7 +301,7 @@ class BatteryMonitorHandler(BaseHandler):
             )
             self.midpoint_shift_percent = Sensor(
                 device=self.device,
-                name="Midpoint Shift",
+                name="Midpoint voltage deviation",
                 uid="midpoint_shift_percent",
                 state_class="measurement",
                 unit_of_measurement="%",
@@ -355,7 +360,7 @@ class BatteryMonitorHandler(BaseHandler):
             if self.midpoint_shift is None:
                 self.midpoint_shift = Sensor(
                     device=self.device,
-                    name="Midpoint Shift",
+                    name="Midpoint shift",
                     uid="midpoint_shift",
                     device_class="voltage",
                     state_class="measurement",
@@ -364,7 +369,7 @@ class BatteryMonitorHandler(BaseHandler):
                 )
                 self.midpoint_shift_percent = Sensor(
                     device=self.device,
-                    name="Midpoint Shift",
+                    name="Midpoint voltage deviation",
                     uid="midpoint_shift_percent",
                     state_class="measurement",
                     unit_of_measurement="%",
@@ -430,7 +435,7 @@ class SolarChargerHandler(BaseHandler):
         self.sensors = {
             "battery_charging_current": Sensor(
                 device=self.device,
-                name="Battery Charging",
+                name="Battery current",
                 uid="battery_charging_current",
                 device_class="current",
                 state_class="measurement",
@@ -439,7 +444,7 @@ class SolarChargerHandler(BaseHandler):
             ),
             "battery_voltage": Sensor(
                 device=self.device,
-                name="Battery",
+                name="Battery voltage",
                 uid="battery_voltage",
                 device_class="voltage",
                 state_class="measurement",
@@ -449,11 +454,11 @@ class SolarChargerHandler(BaseHandler):
             "charge_state": Sensor(
                 device=self.device,
                 uid="charge_state",
-                name="Charge State",
+                name="Battery state",
             ),
             "external_device_load": Sensor(
                 device=self.device,
-                name="Load",
+                name="Load output",
                 uid="load",
                 device_class="current",
                 state_class="measurement",
@@ -462,7 +467,7 @@ class SolarChargerHandler(BaseHandler):
             ),
             "solar_power": Sensor(
                 device=self.device,
-                name="Solar",
+                name="Solar power",
                 uid="solar_power",
                 device_class="power",
                 state_class="measurement",
@@ -471,7 +476,7 @@ class SolarChargerHandler(BaseHandler):
             ),
             "yield_today": Sensor(
                 device=self.device,
-                name="Yield Today",
+                name="Solar yield",
                 uid="yield_today",
                 device_class="energy",
                 state_class="total_increasing",
@@ -484,7 +489,7 @@ class SolarChargerHandler(BaseHandler):
 
         self.charging_power = Sensor(
             device=self.device,
-            name="Charging Power",
+            name="Battery power",
             uid="charging_power",
             device_class="power",
             state_class="measurement",
@@ -493,7 +498,7 @@ class SolarChargerHandler(BaseHandler):
         )
         self.load_power = Sensor(
             device=self.device,
-            name="Load Power",
+            name="Load output power",
             uid="load_power",
             device_class="power",
             state_class="measurement",

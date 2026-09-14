@@ -18,6 +18,7 @@ services:
       - MQTT_TOPIC=${MQTT_TOPIC:-sungold_sph302480a}
       - DEVICE_NAME=${DEVICE_NAME:-Sungold SPH302480A}
       - POLL_INTERVAL_SEC=${POLL_INTERVAL_SEC:-5}
+      - MODBUS_TIMEOUT=${MODBUS_TIMEOUT:-1.0}
       - HEARTBEAT_FILE=/tmp/sungold_modbus_ro.heartbeat
     devices:
       - "${SUNGOLD_SERIAL_DEVICE:-/dev/sungold}:/dev/sungold"

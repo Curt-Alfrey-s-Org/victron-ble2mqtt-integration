@@ -35,7 +35,7 @@ def load_settings() -> Settings:
         modbus_device=os.getenv("MODBUS_DEVICE", "/dev/sungold"),
         modbus_address=int(os.getenv("MODBUS_ADDRESS", "1")),
         modbus_baudrate=int(os.getenv("MODBUS_BAUDRATE", "9600")),
-        modbus_timeout=float(os.getenv("MODBUS_TIMEOUT", "0.25")),
+        modbus_timeout=float(os.getenv("MODBUS_TIMEOUT", "1.0")),
         modbus_skip_threshold=int(os.getenv("MODBUS_SKIP_THRESHOLD", "5")),
         modbus_skip_retry_interval=float(os.getenv("MODBUS_SKIP_RETRY_INTERVAL", "3600")),
         mqtt_host=os.getenv("MQTT_HOST", "127.0.0.1"),

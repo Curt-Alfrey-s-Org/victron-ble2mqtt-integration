@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 import paho.mqtt.client as mqtt
 
-from .registers import CURATED_ENTITIES, EntityDef
+from .registers import CURATED_ENTITIES, RETIRED_DISCOVERY, EntityDef
 
 if TYPE_CHECKING:
     from .config import Settings
@@ -20,7 +20,7 @@ class MqttHaPublisher:
         self._device = {
             "identifiers": [settings.mqtt_topic],
             "name": settings.device_name,
-            "manufacturer": "Sungold",
+            "manufacturer": "SunGoldPower",
             "model": "SPH302480A",
         }
         self._hidden: set[str] = set()
@@ -48,6 +48,8 @@ class MqttHaPublisher:
             print(f"MQTT connect failed: {reason_code}")
             return
         print(f"MQTT connected ({reason_code})")
+        for topic_type, key in RETIRED_DISCOVERY:
+            self.retire_discovery(topic_type, key)
         for entity in CURATED_ENTITIES:
             self.publish_discovery(entity)
 
@@ -86,6 +88,11 @@ class MqttHaPublisher:
         topic = self.discovery_topic(entity)
         payload = json.dumps(self.build_discovery_payload(entity))
         self._client.publish(topic, payload, retain=True)
+
+    def retire_discovery(self, topic_type: str, key: str) -> None:
+        field = f"{self._settings.mqtt_topic}-{key.replace('/', '-')}"
+        topic = f"homeassistant/{topic_type}/{field}/config"
+        self._client.publish(topic, "", retain=True)
 
     def hide_entity(self, entity: EntityDef) -> None:
         if entity.key in self._hidden:

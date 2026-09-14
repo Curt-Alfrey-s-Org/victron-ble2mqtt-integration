@@ -54,6 +54,21 @@ Home Assistant cards for current, voltage, and power use **one decimal**
 (`suggested_display_precision: 1` on MQTT discovery — [MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/#suggested_display_precision)).
 Energy (Wh) and percent sensors are unchanged.
 
+MQTT discovery `name` strings follow VictronConnect readout wording
+([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html),
+[BlueSolar MPPT 75/15 monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html)).
+`uid` values stay fixed so Home Assistant `entity_id`s do not rename.
+The sidecar must import `override/victron_ble2mqtt/mqtt.py` (bind mount).
+Compose sets `PYTHONSAFEPATH=1` so `python -m` does not prepend image `WORKDIR /app`
+and shadow that override ([PYTHONSAFEPATH](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH)).
+After editing `mqtt.py`, recreate only `victron_ble2mqtt` (not `deploy.sh`):
+
+```bash
+sudo docker compose -f docker-compose.victron.yml up -d --force-recreate victron_ble2mqtt
+```
+
+Do not pass `--remove-orphans` (Sungold is a separate compose project).
+
 ### Find the MAC
 
 Close VictronConnect on your phone, then on the Pi:
@@ -129,6 +144,7 @@ SUNGOLD_SERIAL_DEVICE=/dev/sungold
 4. `sudo bash scripts/deploy.sh`  
    Deploy installs the udev rule that creates `/dev/sungold`.
 5. Check: `bash scripts/sungold_smoke.sh` and `docker logs -f sungold_modbus_ro`.
+6. On `.105` (HA stopped): `sudo python3 scripts/ha_label_sungold_solar.py` — HA label **Sungold** and a **Sungold** heading on the Solar dashboard.
 
 ### Turn off
 
@@ -189,7 +205,7 @@ Add these in the Home Assistant UI, not in this git repo:
 
 They do not need `ENABLE_*` flags here. Removing them is also done in that same HA screen.
 
-This site's EM16: **A3** is the main load leg (total watts). **B2** is a wall-outlet branch on that leg -- do not add A3+B2. Live log: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
+This site's EM16: **A3** is the main load leg (total watts). **B2** is a wall-outlet branch on that leg -- do not add A3+B2. Live log: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Official product name is **Refoss Smart Energy Monitor, EM16**; HA channel labels are **A1-C6** ([Refoss integration](https://www.home-assistant.io/integrations/refoss/)). Apply HA labels/headings on `.105` with HA stopped: `sudo python3 scripts/ha_label_victron_refoss.py`.
 
 Home Assistant must be connected to MQTT for **Victron / Sungold / Pi host / house BLE (Theengs)** sensors. The installer does that for you (HA 2026+). Do not paste broker settings into `configuration.yaml`.
 

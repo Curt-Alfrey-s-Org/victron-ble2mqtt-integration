@@ -1,4 +1,5 @@
 import types
+from pathlib import Path
 from unittest.mock import Mock
 
 def test_calc_midpoint_shift_and_percent():
@@ -71,3 +72,47 @@ def test_victron_mqtt_device_handler_publish_uses_handler_map(monkeypatch):
     assert calls.get('published') is True
     assert calls.get('data_dict') == {'model_name': 'FAKE', 'voltage': 12.3}
     assert calls.get('rssi') == -70
+
+
+def test_main_imports_override_mqtt():
+    """Entrypoint must load sibling mqtt.py, not /app/victron_ble2mqtt/mqtt.py."""
+    src = (Path(__file__).resolve().parents[1] / "override/victron_ble2mqtt/__main__.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from .mqtt import VictronMqttDeviceHandler" in src
+    assert "from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler" not in src
+    assert "def callback(self, ble_device: BLEDevice, raw_data: bytes):" in src
+    assert "advertisement.rssi" in src
+
+
+def test_compose_sets_pythonsafepath():
+    src = (Path(__file__).resolve().parents[1] / "docker-compose.victron.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "PYTHONSAFEPATH=1" in src
+
+
+def test_victronconnect_sensor_names():
+    """MQTT discovery names follow VictronConnect readout wording; uids stay stable."""
+    src = (Path(__file__).resolve().parents[1] / "override/victron_ble2mqtt/mqtt.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'name="Battery voltage"' in src
+    assert 'name="Battery current"' in src
+    assert 'name="State of charge"' in src
+    assert 'name="Consumed Ah"' in src
+    assert 'name="Time remaining"' in src
+    assert 'name="Aux input reading"' in src
+    assert 'name="Midpoint voltage"' in src
+    assert 'name="Midpoint voltage deviation"' in src
+    assert 'name="Solar power"' in src
+    assert 'name="Solar yield"' in src
+    assert 'name="Battery state"' in src
+    assert 'name="Load output"' in src
+    assert 'name="Load output power"' in src
+    assert 'uid="voltage"' in src
+    assert 'uid="soc"' in src
+    assert 'uid="yield_today"' in src
+    assert 'name="Auxiliary Mode"' not in src
+    assert 'name="Charge State"' not in src
+    assert 'name="Yield Today"' not in src
