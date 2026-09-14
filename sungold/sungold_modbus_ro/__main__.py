@@ -13,6 +13,29 @@ from .mqtt_ha import MqttHaPublisher
 from .registers import CURATED_ENTITIES
 
 
+def touch_heartbeat(path: str) -> None:
+    with open(path, "a", encoding="utf-8"):
+        pass
+    os.utime(path, None)
+
+
+def run_poll_cycle(modbus: ReadOnlyModbusClient, mqtt_pub: MqttHaPublisher) -> bool:
+    published_any = False
+    for entity in CURATED_ENTITIES:
+        # Skip reduces USB retries. Do not publish empty MQTT discovery:
+        # HA deletes the entity
+        # https://www.home-assistant.io/integrations/mqtt/#discovery-messages
+        if not modbus.is_register_available(entity.register):
+            continue
+
+        value = modbus.read_entity(entity)
+        if value is None:
+            continue
+        if mqtt_pub.publish_state(entity, value):
+            published_any = True
+    return published_any
+
+
 def main() -> int:
     settings = load_settings()
     print(
@@ -38,25 +61,9 @@ def main() -> int:
     time.sleep(1.0)
 
     while running:
-        published_any = False
-        for entity in CURATED_ENTITIES:
-            # Skip reduces USB retries. Do not publish empty MQTT discovery:
-            # HA deletes the entity
-            # https://www.home-assistant.io/integrations/mqtt/#discovery-messages
-            if not modbus.is_register_available(entity.register):
-                continue
-
-            value = modbus.read_entity(entity)
-            if value is None:
-                continue
-            mqtt_pub.publish_state(entity, value)
-            published_any = True
-
-        if published_any:
+        if run_poll_cycle(modbus, mqtt_pub):
             try:
-                with open(settings.heartbeat_file, "a", encoding="utf-8"):
-                    pass
-                os.utime(settings.heartbeat_file, None)
+                touch_heartbeat(settings.heartbeat_file)
             except OSError as exc:
                 print(f"Heartbeat touch failed: {exc}")
 

@@ -93,7 +93,18 @@ class MqttHaPublisher:
         topic = f"homeassistant/{topic_type}/{field}/config"
         self._client.publish(topic, "", retain=True)
 
-    def publish_state(self, entity: EntityDef, value: str) -> None:
+    def publish_state(self, entity: EntityDef, value: str, *, publish_timeout: float = 5.0) -> bool:
         # Retain last reading so HA restart does not blank Solar tiles.
         # https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery
-        self._client.publish(self._state_topic(entity), value, retain=True)
+        # Heartbeat liveness: only count publishes that left the client (Paho MQTTMessageInfo).
+        # https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.Client.publish
+        if not self._client.is_connected():
+            return False
+        info = self._client.publish(self._state_topic(entity), value, retain=True)
+        if info.rc != mqtt.MQTT_ERR_SUCCESS:
+            return False
+        try:
+            info.wait_for_publish(timeout=publish_timeout)
+        except (RuntimeError, ValueError):
+            return False
+        return info.is_published()

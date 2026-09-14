@@ -88,6 +88,12 @@ Dockge: stack appears as **`sungold`** under `/opt/stacks/sungold` when `ENABLE_
 bash scripts/sungold_smoke.sh
 ```
 
+### Container health (heartbeat)
+
+Compose [healthcheck](https://docs.docker.com/reference/compose-file/services/#healthcheck) (`CMD-SHELL`, `start_period` 90s) passes when `HEARTBEAT_FILE` mtime is within **`4 × POLL_INTERVAL_SEC + 60`** seconds (default poll 5s → max age 80s). The file is **not** touched on Modbus reads alone.
+
+Each poll cycle touches the heartbeat only after at least one **curated** register was read **and** its retained state MQTT publish completed successfully. The sidecar uses Eclipse Paho [`Client.publish()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.Client.publish) → [`MQTTMessageInfo`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo): `rc == MQTT_ERR_SUCCESS`, then [`wait_for_publish()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo.wait_for_publish) / [`is_published()`](https://eclipse.dev/paho/files/paho.mqtt.python/html/client.html#paho.mqtt.client.MQTTMessageInfo.is_published) with `loop_start()` running. If the broker is down, `publish()` returns `MQTT_ERR_NO_CONN` or `is_connected()` is false — the heartbeat stays stale and Docker marks the container **unhealthy** even when USB Modbus still answers.
+
 Manual checks:
 
 ```bash
@@ -163,7 +169,7 @@ Do not pass `--remove-orphans`.
 | Symptom | Action |
 |---------|--------|
 | Deploy skips Sungold | Set `ENABLE_SUNGOLD=1`; confirm `/dev/sungold` or `SUNGOLD_SERIAL_DEVICE` exists |
-| Container unhealthy | No heartbeat because Modbus is not answering — check inverter power, USB-B, address, baud; `docker logs sungold_modbus_ro`. Solar tiles should stay **Unavailable**, not **Entity not found**. |
+| Container unhealthy | Heartbeat stale: no successful Modbus read **and** MQTT state publish in the last `4 × POLL_INTERVAL_SEC + 60` s. Check USB/Modbus **and** Mosquitto reachability (`MQTT_HOST`, credentials, broker up). `docker logs sungold_modbus_ro`. Solar tiles should stay **Unavailable**, not **Entity not found**. |
 | Solar tiles **Entity not found** | Lovelace still points at retired `entity_id`s, or empty discovery deleted the MQTT entities. Recreate the sidecar, wait until HA has the `sungold_sph302480a-*` unique_ids, then re-run `ha_label_sungold_solar.py` with HA stopped. |
 | No HA entities | Confirm HA MQTT integration uses same broker; check discovery topics with `mosquitto_sub` |
 | Permission denied on serial | User in `dialout` group; udev rule sets `GROUP=dialout` |

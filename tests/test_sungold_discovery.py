@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import paho.mqtt.client as mqtt
 
 from sungold_modbus_ro import __main__ as sungold_main
 from sungold_modbus_ro import modbus_io, mqtt_ha
@@ -145,7 +149,71 @@ def test_poll_loop_does_not_hide_discovery():
     assert "hide_entity" not in main_src
     assert "hide_entity" not in mqtt_src
     assert not hasattr(mqtt_ha.MqttHaPublisher, "hide_entity")
-    assert "is_register_available" in sungold_main.main.__code__.co_names
+    assert "is_register_available" in sungold_main.run_poll_cycle.__code__.co_names
+
+
+def test_publish_state_returns_false_when_not_connected():
+    pub = MqttHaPublisher(_settings())
+    pub._client.is_connected = MagicMock(return_value=False)
+    pub._client.publish = MagicMock()
+    entity = next(e for e in CURATED_ENTITIES if e.key == "battery/soc")
+    assert pub.publish_state(entity, "50") is False
+    pub._client.publish.assert_not_called()
+
+
+def test_publish_state_returns_false_when_publish_not_queued():
+    pub = MqttHaPublisher(_settings())
+    pub._client.is_connected = MagicMock(return_value=True)
+    pub._client.publish = MagicMock(
+        return_value=SimpleNamespace(rc=mqtt.MQTT_ERR_NO_CONN, wait_for_publish=MagicMock(), is_published=MagicMock(return_value=False))
+    )
+    entity = next(e for e in CURATED_ENTITIES if e.key == "battery/soc")
+    assert pub.publish_state(entity, "50") is False
+
+
+def test_publish_state_returns_true_when_published():
+    pub = MqttHaPublisher(_settings())
+    pub._client.is_connected = MagicMock(return_value=True)
+    info = SimpleNamespace(
+        rc=mqtt.MQTT_ERR_SUCCESS,
+        wait_for_publish=MagicMock(),
+        is_published=MagicMock(return_value=True),
+    )
+    pub._client.publish = MagicMock(return_value=info)
+    entity = next(e for e in CURATED_ENTITIES if e.key == "battery/soc")
+    assert pub.publish_state(entity, "50") is True
+    info.wait_for_publish.assert_called_once()
+
+
+def test_heartbeat_not_touched_when_mqtt_publish_fails(tmp_path):
+    heartbeat = tmp_path / "heartbeat"
+
+    modbus = MagicMock()
+    modbus.is_register_available.return_value = True
+    modbus.read_entity.return_value = "50"
+
+    mqtt_pub = MagicMock()
+    mqtt_pub.publish_state.return_value = False
+
+    assert sungold_main.run_poll_cycle(modbus, mqtt_pub) is False
+    assert not heartbeat.exists()
+    assert mqtt_pub.publish_state.call_count == len(CURATED_ENTITIES)
+
+
+def test_heartbeat_touched_after_successful_poll_cycle(tmp_path):
+    heartbeat = tmp_path / "heartbeat"
+    settings = replace(_settings(), heartbeat_file=str(heartbeat))
+
+    modbus = MagicMock()
+    modbus.is_register_available.return_value = True
+    modbus.read_entity.return_value = "50"
+
+    mqtt_pub = MagicMock()
+    mqtt_pub.publish_state.return_value = True
+
+    assert sungold_main.run_poll_cycle(modbus, mqtt_pub) is True
+    sungold_main.touch_heartbeat(settings.heartbeat_file)
+    assert heartbeat.exists()
 
 
 def test_timeout_does_not_skip_register(monkeypatch, tmp_path):
