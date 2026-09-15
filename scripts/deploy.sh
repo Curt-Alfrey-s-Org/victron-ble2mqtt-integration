@@ -4,7 +4,7 @@
 # - Installs Dockge + /opt/stacks wrappers; removes legacy systemd compose runners
 # - Builds image and starts victron / homeassistant / Watchtower via Compose (restart policies survive reboot)
 # - Optional extras via env: ENABLE_PERF_TUNING=1, ENABLE_DOCKGE=1, ENABLE_TOOLS=1, ENABLE_AUTOHEAL=1 (default),
-#   ENABLE_FAILOVER_MONITOR=1, ENABLE_SUNGOLD=0, ENABLE_BMS_SUPERVISOR=0, ENABLE_HA_MQTT_INTEGRATION=1
+#   ENABLE_FAILOVER_MONITOR=1, ENABLE_SUNGOLD=0, ENABLE_BMS_SUPERVISOR=0, ENABLE_PI4_THEENGS=0, ENABLE_HA_MQTT_INTEGRATION=1
 #   HOST_ROLE=pi4 (default: Victron/HA/Mosquitto) or pi5 (AdGuard + Theengs house BLE)
 #   FORCE_HA_MQTT_YAML is deprecated (HA 2026+ rejects YAML broker settings).
 # - TrueNAS hub (LAN): ENABLE_DOCKER_REGISTRY_MIRROR=1 (default) merges registry-mirrors http://192.168.0.111:5000 into /etc/docker/daemon.json;
@@ -111,6 +111,7 @@ fi
 : "${ENABLE_MQTT_WATCHDOG:=1}"
 : "${ENABLE_SUNGOLD:=0}"
 : "${ENABLE_BMS_SUPERVISOR:=0}"
+: "${ENABLE_PI4_THEENGS:=0}"
 : "${ENABLE_DOCKER_REGISTRY_MIRROR:=1}"
 : "${DOCKER_REGISTRY_MIRROR:=http://192.168.0.111:5000}"
 : "${TRUENAS_IP:=192.168.0.111}"
@@ -770,6 +771,10 @@ deploy_sungold_stack_if_enabled
 # shellcheck source=scripts/start_bms_supervisor_if_enabled.sh
 source "$ROOT_DIR/scripts/start_bms_supervisor_if_enabled.sh"
 deploy_bms_supervisor_stack_if_enabled
+
+# shellcheck source=scripts/start_pi4_theengs_if_enabled.sh
+source "$ROOT_DIR/scripts/start_pi4_theengs_if_enabled.sh"
+deploy_pi4_theengs_stack_if_enabled
 
 # Optional: Wi‑Fi failover monitor
 if [[ "${ENABLE_FAILOVER_MONITOR:-0}" == "1" ]]; then

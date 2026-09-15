@@ -23,7 +23,7 @@ Secrets stay in `.env` and `victron-secrets.env` (never commit those files).
 | **Pi battery supervisor** | VE.Direct USB (read-only Text) | **Off** | `ENABLE_BMS_SUPERVISOR=1` + USB | `ENABLE_BMS_SUPERVISOR=0` or unplug USB. Bench/spare pack first; not T2/KU/well v1. See [PI4_BMS_SOFTWARE.md](PI4_BMS_SOFTWARE.md). |
 | **Home Assistant** | Browser `:8123` on **`.105`** | On (`.105` only) | `docker-compose.homeassistant.yml` on `.105` | Do **not** enable HA on Pi4/Pi5. Do **not** run `scripts/deploy.sh` on `.105`. |
 | **House BLE sensors** (Govee, Xiaomi, …) | BLE on **Pi 5** → MQTT on **`.105`** | Off until Pi 5 deploy | `HOST_ROLE=pi5` on the house Pi | `docker compose … down` on Pi 5 |
-| **Solar-site Govee** (e.g. H5075 `A4:C1:38:CA:AF:6F`) | BLE on **Pi 4** Theengs → same broker | Gateway up; **cells dead 2026-09-14** | Replace cells; tiles stay Unknown until state ([MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/)) | `docker compose … down` in `hosts/pi4/` |
+| **Solar-site Govee** (e.g. H5075 `A4:C1:38:CA:AF:6F`) | BLE on **Pi 4** Theengs → same broker | **Off.** Needs a **second** HCI (`ENABLE_PI4_THEENGS=1` + `THEENGS_ADAPTER` ≠ `BLE_ADAPTER`). **Cells dead 2026-09-14** | USB dongle + env + `sudo bash scripts/deploy.sh` | leave `ENABLE_PI4_THEENGS=0` (deploy runs Compose `--profile solar-theengs down`) |
 | **Ecobee / Rheem / other Wi‑Fi HVAC** | HomeKit Device / EcoNet (LAN), not BLE | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
 | **Refoss / Govee / other HA gear** | Home Assistant integrations | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
 | **Away-from-home view** | Tailscale VPN (optional) | Off (not in deploy) | Install Tailscale on **`.105`** + phone ([TAILSCALE.md](TAILSCALE.md)) | Uninstall / log out of Tailscale |
@@ -37,7 +37,7 @@ Victron BLE (Pi 4 radio)               ──► victron_ble2mqtt ──┐
 Sungold USB                            ──► sungold_modbus_ro ─┼──► Mosquitto :1883 ──► Home Assistant
 Pi4 metrics                            ──► victron_ble2mqtt ──┤
 House BLE (Pi 5 radio)                 ──► Theengs Gateway ───┤
-Solar-site Govee (Pi 4 radio)          ──► Theengs Gateway ───┤
+Solar-site Govee (Pi 4, optional 2nd HCI) ──► Theengs Gateway ─┤
 BMS supervisor (optional USB)          ──► bms_supervisor ──────┘
 ```
 
@@ -124,7 +124,7 @@ Discovery config can be retained while state is not
 - Close the VictronConnect app (it can starve Instant Readout ads).
 - Confirm `sudo bluetoothctl show` says **Powered: yes**.
 - Weak built-in radio: plug a USB Bluetooth dongle, set `BLE_ADAPTER=hci1` in `.env`, recreate `victron_ble2mqtt`.
-- Pi4 Theengs (`pi4-theengs-gateway`) and Victron share **hci0**. Official Theengs docs document [`--blacklist` / `BLACKLIST`](https://gateway.theengs.io/use/use.html) to ignore MACs; Pi 4 compose blacklists the three Victron devices so Theengs does not request Victron bindkeys (which `victron_ble2mqtt` already decrypts). Theengs docs are **silent** on sharing one adapter with another BLE scanner; this repo keeps Victron on passive `or_patterns` first ([Bleak `or_patterns`](https://bleak.readthedocs.io/en/latest/api/args.html)) and Theengs on **`SCANNING_MODE=active`** with **`TIME_BETWEEN=45`** / **`SCAN_TIME=10`** ([`BLE_TIME_BETWEEN_SCANS` / `BLE_SCAN_TIME`](https://gateway.theengs.io/use/use.html)) so Govee H5072/H5075 decode windows fit between Victron cycles. Do not add Victron `ADVKEY_*` or bindkeys to Theengs.
+- Pi4 onboard Bluetooth is **exclusive** to `victron_ble2mqtt`. BlueZ allows **one** `StartDiscovery` session per client per adapter; `StopDiscovery` releases only that client ([org.bluez.Adapter](https://manpages.ubuntu.com/manpages/noble/man5/org.bluez.Adapter.5.html)). Official Theengs docs document [`--adapter`](https://gateway.theengs.io/use/use.html) and [`--blacklist` / `BLACKLIST`](https://gateway.theengs.io/use/use.html) but are **silent** on sharing one adapter with another scanner — do not run Pi4 Theengs on the same HCI as Victron. Default `ENABLE_PI4_THEENGS=0`; `scripts/deploy.sh` runs Compose [`--profile solar-theengs down`](https://docs.docker.com/compose/how-tos/profiles/) so `restart: unless-stopped` cannot bring Theengs back on reboot ([restart policy](https://docs.docker.com/engine/containers/start-containers-automatically/)). Opt-in only with a USB adapter: `ENABLE_PI4_THEENGS=1` and `THEENGS_ADAPTER` different from `BLE_ADAPTER` (usually `hci1` vs `hci0`). Do not `docker compose up -d theengs-gateway` (Compose auto-enables that service's profile). Do not add Victron `ADVKEY_*` or bindkeys to Theengs. If Bleak logs `BLE scanner start timed out`, the process retries every 15s (`BLE_SCANNER_START_RETRY_SEC`); that is recovery for a leftover BlueZ session, not permission to share HCI.
 - `victron-ble` 0.9.2 drops identical Instant Readout payloads forever (`_seen_data` in [scanner.py](https://github.com/keshavdv/victron-ble/blob/v0.9.2/victron_ble/scanner.py)). The sidecar discards that de-dupe on each publish throttle so a stable bus still refreshes HA after a broker/HA restart.
 - Pi host metrics (`iwconfig`, CPU, eth0/wlan0/tailscale) run in `asyncio.to_thread` on a **60s** default (`SYSTEM_POLL_THROTTLE_SEC`), not on every BLE packet ([`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)). Container `healthy` requires **dual BLE liveness** via Compose [healthcheck](https://docs.docker.com/reference/compose-file/services/#healthcheck) (`test` exec-form `CMD`, `start_period` 180s for Bleak 30s+30s plus first Instant Readout): `BLE_SCANNER_OK_FILE` exists after `BLE scanner started`, `BLE_PUBLISH_HEARTBEAT_FILE` touched after each successful Instant Readout MQTT publish (default max age `BLE_PUBLISH_MAX_AGE_SEC=600`), plus the system-info `HEARTBEAT_FILE` (event loop + MQTT client still running). `restart: unless-stopped` does not restart an `unhealthy` but still-running process ([restart policy](https://docs.docker.com/engine/containers/start-containers-automatically/)); autoheal does, and only after Engine marks `unhealthy` ([HEALTHCHECK](https://docs.docker.com/reference/dockerfile/#healthcheck)). autoheal's `AUTOHEAL_CONTAINER_LABEL` is the **label name** `autoheal` (filter `autoheal=true`); do not set the env to `autoheal=true` ([autoheal entrypoint](https://github.com/willfarrell/docker-autoheal/blob/master/docker-entrypoint)).
 - After editing `override/victron_ble2mqtt/__main__.py` or `mqtt.py`, recreate **only** `victron_ble2mqtt` (no `--remove-orphans`). Confirm logs contain `BLE scanner started` and `Throttled publish` (or state topics updating).
@@ -172,23 +172,30 @@ Then `sudo bash scripts/deploy.sh`. Victron and Home Assistant keep running.
 
 ## Solar-site BLE (Pi 4 radio → this Mosquitto)
 
-Govee thermometers at the Victron gear (e.g. H5075 `A4:C1:38:CA:AF:6F`) are heard on **Pi 4**
-via `hosts/pi4/docker-compose.theengs.yml`, not the house Pi 5 radio. Deploy per
-[PI5_HOUSE_EDGE.md](PI5_HOUSE_EDGE.md) (Pi 4 Theengs block only — do not run full `deploy.sh` on
-Pi 4 for this).
+Govee thermometers at the Victron gear (e.g. H5075 `A4:C1:38:CA:AF:6F`) use **Pi 4
+Theengs** (`hosts/pi4/docker-compose.theengs.yml`), not the house Pi 5 radio. That
+gateway is **off by default** so Victron Instant Readout keeps the onboard adapter
+([org.bluez.Adapter](https://manpages.ubuntu.com/manpages/noble/man5/org.bluez.Adapter.5.html)).
+This site (2026-09-14): H5075 cells are dead — HA tiles stay Unknown until
+replaced ([MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/)).
+Do not start Pi4 Theengs on `hci0` to "fix" those tiles.
 
-Topic: `home/TheengsGateway-pi4/BTtoMQTT` (LWT `home/TheengsGateway-pi4/LWT`).
+To run solar-site Theengs you need a **second** Bluetooth adapter, then in `.env`:
 
-HA MQTT tiles stay **Unknown** until a **state** payload arrives on
-`home/TheengsGateway-pi4/BTtoMQTT/<mac>` ([MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/));
-retained discovery alone is not enough. H5072/H5075 need **active** scan
-([Govee BLE](https://www.home-assistant.io/integrations/govee_ble/)). After blacklisting Victron
-MACs in compose, wait at least **`TIME_BETWEEN` + `SCAN_TIME`** (~55 s) before concluding failure.
-**This site (2026-09-14):** H5075 `A4:C1:38:CA:AF:6F` has **dead cells**. Leave those tiles Unknown;
-do not treat that as Theengs/`hci0` failure and do not add a Docker HEALTHCHECK
-(official `theengs/gateway` has none — [gateway-docker Dockerfile](https://github.com/theengs/gateway-docker/blob/main/Dockerfile)).
-If discovery exists but state never arrives on a **live** sensor, check Theengs logs for `org.bluez.Error.InProgress`
-(hci0 contention with `victron_ble2mqtt`) or weak RSSI (range). Retained **`online`** on `LWT_TOPIC`
+```text
+ENABLE_PI4_THEENGS=1
+BLE_ADAPTER=hci0
+THEENGS_ADAPTER=hci1
+```
+
+Then `sudo bash scripts/deploy.sh` on Pi 4 (guard in `scripts/pi4_ble_exclusive.py`).
+Do not `docker compose up` Theengs by service name. Topic: `home/TheengsGateway-pi4/BTtoMQTT`
+(LWT `home/TheengsGateway-pi4/LWT`). H5072/H5075 need **active** scan
+([Govee BLE](https://www.home-assistant.io/integrations/govee_ble/)). Do not add a Docker
+HEALTHCHECK (official `theengs/gateway` has none —
+[gateway-docker Dockerfile](https://github.com/theengs/gateway-docker/blob/main/Dockerfile)).
+If Theengs logs `org.bluez.Error.InProgress` on Victron's adapter, set
+`ENABLE_PI4_THEENGS=0` and re-run deploy. Retained **`online`** on `LWT_TOPIC`
 ([`-Lt` / `LWT_TOPIC`](https://gateway.theengs.io/use/use.html)) is MQTT availability, not proof of
 `BTtoMQTT` publishes. Do **not** add `expire_after` on retained MQTT sensor state in HA.
 

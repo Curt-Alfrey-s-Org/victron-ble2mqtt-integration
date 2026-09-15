@@ -63,6 +63,7 @@ Or clone this repo and run deploy directly (below).
    # ENABLE_DOCKER_REGISTRY_MIRROR=0 # skip LAN registry mirror (default 1)
    # DOCKER_REGISTRY_MIRROR=http://192.168.0.111:5000  # override mirror URL
    # ENABLE_HOME_ASSISTANT=0       # skip Home Assistant compose (no GHCR) until hub tarball exists
+   # ENABLE_PI4_THEENGS=1          # Pi4 Theengs only with THEENGS_ADAPTER != BLE_ADAPTER (default 0)
    # HOST_ROLE=pi5              # house Pi: AdGuard + Theengs (skips Victron/HA/Mosquitto)
    # TRUENAS_IP=192.168.0.111   # TrueNAS address for ping + mount-truenas-hub.sh
    # HA_IMAGE=ghcr.io/home-assistant/home-assistant:2026.7.3  # Compose pin (default)

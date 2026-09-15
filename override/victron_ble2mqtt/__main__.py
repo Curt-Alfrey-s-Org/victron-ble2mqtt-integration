@@ -128,7 +128,10 @@ def main() -> None:
 
         def _rebuild_scanner(self, scanning_mode: str) -> None:
             # Instant Readout is advertisement-only. Passive uses BlueZ
-            # AdvertisementMonitor so Pi4 Theengs can keep StartDiscovery on hci0.
+            # AdvertisementMonitor. Pi4 onboard HCI is exclusive to this scanner
+            # unless BLE_ADAPTER is a different adapter than THEENGS_ADAPTER.
+            # BlueZ: one StartDiscovery session per client per adapter
+            # https://manpages.ubuntu.com/manpages/noble/man5/org.bluez.Adapter.5.html
             # Passive requires or_patterns:
             # https://bleak.readthedocs.io/en/latest/api/args.html
             # https://github.com/bluez/bluez/blob/master/doc/org.bluez.AdvertisementMonitor.rst
@@ -148,7 +151,7 @@ def main() -> None:
                 scan_kwargs["bluez"] = bluez
             self._scanner = BleakScanner(**scan_kwargs)
 
-        async def start_with_fallback(self) -> None:
+        async def start_with_fallback(self) -> bool:
             last_error: BaseException | None = None
             for mode in ("passive", "active"):
                 logger.info("Starting BLE scanner scanning_mode=%s", mode)
@@ -172,9 +175,25 @@ def main() -> None:
                     touch_scanner_ok()
                 except OSError as e:
                     logger.warning("Cannot touch scanner ok file: %s", e)
-                return
+                return True
             if last_error is not None:
                 logger.error("BLE scanner could not start in passive or active mode")
+            return False
+
+        async def start_scanner_with_retry(self) -> None:
+            retry_sec = float(os.getenv("BLE_SCANNER_START_RETRY_SEC") or 15)
+            while True:
+                if await self.start_with_fallback():
+                    return
+                logger.error(
+                    "BLE scanner start failed; retry in %.0fs. Another BlueZ client "
+                    "on this adapter can timeout Bleak (StartDiscovery is per client "
+                    "per adapter: https://manpages.ubuntu.com/manpages/noble/man5/org.bluez.Adapter.5.html). "
+                    "Pi4 Theengs must not share this HCI; ENABLE_PI4_THEENGS=1 only with "
+                    "THEENGS_ADAPTER different from BLE_ADAPTER.",
+                    retry_sec,
+                )
+                await asyncio.sleep(retry_sec)
 
         async def periodic_system_info_publish(self) -> None:
             """Publish Pi4 system info on a fixed interval regardless of BLE traffic.
@@ -270,7 +289,7 @@ def main() -> None:
         scanner = MqttPublisher(keys=keys)
         # System-info in the background; do not block BLE start on iwconfig.
         asyncio.create_task(scanner.periodic_system_info_publish())
-        await scanner.start_with_fallback()
+        await scanner.start_scanner_with_retry()
 
     loop = asyncio.get_event_loop()
     loop.create_task(_run())

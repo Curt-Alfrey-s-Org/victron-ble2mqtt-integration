@@ -4,7 +4,7 @@
 
 | `HOST_ROLE` | Typical IP | What `deploy.sh` starts |
 |-------------|------------|-------------------------|
-| **pi4** (default) | `192.168.0.223` | Mosquitto, Victron BLE, Home Assistant, optional Sungold |
+| **pi4** (default) | `192.168.0.223` | Mosquitto, Victron BLE (exclusive onboard HCI), Home Assistant, optional Sungold; Pi4 Theengs off unless second adapter |
 | **pi5** | `192.168.0.240` | AdGuard DNS, Theengs house BLE → Pi 4 MQTT, node_exporter |
 
 Pi 5 details: [hosts/pi5/README.md](pi5/README.md) and [docs/PI5_HOUSE_EDGE.md](../docs/PI5_HOUSE_EDGE.md).

@@ -26,9 +26,17 @@ MQTT_PASSWORD=your_secure_password_here
 # Optional BLE adapter (bluetoothctl list). Default is BlueZ default (usually hci0).
 # BLE_ADAPTER=hci0
 #
-# Pi 4 solar-site Theengs (hosts/pi4/docker-compose.theengs.yml): Victron MACs are
-# blacklisted in that compose file (BLACKLIST env) so Theengs does not compete for
-# Victron bindkeys on shared hci0. See docs/DEVICES.md and gateway.theengs.io/use/use.html.
+# Pi 4 solar-site Theengs is OFF by default. Victron owns the onboard adapter.
+# BlueZ: one StartDiscovery session per client per adapter
+# (https://manpages.ubuntu.com/manpages/noble/man5/org.bluez.Adapter.5.html).
+# Theengs docs are silent on sharing one HCI with another scanner.
+# Default off (Victron keeps onboard HCI):
+# ENABLE_PI4_THEENGS=0
+# Opt-in only with a second adapter (USB dongle), then:
+# ENABLE_PI4_THEENGS=1
+# THEENGS_ADAPTER=hci1
+# Then sudo bash scripts/deploy.sh (profile solar-theengs).
+# See docs/DEVICES.md. Do not docker compose up theengs-gateway on hci0.
 
 # Timezone for Home Assistant
 TZ=America/Chicago
