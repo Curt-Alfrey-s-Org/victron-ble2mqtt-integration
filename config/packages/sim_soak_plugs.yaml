@@ -1,0 +1,182 @@
+# Simulated A/C soak plugs (FAKE) -- opt-in package for Home Assistant on .105
+# alfa-ai allowlist uses switch.sim_ac_plug_* (template), not input_boolean.*
+# Official: https://www.home-assistant.io/integrations/template/
+#           https://www.home-assistant.io/integrations/input_boolean/
+#           https://www.home-assistant.io/docs/configuration/packages/
+
+input_boolean:
+  sim_ac_plug_1_internal:
+    name: Sim A/C plug 1 fan (internal)
+  sim_ac_plug_2_internal:
+    name: Sim A/C plug 2 dehumidifier (internal)
+  sim_ac_plug_3_internal:
+    name: Sim A/C plug 3 water heater (internal)
+  sim_ac_plug_4_internal:
+    name: Sim A/C plug 4 fan (internal)
+  sim_ac_plug_5_internal:
+    name: Sim A/C plug 5 fan (internal)
+  sim_ac_plug_6_internal:
+    name: Sim A/C plug 6 gaming PC (internal)
+
+template:
+  - switch:
+      - name: Sim A/C plug 1 fan
+        unique_id: sim_ac_plug_1
+        default_entity_id: switch.sim_ac_plug_1
+        state: "{{ is_state('input_boolean.sim_ac_plug_1_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_1_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_1_internal
+      - name: Sim A/C plug 2 dehumidifier
+        unique_id: sim_ac_plug_2
+        default_entity_id: switch.sim_ac_plug_2
+        state: "{{ is_state('input_boolean.sim_ac_plug_2_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_2_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_2_internal
+      - name: Sim A/C plug 3 water heater
+        unique_id: sim_ac_plug_3
+        default_entity_id: switch.sim_ac_plug_3
+        state: "{{ is_state('input_boolean.sim_ac_plug_3_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_3_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_3_internal
+      - name: Sim A/C plug 4 fan
+        unique_id: sim_ac_plug_4
+        default_entity_id: switch.sim_ac_plug_4
+        state: "{{ is_state('input_boolean.sim_ac_plug_4_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_4_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_4_internal
+      - name: Sim A/C plug 5 fan
+        unique_id: sim_ac_plug_5
+        default_entity_id: switch.sim_ac_plug_5
+        state: "{{ is_state('input_boolean.sim_ac_plug_5_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_5_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_5_internal
+      - name: Sim A/C plug 6 gaming PC
+        unique_id: sim_ac_plug_6
+        default_entity_id: switch.sim_ac_plug_6
+        state: "{{ is_state('input_boolean.sim_ac_plug_6_internal', 'on') }}"
+        turn_on:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.sim_ac_plug_6_internal
+        turn_off:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.sim_ac_plug_6_internal
+  - sensor:
+      - name: Sim A/C plug 1 fan power
+        unique_id: sim_ac_plug_1_power
+        default_entity_id: sensor.sim_ac_plug_1_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_1_internal', 'on') %}
+            180
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim A/C plug 2 dehumidifier power
+        unique_id: sim_ac_plug_2_power
+        default_entity_id: sensor.sim_ac_plug_2_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_2_internal', 'on') %}
+            300
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim A/C plug 3 water heater power
+        unique_id: sim_ac_plug_3_power
+        default_entity_id: sensor.sim_ac_plug_3_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_3_internal', 'on') %}
+            1200
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim A/C plug 4 fan power
+        unique_id: sim_ac_plug_4_power
+        default_entity_id: sensor.sim_ac_plug_4_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_4_internal', 'on') %}
+            130
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim A/C plug 5 fan power
+        unique_id: sim_ac_plug_5_power
+        default_entity_id: sensor.sim_ac_plug_5_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_5_internal', 'on') %}
+            130
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim A/C plug 6 gaming PC power
+        unique_id: sim_ac_plug_6_power
+        default_entity_id: sensor.sim_ac_plug_6_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% if is_state('input_boolean.sim_ac_plug_6_internal', 'on') %}
+            300
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Sim soak load power
+        unique_id: sim_soak_load_power
+        default_entity_id: sensor.sim_soak_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set ns = namespace(total=0) %}
+          {% if is_state('input_boolean.sim_ac_plug_1_internal', 'on') %}{% set ns.total = ns.total + 180 %}{% endif %}
+          {% if is_state('input_boolean.sim_ac_plug_2_internal', 'on') %}{% set ns.total = ns.total + 300 %}{% endif %}
+          {% if is_state('input_boolean.sim_ac_plug_3_internal', 'on') %}{% set ns.total = ns.total + 1200 %}{% endif %}
+          {% if is_state('input_boolean.sim_ac_plug_4_internal', 'on') %}{% set ns.total = ns.total + 130 %}{% endif %}
+          {% if is_state('input_boolean.sim_ac_plug_5_internal', 'on') %}{% set ns.total = ns.total + 130 %}{% endif %}
+          {% if is_state('input_boolean.sim_ac_plug_6_internal', 'on') %}{% set ns.total = ns.total + 300 %}{% endif %}
+          {{ ns.total }}

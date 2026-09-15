@@ -1,27 +1,31 @@
-# ALFa AI advisory tools — deferred
+# ALFa AI and this Victron / Home Assistant edge
 
-**Status (2026-07):** The operator scripts described in the former Wave plan
-(`bin/victron-ask.sh`, `bin/victron-anomaly.sh`, `bin/victron-cycle-advisor.sh`,
-`config/batteries.yml`, and related systemd units) are **not shipped in this
-repo**. Do not follow older copies of this guide that call those paths.
+**Status (2026-09-15):** Pi collectors stay **read-only MQTT** (no `mqtt_publish`
+back to Victron hardware). **Load control** (smart plugs / relays) is owned by
+**alfa-ai on `.111`**, which calls Home Assistant's official REST API on `.105:8123`
+using operator Settings and an entity allowlist.
 
-## What is live today
+Do not scrape Lovelace (`/dashboard-solar/0`). Official API:
+[REST API](https://developers.home-assistant.io/docs/api/rest/).
+
+Canonical runbook (token, settings, soak physics):
+[alfa-ai docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
+(local sibling: `../alfa-ai/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md`).
+
+## What is live on this repo
 
 | Surface | Location |
 |---------|----------|
-| Pi edge stack (BLE → MQTT → HA) | `DEPLOY.md`, `scripts/deploy.sh` |
+| Pi edge stack (BLE -> MQTT -> HA) | `DEPLOY.md`, `scripts/deploy.sh` |
 | Cluster / hub integration | `docs/ALFA_CLUSTER_INTEGRATION.md` |
-| Planned AI advisory design | `.cursor/plans/ALFA_AI_INTEGRATION_PLAN.md` |
-| Engineering roadmap | `docs/ENGINEERING_STANDARDS_PLAN.md` |
+| Power buses (T2 vs KU, EM16 A3) | `docs/SOLAR_POWER_BALANCE.md` -- 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in |
+| Soak plugs must sit on the **intended AC circuit** | Trailer/KU vs house utility -- 15 Sep A3 clamp is Sungold; see SOLAR_POWER_BALANCE |
+| **Simulated** soak plugs (no hardware) | [SIM_SOAK_PLUGS.md](SIM_SOAK_PLUGS.md) -- six `switch.sim_ac_plug_*` on `.105` (YAML package; opt-in) |
 
-## Safety (unchanged when tools land)
+## Safety
 
-AI advisory output must remain **read-only**: never `mqtt_publish` back to Victron
-or write control commands to Home Assistant. Any future battery / cycle summary
-must include a hardware safety disclaimer and point operators at Victron manuals.
-
-## When tooling is added
-
-1. Update this doc with real paths and prerequisites.
-2. Add `config/batteries.yml.example` (no site-specific secrets).
-3. Keep scripts out of the Pi hot path unless explicitly designed for on-device use.
+- Victron BLE / Sungold USB publishers remain **sensor-only**.
+- alfa-ai may `switch.turn_on` / `turn_off` only for **allowlisted** HA entities.
+- Battery / charge-cycle **advice** (if added later) must still include a hardware
+  disclaimer and point at Victron manuals.
+- Empty allowlist or `ALFA_AI_HOME_ASSISTANT_ENABLED=0` means no toggles.

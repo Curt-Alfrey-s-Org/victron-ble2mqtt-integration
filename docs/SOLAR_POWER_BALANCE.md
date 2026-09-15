@@ -1,12 +1,12 @@
 # 24 V solar -- watt in vs watt out
 
-**Dates of log:** 10 Sep 2026 and **11 Sep 2026** (America/New_York).  
+**Dates of log:** 10 Sep 2026, **11 Sep 2026**, and **15 Sep 2026** (America/New_York).  
 **Solar charging window (this site, 11 Sep):** **09:30-16:00 ET only.** Outside that window the arrays are not charging; the two Renogy inverters run from their LiTimes (and the batt jumper, if it is sharing). Do not treat a 16:00+ MPPT watt reading as a full-day average.  
-**Meters:** Home Assistant **Solar** (Victron BLE via Pi4 MQTT on `.105`) and **Refoss** EM16.  
+**Meters:** Home Assistant **Solar** (Victron BLE + Sungold USB Modbus via Pi4 MQTT on `.105`) and **Refoss** EM16.  
 **HA host:** alfa-ai [HOMEASSISTANT_105_OPERATOR.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOMEASSISTANT_105_OPERATOR.md).  
 **Idle cluster watts:** alfa-ai [CLUSTER_IDLE_POWER.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/CLUSTER_IDLE_POWER.md).
 
-This is the **corrected** record of a live power-balance pass. Early chat inferred a Sungold PV path, added EM16 A3+B2, and treated the site as **one** Renogy. Sungold and A3+B2 were wrong. The one-inverter model was also wrong (see [Layout](#layout-operator-2026-09-11)).
+This is the **corrected** record of a live power-balance pass. Early chat inferred a Sungold PV path, added EM16 A3+B2, and treated the site as **one** Renogy. Adding A3+B2 is still wrong. The one-inverter model is still wrong (see [Layout](#layout-operator-2026-09-11)). **15 Sep:** Sungold Modbus is live on Solar. EM16 A3/B2 match Sungold **AC input** (not KU Renogy). That is the path that closes conversion loss. T2/KU Victron math stays on the shunts + MPPT; do not reuse 10-11 Sep A3 as trailer load in a 15 Sep shot.
 
 Victron BLE in this repo still lists **one** BlueSolar plus two SmartShunts (`override/victron_ble2mqtt/user_settings_data.py`). Chargers 2 and 3 are not in MQTT yet -- scale KU Victron as **2 times** the reporter. Do **not** count the PWM string in that 2x/3x.
 
@@ -45,10 +45,11 @@ Eight suitcase panels total: **6** on the three Victron chargers, **2** on the P
 | Batt jumper T2-KU | both | Operator: on because the T2 **30A RV is not connected**. Intended to dump T2 charge into KU. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages match under load. |
 | Renogy 2 kW (T2) | T2 | 30A RV outlet. Idle if no RV. |
 | Renogy 2 kW (KU) | KU | Cargo trailer + optional RV, via ATS then manual TS. **This is the path for fan, dehumidifier, and alfa-ai hosts** in the 10-11 Sep EM16 shots. |
-| EM16 A3 | KU AC (assumed) | Main load clamp -- **do not add B2**. |
-| EM16 B2 | branch of A3 | Wall outlet on that leg. |
-| EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53; **0.0 W** at 16:11. Candidate: **T2 Renogy idle** (no RV), then that inverter off. Do not add to A3. |
-| Sungold SPH302480A | cart | Emergency dolly. **2x 24 V 100 Ah LiTime in parallel.** USB sidecar optional ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)). Not in the T2/KU watt log. |
+| EM16 A3 | **15 Sep:** Sungold AC input | Same 10.40 A as Sungold `AC INPUT`. Magnitude ~1190 W. **Do not add B2.** 10-11 Sep shots used A3 as KU trailer AC -- do not mix those tables with 15 Sep. |
+| EM16 B2 | same feed as A3 (opposite sign) | **15 Sep:** -1189.9 W vs A3 1190.2 W. Branch/return on that leg, not a second load. |
+| EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53; **0.0 W** at 16:11 and **15 Sep 15:53**. Candidate: **T2 Renogy idle** (no RV). Do not add to A3. |
+| EM16 C1-C6 | unused CTs | **15 Sep:** ~2.0 V / 0 A / 0 W. Empty channels, not loads. |
+| Sungold SPH302480A | cart | Emergency dolly. **2x 24 V 100 Ah LiTime in parallel.** USB sidecar on ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)). Not on T2/KU DC. **15 Sep** AC-in vs battery-in vs AC-out is the loss close. |
 
 ### Parallel jumper (T2 RV unused)
 
@@ -64,6 +65,7 @@ If the jumper were low-R on **both** poles, T2 and KU voltages would stay within
 | 11 Sep 14:10 | 28.5 | 26.5 | **2.0 V** (KU HVAC+cluster) |
 | 11 Sep 14:53 | 28.5 | 26.6 | **1.9 V** (KU HVAC+cluster) |
 | 11 Sep 16:11 | 27.2 | 27.0 | **0.2 V** (cluster only; sun done) |
+| 15 Sep 15:53 | 26.0 | 25.6 | **0.4 V** (KU DC ~803 W; A3 is Sungold AC-in, not KU AC) |
 
 Split depends on KU load. Under **HVAC+cluster (~720 W)** size overnight as **KU 230 Ah / 5.9 kWh** -- T2 sits behind a weak jumper. Under **cluster only (~279 W)** the buses were within **0.2 V**; T2 at 100% can share if that holds. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages stay matched under the load you run all night.
 
@@ -105,12 +107,22 @@ PV_KU_pwm     = unmetered                            # 2 ground suitcases + Reno
 PV_victron    = 3 * PV_T2                            # three identical Victron strings only
 Shunt_T2      = Battery 1 power (HQ2239CQYT2)
 Shunt_KU      = Battery 2 power (HQ2239JTRKU)
-AC_trailer    = EM16 A3 magnitude                    # KU Renogy path (assumed)
+AC_trailer    = EM16 A3 magnitude                    # 10-11 Sep only: KU Renogy path
 ```
 
-Do not add A3+B2 or A2+A3. PWM is **not** inside `PV_victron`. 10-11 Sep snapshot tables still use `PV x3` for the three Victron strings.
+**Sungold cart (15 Sep, AC charge, PV = 0)** -- LCD names from the SPH302480A manual ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1). `INPUT BATT` is battery **input** power; `INV OUTPUT LOAD KW` is AC load; `AC INPUT` is mains. HA **Output mode** `4` is not in the sidecar lookup (0-3 only) -- leave it as the raw integer ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)).
 
-Expect BLE fields from different advertisements to disagree by a few watts. A3 and B2 can differ by a few watts (calibration / not simultaneous).
+```
+SG_AC_in   = |EM16 A3|                         # check vs Sungold AC input A * AC input V
+SG_batt_in = Sungold battery input power       # LCD INPUT BATT KW (Boost charge = charging)
+SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW
+SG_PV      = Sungold PV output power           # 0 in the 15 Sep shot
+SG_loss    = SG_AC_in - SG_batt_in - SG_AC_out - SG_PV
+```
+
+Do not add A3+B2 or A2+A3. PWM is **not** inside `PV_victron`. 10-11 Sep snapshot tables still use `PV x3` for the three Victron strings and A3 as trailer AC.
+
+Expect BLE fields from different advertisements to disagree by a few watts. A3 and B2 can differ by a few watts (calibration / not simultaneous). Sungold I x V vs the power tile can differ a few percent (poll vs tile refresh).
 
 ## Corrections
 
@@ -120,15 +132,16 @@ Expect BLE fields from different advertisements to disagree by a few watts. A3 a
 | Parallel jumper = one 460 Ah bank since day one | Jumper is on because **T2 RV is unused**. **~2 V** split under HVAC+cluster; **0.2 V** at cluster-only (16:11). Count T2 only when voltages stay matched under that night's load. |
 | All PV = 3 x Victron reporter | Three Victron strings yes; **plus** 2 suitcase panels on **PWM into KU** (not in HA). |
 | ~720-940 W extra PV from a Sungold hybrid MPPT | Sungold is the **dolly cart** (2x 24 V 100 Ah), not on T2/KU. |
-| Used = A3 + B2 (~1,380 W) | **A3 is the trailer-leg total.** B2 is a branch of A3. |
-| A3 and B2 "two CTs on the same feed" as the only explanation | They are **main vs outlet**. They read almost equal because that outlet carries essentially the whole main leg. |
+| Used = A3 + B2 (~1,380 W) | **Never add A3+B2.** 10-11 Sep: A3 trailer total, B2 branch. **15 Sep:** A3/B2 are the Sungold AC-input feed (same amps as `AC INPUT`). |
+| A3 and B2 "two CTs on the same feed" as the only explanation | They read almost equal because they are on the **same leg**. Sign can flip (15 Sep B2 negative). |
+| A3 is always KU Renogy / cluster idle | **15 Sep 15:53** A3 **10.4 A / 1190 W** = Sungold AC in. KU DC was still **-803 W** with no other EM16 channel carrying that AC. |
 | Shunt 2 negative => the two silent MPPTs are fully on BATTERY MINUS | Shunt 2 is **KU net** (Victron 2+3 + PWM minus KU Renogy). |
 | Shunt should show charger-to-inverter amps at float | Battery monitor shows **that LiTime** only. Chargers on the SYSTEM MINUS bus of that shunt is correct. |
 | Battery 2 capacity ~185 Ah from 91.7% / 15.4 Ah | **230 Ah** LiTime. 15.4 / 230 = 6.7% used, implied **93.3%**. |
 
 Battery 2 **consumed Ah** was stuck near **-579 to -598 Ah** with SoC **0%** through 11 Sep 11:33. At 14:10 it showed **44.4% / -12.4 Ah** (SoC still wrong vs 230 Ah). At 14:53 it showed **91.7% / -15.4 Ah / 956 min remaining** while still discharging. **15.4 Ah of 230 Ah** is **6.7%** used (**93.3%** implied). At 16:11 **85.4% / -33.7 Ah** is **14.6%** of 230. Prefer voltage, current, and power when % and Ah disagree.
 
-**Overnight energy (17.5 h dark, 09:30-16:00 charge window):** two KU AC operating points. PWM helps KU only while the sun is up.
+**Overnight energy (17.5 h dark, 09:30-16:00 charge window):** two KU AC operating points from **10-11 Sep A3** (trailer). PWM helps KU only while the sun is up. **Do not** use 15 Sep A3 (~1190 W Sungold AC-in) in this table.
 
 | Mix | A3 | Dark-hours energy | KU 5.9 kWh pack | Jumper under that load |
 |-----|----|-------------------|-----------------|------------------------|
@@ -281,6 +294,56 @@ Jumper split **0.2 V** (27.2 vs 27.0) vs **~2 V** at 14:53. Light KU load, buses
 
 Do not use shunt 1 **+187 W** as T2 solar (MPPT was **35 W**). The 11:33 `*` footnote above is a different BLE bug.
 
+## Snapshot log (15 Sep 2026)
+
+**~15:53 ET.** Still inside the **09:30-16:00** charge window. Sungold USB Modbus is live on Solar. **Do not** close T2/KU with A3 in this shot -- A3/B2 amps match Sungold **AC input**, not KU Renogy.
+
+Govee **Thermo-Hygrometer-CAAF6F** tiles **Unknown** is expected (dead cells). It is not Instant Readout or Pi4 Theengs failure ([DEVICES.md](DEVICES.md)).
+
+### Sungold cart (AC charge, PV = 0)
+
+HA names = LCD fields ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md), [SPH reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)).
+
+| Tile | Value |
+|------|-------|
+| PV input / PV output / PV output power | **0 V / 0.0 A / 0 W** |
+| Remaining battery | **68%** |
+| Battery input / Input battery current / Battery input power | **27.3 V / 39.4 A / 1,042 W** |
+| Charge state | **Boost charge** |
+| AC input V / A / Hz | **115 V / 10.40 A / 60 Hz** |
+| Load active / AC output load / Output load V | **10 W / 0.10 A / 118 V** |
+| AC output frequency | **50 Hz** (tile as published; AC input is 60 Hz -- do not invent a mode from that) |
+| Output mode | **4** (raw; sidecar lookup is 0-3 only) |
+| Fault | off / no reported error |
+
+Refoss ([EM16](https://www.home-assistant.io/integrations/refoss/)): **A3 1,190.2 W / 10.4 A / 118.3 V**, PF **-1.0**, this month **58,526 Wh**. **B2 -1,189.9 W / 10.3 A / 118.6 V**, this month **58,684 Wh**. A3 current = Sungold **10.40 A**. **Do not add B2.** Other A/B channels **0.0 W** (A2 / B4 month totals still ~3,360 / 3,487 Wh). **C1-C6 ~2.0 V / 0 A / 0 W** (unused CTs).
+
+Sungold has no HA **grid power** tile (holding `0x023A` rejected). Use **|A3|** as `SG_AC_in`. Check: 10.40 A x 115 V = **1,196 W** vs A3 **1,190 W**. Battery I x V: 39.4 x 27.3 = **1,076 W** vs tile **1,042 W**. Load I x V: 0.10 x 118 = **12 W** vs tile **10 W**.
+
+| | W |
+|---|---|
+| SG_AC_in (\|A3\|) | 1190 |
+| SG_batt_in (INPUT BATT KW) | 1042 |
+| SG_AC_out (INV OUTPUT LOAD KW) | 10 |
+| SG_PV | 0 |
+| **SG_loss** (AC_in - batt_in - AC_out - PV) | **138 (~12% of AC_in)** |
+
+That 138 W is Sungold conversion / wiring on the **cart** (mains to battery charge plus a 10 W AC load). It is **not** T2/KU inverter loss and **not** cluster idle. KU DC was still **~803 W** discharge with **no** other EM16 channel carrying that AC -- trailer/cluster AC is unmetered in this shot.
+
+### T2 / KU Victron (same timestamp; A3 is not trailer AC)
+
+| Piece | Value |
+|-------|-------|
+| BlueSolar (T2 charger 1) | **250.0 W** PV, **9.6 A**, **25.6 V**, **bulk**, yield **1,440 Wh**, load output **0.0 A** |
+| Battery 1 HQ2239CQYT2 | **+26.6 W / 1.3 A / 26.0 V / 100% / 0.0 Ah**, remaining 14,400 min |
+| Battery 2 HQ2239JTRKU | **-803.4 W / -31.4 A / 25.6 V / 91.9% / -17.9 Ah**, remaining **343 min** |
+
+HA Battery 2 **Power** tile may show **803.4 W** without a minus; current is **-31.4 A**, so this is **discharge**. 31.4 x 25.6 = **804 W**. **-17.9 / 230 Ah** = **7.8%** used (implied **92.2%** vs tile **91.9%**).
+
+T2 MPPT **250 W** vs shunt 1 **+27 W**: about **223 W** is leaving the T2 pack path (jumper / other). Do **not** 3x-close against A3. Chargers 2/3 still silent; PWM still unmetered.
+
+Jumper split **0.4 V** (26.0 vs 25.6) under ~803 W KU DC -- still not a true parallel bank.
+
 ## Now vs double load
 
 Bottleneck is **KU overnight kWh**, not inverter watts (KU Renogy is 2 kW). Charge window **09:30-16:00** (~6.5 h sun, **17.5 h** dark). Extra panels on **T2** do not feed the trailer overnight unless the jumper equalizes **under that night's load**.
@@ -294,10 +357,10 @@ Bottleneck is **KU overnight kWh**, not inverter watts (KU Renogy is 2 kW). Char
 ## What is still open
 
 1. **MQTT** for Victron chargers 2 and 3 (MAC + 32-hex Instant Readout keys) so KU does not rely on 2x scaling. See [DEVICES.md](DEVICES.md#victron-bluetooth).
-2. **Battery 2 SoC** -- VictronConnect capacity **230 Ah**. 14:53 **91.7% / -15.4 Ah** and 16:11 **85.4% / -33.7 Ah** fit. 14:10 **44.4%** did not.
+2. **Battery 2 SoC** -- VictronConnect capacity **230 Ah**. 14:53 **91.7% / -15.4 Ah**, 16:11 **85.4% / -33.7 Ah**, and 15 Sep **91.9% / -17.9 Ah** fit. 14:10 **44.4%** did not.
 3. **Do not** move charger negatives onto BATTERY MINUS. Optional: a SmartShunt as a Victron **DC energy meter** on one circuit ([operation 5.8](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-4. **T2-KU jumper** -- both poles, size, lugs. Goal under the load you run overnight: T2 and KU **within ~0.05 V**. 16:11 was **0.2 V** at 279 W; 14:53 was **~2 V** at 720 W. Victron one-bank layout is a **single** shunt after the packs are truly paralleled.
-5. **EM16 map** -- confirm A3/B2 = KU trailer. A2/B4 were ~73 W then **0** at 16:11 (T2 inverter off, or that load shed).
+4. **T2-KU jumper** -- both poles, size, lugs. Goal under the load you run overnight: T2 and KU **within ~0.05 V**. 16:11 was **0.2 V** at 279 W AC; 14:53 was **~2 V** at 720 W AC; 15 Sep was **0.4 V** at ~803 W KU DC. Victron one-bank layout is a **single** shunt after the packs are truly paralleled.
+5. **EM16 map** -- **15 Sep:** A3/B2 = Sungold AC-in (10.40 A match). KU trailer AC has **no** live EM16 channel in that shot (KU DC ~803 W). A2/B4 **0 W** at 15:53 (month totals still ~3,360 / 3,487 Wh). C1-C6 unused. Re-clamp KU AC to close trailer loss the same way as the cart. 10-11 Sep tables still treat A3 as KU trailer -- do not mix.
 6. **PWM** -- Voyager lithium **24 V** setting; optional HA/meter so it is not invisible in `PV_victron`.
 7. **11:33 shunt BLE** recovered by 14:10. **16:11 shunt 1 vs MPPT** still mismatched -- do not close that pair.
 
@@ -306,7 +369,7 @@ Bottleneck is **KU overnight kWh**, not inverter watts (KU Renogy is 2 kW). Char
 - [SOLAR_ARRAY_SOLARK.md](SOLAR_ARRAY_SOLARK.md) -- **separate** planned 48 V island (6 x ~440 W + Sol-Ark + Discover AES 900-0062). Not this T2/KU plant.
 - [PI4_BMS_SOFTWARE.md](PI4_BMS_SOFTWARE.md) -- planned Pi4 battery **supervisor** (shunt / MQTT). Does not replace pack BMS and does not mix this 24 V plant with the 48 V island.
 - [DEVICES.md](DEVICES.md) -- add the two silent MPPTs
-- [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md) -- emergency **dolly cart** (2x 24 V 100 Ah); not T2/KU
+- [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md) -- emergency **dolly cart** (2x 24 V 100 Ah); not T2/KU; 15 Sep AC-in vs battery-in vs AC-out loss ~12%
 - Renogy [Voyager 20A PWM 12/24](https://www.renogy.com/products/new-edition-voyager-20a-pwm-waterproof-solar-charge-controller) -- lithium voltage is a manual set
 - [ALFA_CLUSTER_INTEGRATION.md](ALFA_CLUSTER_INTEGRATION.md)
 - Victron SmartShunt [installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html), [operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)

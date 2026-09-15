@@ -6,7 +6,7 @@ Python **3.11** matches `Dockerfile`. From the repo root:
 
 ```bash
 python -m pip install --upgrade pip
-pip install ruff pytest
+pip install ruff pytest pyyaml
 pip install -r requirements.lock
 ruff check victron_ble2mqtt
 pytest tests/ -q

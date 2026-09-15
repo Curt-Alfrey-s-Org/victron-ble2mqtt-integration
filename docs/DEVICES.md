@@ -62,6 +62,32 @@ MQTT discovery `name` strings follow VictronConnect readout wording
 ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html),
 [BlueSolar MPPT 75/15 monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html)).
 `uid` values stay fixed so Home Assistant `entity_id`s do not rename.
+
+**BlueSolar Instant Readout is not the VictronConnect status screen.** Ads are a
+short AES payload ([keshavdv/victron-ble](https://github.com/keshavdv/victron-ble/blob/v0.9.2/victron_ble/devices/solar_charger.py)
+`SolarCharger.parse_decrypted`). VictronConnect solar **voltage** and solar
+**current** appear only while the app is GATT-connected
+([manual 7.3.1](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html)).
+Those fields are **not** in the advertisement, so MQTT/HA cannot invent them.
+Panel voltage on a cable is VE.Direct TEXT `VPV` (mV)
+([protocol 3.34](https://www.victronenergy.com/upload/documents/VE.Direct-Protocol-3.34.pdf)).
+This site's BLE dongle sits on that VE.Direct port; do **not** unplug it for USB
+`VPV` or Instant Readout stops.
+
+| Instant Readout field | HA MQTT name | Solar dashboard (this site) |
+|-----------------------|--------------|-----------------------------|
+| `battery_charging_current` | Battery current | yes |
+| `battery_voltage` | Battery voltage | yes |
+| `charge_state` | Battery state | yes |
+| `charger_error` | Charger error | added by `ha_label_victron_refoss.py` |
+| `external_device_load` | Load output | yes |
+| `solar_power` | Solar power | yes |
+| `yield_today` | Solar yield | yes |
+| (derived V x I) | Battery power | MQTT device always; Solar tile via label script |
+| (derived V x load A) | Load output power | MQTT device always; Solar tile via label script |
+| RSSI | RSSI | yes |
+| solar voltage / solar current | **not in BLE ads** | not an entity |
+
 The sidecar must import `override/victron_ble2mqtt/mqtt.py` (bind mount).
 Compose sets `PYTHONSAFEPATH=1` so `python -m` does not prepend image `WORKDIR /app`
 and shadow that override ([PYTHONSAFEPATH](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONSAFEPATH)).
@@ -258,7 +284,7 @@ Add these in the Home Assistant UI, not in this git repo:
 
 They do not need `ENABLE_*` flags here. Removing them is also done in that same HA screen.
 
-This site's EM16: **A3** is the main load leg (total watts). **B2** is a wall-outlet branch on that leg -- do not add A3+B2. Live log: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Official product name is **Refoss Smart Energy Monitor, EM16**; HA channel labels are **A1-C6** ([Refoss integration](https://www.home-assistant.io/integrations/refoss/)). Apply HA labels/headings on `.105` with HA stopped: `sudo python3 scripts/ha_label_victron_refoss.py`.
+This site's EM16: **never add A3+B2**. **10-11 Sep:** A3 was the KU / cargo-trailer load leg; B2 a branch on that leg. **15 Sep:** A3/B2 match Sungold **AC input** (same 10.40 A as the cart LCD); KU trailer AC was unmetered in that shot. Live log: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Official product name is **Refoss Smart Energy Monitor, EM16**; HA channel labels are **A1-C6** ([Refoss integration](https://www.home-assistant.io/integrations/refoss/)). Apply HA labels/headings on `.105` with HA stopped: `sudo python3 scripts/ha_label_victron_refoss.py`.
 
 Home Assistant must be connected to MQTT for **Victron / Sungold / Pi host / house BLE (Theengs)** sensors. The installer does that for you (HA 2026+). Do not paste broker settings into `configuration.yaml`.
 

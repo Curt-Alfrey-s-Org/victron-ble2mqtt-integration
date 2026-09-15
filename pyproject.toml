@@ -2,6 +2,7 @@
 # PEP 735 — local dev: pip install --group dev  (requires pip ≥24.1)
 dev = [
   "pytest>=9",
+  "pyyaml>=6",
   "ruff>=0.9",
 ]
 

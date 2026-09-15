@@ -8,6 +8,12 @@ Sibling sidecar to **victron_ble2mqtt**. Publishes **sensors and binary_sensors 
 
 **This site:** the SPH302480A sits on a **dolly cart** with **2x LiTime 24 V 100 Ah** in parallel (emergency backup). It is **not** wired into the T2/KU trailer buses. Trailer layout: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
+**15 Sep 15:53 ET:** cart on **AC charge**, PV **0 W**, Boost charge, remaining **68%**. Refoss **A3/B2** match LCD **AC INPUT** (10.40 A). Conversion loss:
+
+`|A3| - INPUT BATT KW - INV OUTPUT LOAD KW - PV OUTPUT KW` = **1190 - 1042 - 10 - 0 = 138 W (~12% of AC-in)**.
+
+Do not add B2. Do not use A3 as KU trailer or cluster idle in that shot. Output mode **4** stays the raw integer (lookup is 0-3: Initialization / Standby / Mains output / Inverter output).
+
 | Item | Value |
 |------|--------|
 | Model | Sungold **SPH302480A** (SRNE-class hybrid) |
