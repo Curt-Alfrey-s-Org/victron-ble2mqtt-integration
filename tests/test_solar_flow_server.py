@@ -17,6 +17,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import solar_flow_server as sfs  # noqa: E402
 
 
+def _clear_ha_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force demo path even if a gitignored token file exists on disk."""
+    monkeypatch.delenv("HA_TOKEN", raising=False)
+    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(sfs, "default_ha_token_paths", lambda: [])
+
+
 def _demo_states(
     *,
     solar: str = "400",
@@ -45,9 +53,7 @@ def _demo_states(
 
 
 def test_build_snapshot_demo_without_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("HA_TOKEN", raising=False)
-    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
-    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    _clear_ha_token(monkeypatch)
     snap = sfs.build_snapshot(now=1000.0)
     assert snap["mode"] == "demo"
     assert "DEMO" in snap.get("label", "")
@@ -81,10 +87,12 @@ def test_filter_entities_only_required() -> None:
         {"entity_id": "switch.sim_ac_plug_1", "state": "off", "attributes": {}},
     ]
     filtered = sfs.filter_entities(rows)
-    assert set(filtered.keys()) == {
-        "sensor.solar_controller_solar_power",
-        "switch.sim_ac_plug_1",
-    }
+    assert filtered["sensor.solar_controller_solar_power"]["state"] == "400"
+    assert filtered["sensor.solar_controller_solar"]["state"] == "400"
+    assert filtered["sensor.solar_controller_solar"]["source_entity_id"] == (
+        "sensor.solar_controller_solar_power"
+    )
+    assert "switch.sim_ac_plug_1" in filtered
     assert "light.kitchen" not in filtered
 
 
@@ -116,20 +124,96 @@ def test_filter_aliases_lovelace_solar_and_soc() -> None:
     assert "light.kitchen" not in filtered
 
 
-def test_filter_prefers_canonical_over_alias() -> None:
+def test_filter_prefers_live_over_canonical() -> None:
     rows = [
         {"entity_id": "sensor.solar_controller_solar_power", "state": "400", "attributes": {}},
-        {"entity_id": "sensor.solar_controller_solar", "state": "1", "attributes": {}},
+        {"entity_id": "sensor.solar_controller_solar", "state": "302", "attributes": {}},
+        {"entity_id": "sensor.sungold_sph302480a_load_power", "state": "10", "attributes": {}},
+        {
+            "entity_id": "sensor.sungold_sph302480a_load_active_power",
+            "state": "441",
+            "attributes": {},
+        },
     ]
     filtered = sfs.filter_entities(rows)
-    assert filtered["sensor.solar_controller_solar_power"]["state"] == "400"
-    assert "source_entity_id" not in filtered["sensor.solar_controller_solar_power"]
+    assert filtered["sensor.solar_controller_solar"]["state"] == "302"
+    assert filtered["sensor.solar_controller_solar_power"]["state"] == "302"
+    assert filtered["sensor.solar_controller_solar_power"]["source_entity_id"] == (
+        "sensor.solar_controller_solar"
+    )
+    assert filtered["sensor.sungold_sph302480a_load_active_power"]["state"] == "441"
+    assert filtered["sensor.sungold_sph302480a_load_power"]["state"] == "441"
+    assert filtered["sensor.sungold_sph302480a_load_power"]["source_entity_id"] == (
+        "sensor.sungold_sph302480a_load_active_power"
+    )
+
+
+def test_filter_live_registry_ids_populate_gx_and_soak() -> None:
+    """HA .105 registry ids (Lovelace Solar ~13:09 ET 16 Sep 2026), not soak canonicals."""
+    rows = [
+        {"entity_id": "sensor.solar_controller_solar", "state": "302.0", "attributes": {}},
+        {"entity_id": "sensor.solar_controller_charge_state", "state": "bulk", "attributes": {}},
+        {"entity_id": "sensor.solar_controller_battery", "state": "26.3", "attributes": {}},
+        {
+            "entity_id": "sensor.solar_controller_battery_charging",
+            "state": "10.9",
+            "attributes": {},
+        },
+        {"entity_id": "sensor.solar_controller_load", "state": "0.0", "attributes": {}},
+        {"entity_id": "sensor.solar_controller_yield_today", "state": "780", "attributes": {}},
+        {"entity_id": "sensor.battery_1_state_of_charge", "state": "100", "attributes": {}},
+        {"entity_id": "sensor.battery_1_voltage", "state": "26.4", "attributes": {}},
+        {"entity_id": "sensor.battery_1_current", "state": "8.6", "attributes": {}},
+        {"entity_id": "sensor.battery_1_power", "state": "227.9", "attributes": {}},
+        {"entity_id": "sensor.battery_2_state_of_charge", "state": "92.5", "attributes": {}},
+        {"entity_id": "sensor.battery_2_voltage", "state": "26.3", "attributes": {}},
+        {"entity_id": "sensor.battery_2_current", "state": "5.1", "attributes": {}},
+        {"entity_id": "sensor.battery_2_power", "state": "133.3", "attributes": {}},
+        {
+            "entity_id": "sensor.sungold_sph302480a_load_active_power",
+            "state": "441",
+            "attributes": {},
+        },
+        {"entity_id": "sensor.sungold_sph302480a_battery_soc", "state": "55", "attributes": {}},
+        {"entity_id": "sensor.sungold_sph302480a_battery_voltage", "state": "26.6", "attributes": {}},
+        {
+            "entity_id": "sensor.sungold_sph302480a_battery_current",
+            "state": "-0.1",
+            "attributes": {},
+        },
+        {"entity_id": "sensor.sungold_sph302480a_charging_power", "state": "0", "attributes": {}},
+        {
+            "entity_id": "sensor.sungold_sph302480a_charge_state",
+            "state": "Constant voltage",
+            "attributes": {},
+        },
+        {"entity_id": "sensor.sungold_sph302480a_grid_voltage", "state": "117", "attributes": {}},
+        {"entity_id": "sensor.sungold_sph302480a_grid_current", "state": "3.70", "attributes": {}},
+        {"entity_id": "sensor.sungold_sph302480a_pv_power", "state": "0", "attributes": {}},
+    ]
+    filtered = sfs.filter_entities(rows)
+    assert filtered["sensor.solar_controller_solar"]["state"] == "302.0"
+    assert filtered["sensor.solar_controller_solar_power"]["state"] == "302.0"
+    assert filtered["sensor.solar_controller_charge_state"]["state"] == "bulk"
+    assert filtered["sensor.solar_controller_battery_state"]["state"] == "bulk"
+    assert filtered["sensor.battery_1_soc"]["state"] == "100"
+    assert filtered["sensor.battery_1_voltage"]["state"] == "26.4"
+    assert filtered["sensor.battery_1_current"]["state"] == "8.6"
+    assert filtered["sensor.battery_1_power"]["state"] == "227.9"
+    assert filtered["sensor.battery_2_soc"]["state"] == "92.5"
+    assert filtered["sensor.battery_2_power"]["state"] == "133.3"
+    assert filtered["sensor.sungold_sph302480a_load_active_power"]["state"] == "441"
+    assert filtered["sensor.sungold_sph302480a_load_power"]["state"] == "441"
+    assert filtered["sensor.sungold_sph302480a_battery_soc"]["state"] == "55"
+    missing = [eid for eid in sfs.REQUIRED_ENTITY_IDS if eid not in filtered]
+    assert "sensor.solar_controller_solar_power" not in missing
+    assert "sensor.solar_controller_battery_state" not in missing
+    assert "sensor.battery_1_soc" not in missing
+    assert "sensor.sungold_sph302480a_load_power" not in missing
 
 
 def test_http_snapshot_cache_control(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("HA_TOKEN", raising=False)
-    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
-    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    _clear_ha_token(monkeypatch)
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
     _host, port = httpd.server_address
@@ -177,9 +261,7 @@ def test_fetch_error_message_has_no_token(monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def test_http_demo_snapshot_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("HA_TOKEN", raising=False)
-    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
-    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    _clear_ha_token(monkeypatch)
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
     _host, port = httpd.server_address
@@ -329,3 +411,22 @@ def test_synced_soc_zero_skips_min_percent() -> None:
     )
     assert view["skipped"] == "soc below 85"
     assert view["decisions"] == []
+
+
+def test_resolve_ha_token_reads_default_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_file = tmp_path / "long-lived.token"
+    token_file.write_text("unit-test-token-not-real\n", encoding="utf-8")
+    monkeypatch.delenv("HA_TOKEN", raising=False)
+    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(sfs, "default_ha_token_paths", lambda: [token_file])
+    assert sfs.resolve_ha_token() == "unit-test-token-not-real"
+
+
+def test_demo_numbers_are_not_live_lovelace_table() -> None:
+    entities = sfs.load_demo_entities()
+    assert entities["sensor.solar_controller_solar"]["state"] == "400"
+    assert entities["sensor.sungold_sph302480a_load_active_power"]["state"] == "10"
+    assert entities["sensor.sungold_sph302480a_load_power"]["state"] == "10"

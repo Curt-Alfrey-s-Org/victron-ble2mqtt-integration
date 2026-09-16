@@ -41,6 +41,10 @@ swarm/victron-secrets.env
 swarm/ha-discovery.env
 swarm/health.env
 
+# HA long-lived token for solar-flow (copy from .111; never commit)
+deploy/secrets/home-assistant/*
+!deploy/secrets/home-assistant/.gitkeep
+
 # SSL materials for tools reverse proxy (generated locally)
 ssl/*.key
 ssl/*.crt

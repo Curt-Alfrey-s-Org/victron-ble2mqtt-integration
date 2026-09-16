@@ -490,6 +490,22 @@ def decide_soak_view(
     }
 
 
+def default_ha_token_paths() -> list[Path]:
+    """Gitignored long-lived token locations (never log file contents)."""
+    return [
+        ROOT.parent / "alfa-ai" / "deploy" / "secrets" / "home-assistant" / "long-lived.token",
+        ROOT / "deploy" / "secrets" / "home-assistant" / "long-lived.token",
+    ]
+
+
+def _read_token_file(path: Path) -> str | None:
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return text or None
+
+
 def resolve_ha_token() -> str | None:
     direct = (os.environ.get("HA_TOKEN") or "").strip()
     if direct:
@@ -498,12 +514,14 @@ def resolve_ha_token() -> str | None:
         path_raw = (os.environ.get(env_name) or "").strip()
         if not path_raw:
             continue
-        try:
-            text = Path(path_raw).read_text(encoding="utf-8").strip()
-        except OSError:
-            logger.debug("Could not read %s", env_name)
-            continue
+        text = _read_token_file(Path(path_raw))
         if text:
+            return text
+        logger.debug("Could not read %s", env_name)
+    for candidate in default_ha_token_paths():
+        text = _read_token_file(candidate)
+        if text:
+            logger.info("Using HA token file %s", candidate)
             return text
     return None
 
@@ -544,19 +562,36 @@ def _prefix_match(entity_id: str) -> bool:
 
 
 def apply_entity_aliases(entities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Copy Lovelace/MQTT alias rows onto soak canonical ids when the canonical is absent."""
+    """Keep soak canonical ids and Lovelace live ids in sync.
+
+    Live registry ids win when both exist so GX tiles match Lovelace
+    (HA REST GET /api/states). If only the canonical exists, copy it onto
+    the live id so the browser can read Lovelace names.
+    """
     out = dict(entities)
     for canonical, aliases in ENTITY_ALIASES.items():
-        if canonical in out:
-            continue
+        live_id = None
+        live_row = None
         for alias in aliases:
             src = out.get(alias)
-            if not src:
-                continue
-            copied = dict(src)
-            copied["source_entity_id"] = alias
+            if src:
+                live_id = alias
+                live_row = src
+                break
+        if live_row is not None:
+            copied = dict(live_row)
+            copied["source_entity_id"] = live_id
             out[canonical] = copied
-            break
+            continue
+        canonical_row = out.get(canonical)
+        if not canonical_row:
+            continue
+        for alias in aliases:
+            if alias in out:
+                continue
+            copied = dict(canonical_row)
+            copied["source_entity_id"] = canonical
+            out[alias] = copied
     return out
 
 
@@ -621,7 +656,7 @@ def load_demo_entities() -> dict[str, dict[str, Any]]:
     entities = raw.get("entities")
     if not isinstance(entities, dict):
         raise ValueError("demo-snapshot.json missing entities object")
-    return entities
+    return apply_entity_aliases(entities)
 
 
 def build_demo_snapshot(now: float | None = None) -> dict[str, Any]:

@@ -93,8 +93,8 @@ sends `Cache-Control: no-store` ([RFC 9111](https://www.rfc-editor.org/rfc/rfc91
 [http.server](https://docs.python.org/3/library/http.server.html)). Header **HA HH:MM:SS**
 is snapshot `fetched_at`. Watts / SoC / switch state come from HA
 [`last_updated`](https://www.home-assistant.io/docs/configuration/state_object/) on each
-entity. Demo mode still refreshes `fetched_at` every poll; numeric values stay static until
-a token is present.
+entity. Demo mode still refreshes `fetched_at` every poll but the header shows **DEMO not HA**,
+not `HA HH:MM:SS`. Numeric values stay static until a token is present.
 
 ---
 
@@ -105,16 +105,31 @@ a token is present.
 | `HA_BASE_URL` | `http://192.168.0.105:8123` | HA Container base URL (no trailing slash) |
 | `HA_TOKEN_FILE` | — | Path to one-line long-lived token (preferred) |
 | `HA_LONG_LIVED_TOKEN_FILE` | — | Alias for `HA_TOKEN_FILE` if the first is unset |
+| (default files, if env unset) | — | `../alfa-ai/deploy/secrets/home-assistant/long-lived.token` then `deploy/secrets/home-assistant/long-lived.token` in this clone |
 | `SOLAR_FLOW_HOST` | `127.0.0.1` | Listen address (`--host`; `--lan` binds `0.0.0.0`) |
 | `SOLAR_FLOW_PORT` | `8765` | Listen port |
 
 **Demo mode:** If no token file exists or `HA_TOKEN_FILE` is unreadable, the server serves
-**static demo values**, sets `mode: demo`, and the page shows a **DEMO** badge plus the
-snapshot `label` (illustrative, not live). Soak math still runs on demo numbers for UI
-testing; no HA calls are made. The browser polls `GET /api/snapshot` every **2 s**.
+**static demo values**, sets `mode: demo`, and the page must be **unmistakable**: red
+**DEMO not live** badge, full-width amber banner, large watermark, `DEMO` prefix on every
+tile number, header clock **DEMO not HA** (not `HA HH:MM:SS`), and **no** wire/fan
+animation. Soak math still runs on those demo numbers for UI testing; no HA calls are
+made. Demo watts are **not** a live observation -- do not treat 400 W / 10 W Sungold
+load as the plant. The browser polls `GET /api/snapshot` every **2 s**.
+
+**Go live (one path, no paste):** the long-lived token lives on `.111` only
+(`deploy/secrets/home-assistant/long-lived.token`, gitignored). Copy that file onto
+this host at the same gitignored path (or
+`victron-ble2mqtt-integration/deploy/secrets/home-assistant/long-lived.token`), then
+restart `python scripts/solar_flow_server.py`. Never paste the token. Never commit it.
+The proxy also reads those default paths when `HA_TOKEN_FILE` is unset
+([pathlib `Path.read_text`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.read_text)).
+`GET /api/snapshot` `mode` becomes `live` only after a successful
+[HA REST `GET /api/states`](https://developers.home-assistant.io/docs/api/rest/).
 
 **Secrets:** Never commit the token. Never pass the token as a query string or embed it in
-HTML/JS. Keep the file mode `600` on shared hosts.
+HTML/JS. This clone gitignores `deploy/secrets/home-assistant/*` (keep `.gitkeep` only).
+Keep the file mode `600` on shared hosts.
 
 ---
 
@@ -127,9 +142,12 @@ Sungold is a **second plant** drawn as a dashed island under the two trailer bus
 third 24 V bus and not a DC hub.
 
 Plant detail is from [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Live `entity_id`s
-below are from HA `.storage/core.entity_registry` on `.105` (16 Sep 2026). Soak canonicals
-(`*_solar_power`, `*_battery_state`, `*_soc`) still work: the proxy aliases Lovelace ids
-onto them ([HA REST `GET /api/states`](https://developers.home-assistant.io/docs/api/rest/)).
+below are from HA `.storage/core.entity_registry` on `.105` (16 Sep 2026). **Lovelace /
+MQTT live ids win** when both a soak canonical and a live row exist (example: Sungold
+`sensor.sungold_sph302480a_load_active_power` over a stale `_load_power`). Soak
+canonicals (`*_solar_power`, `*_battery_state`, `*_soc`) still work: the proxy copies
+the live row onto the canonical when the live id is present
+([HA REST `GET /api/states`](https://developers.home-assistant.io/docs/api/rest/)).
 
 Charge window for Victron strings: **09:30-16:00 ET**.
 
@@ -137,7 +155,7 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 
 | Node | Live HA / display | Notes |
 |------|-------------------|-------|
-| **T2 MPPT** (charger 1) | `sensor.solar_controller_solar` (alias of soak `..._solar_power`); `charge_state`; `battery`; `battery_charging`; `charging_power`; `load`; `load_power`; `yield_today`; `rssi` | Only **reporter** in MQTT. Animate PV flow when solar W is numeric and > 0. BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
+| **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Soak canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when **live** solar W is numeric and > 0 (not in demo). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
 | **KU Victron** (chargers 2+3) | **No entity.** Grey tile, `--` W, dashed wire, **never** animated | Silent until Instant Readout keys ([DEVICES.md](DEVICES.md)). Do **not** display 2x T2 watts as live. |
 | **KU Renogy PWM** | **No entity** (Voyager 20A). Grey tile, `--` W, dashed wire, never animated | Unmetered into KU shunt. Shown because the operator asked for the datapoint; still not in HA. |
 
@@ -181,13 +199,29 @@ Live MQTT `entity_id`s (unique_id in parentheses):
 | INPUT BATT V / A / KW | `..._battery_voltage` / `_battery_current` / `_charging_power` | `...-battery-voltage` / `-battery-current` / `-inverter-charging_power` |
 | Charge state | `sensor.sungold_sph302480a_charge_state` | `...-battery-charge_state` |
 | AC INPUT V / A / Hz | `..._grid_voltage` / `_grid_current` / `_grid_frequency` | `...-grid-*` (LCD: mains / AC input, not "grid power") |
-| INV OUTPUT LOAD | `..._load_power` / `_load_current` | `...-load-power` / `-load-current` |
+| INV OUTPUT LOAD | `sensor.sungold_sph302480a_load_active_power` (fallback `_load_power`) / `_load_current` | `...-load-power` / `-load-current`. Lovelace tile is **Load active power**; live id wins if both exist. |
 | OUTPUT LOAD V / AC OUTPUT Hz | `..._ac_output_voltage` / `_ac_output_frequency` | `...-inverter-voltage` / `-inverter-frequency` |
 | Output mode / fault | `..._inverter_state`, `..._fail_code`, `binary_sensor.sungold_sph302480a_fault_active` | |
 
-Older Lovelace `sensor.sungold_sph302480a_load_active_power` aliases onto `_load_power` if present.
+`sensor.sungold_sph302480a_load_active_power` is the **live** Lovelace tile. The proxy
+copies it onto `_load_power` for soak math. If both exist, **active power wins**.
 
 If those entities are missing (sidecar off), tiles stay grey `--` and live snapshot lists them in `missing_entity_ids`. **No** Renogy PWM / inverter ids are invented.
+
+Lovelace Solar tiles to GX fields (live REST ids):
+
+| Lovelace tile | Diagram field | Live `entity_id` |
+|---------------|---------------|------------------|
+| BlueSolar solar W / charge / batt V/A / load / yield / RSSI | MPPT node | `sensor.solar_controller_solar`, `_charge_state`, `_battery`, `_battery_charging`, `_load`, `_yield_today`, `_rssi` |
+| SmartShunt T2 V/A/W / SoC / Ah / rem / RSSI | Battery 1 | `sensor.battery_1_voltage`, `_current`, `_power`, `_state_of_charge`, `_consumed_ah`, `_remaining_minutes`, `_rssi` |
+| SmartShunt KU (same) | Battery 2 | `sensor.battery_2_*` |
+| Sungold PV V/A/W | Sungold PV | `sensor.sungold_sph302480a_pv_*` |
+| Remaining battery | Cart remain % | `..._battery_soc` |
+| INPUT BATT V/A + charge state | Cart battery | `..._battery_voltage`, `_battery_current`, `_charging_power`, `_charge_state` |
+| Load active power + AC out V/A/Hz | Sungold AC out | `..._load_active_power`, `_ac_output_voltage`, `_load_current`, `_ac_output_frequency` |
+| AC INPUT V/A/Hz | Sungold AC in | `..._grid_voltage`, `_grid_current`, `_grid_frequency` |
+| Output mode / fault | SPH tile | `..._inverter_state`, `_fail_code`, `binary_sensor.sungold_sph302480a_fault_active` |
+| Refoss A1-C6 | Meter bank | `sensor.em16_*` |
 
 ### SVG conductors (snap to node edges)
 
@@ -224,9 +258,10 @@ Sungold island (not on T2/KU DC):
 | `path-sg-acin-inv` | Sungold AC in to SPH inverter |
 | `path-sg-inv-acout` | SPH inverter to AC out |
 
-Idle conductors stay visible (grey stroke). Animated cyan only when that hop has numeric W
-or an ON switch. KU 2-3 and PWM stay dashed and never flow. T2 Renogy stays idle unless HA
-later grows a Renogy entity. Sungold island wires animate from SPH MQTT watts only.
+Idle conductors stay visible (grey stroke). Animated cyan only in **live** mode when that
+hop has numeric W or an ON switch. Demo mode never animates. KU 2-3 and PWM stay dashed
+and never flow. T2 Renogy stays idle unless HA later grows a Renogy entity. Sungold island
+wires animate from SPH MQTT watts only (live).
 
 ---
 
@@ -239,6 +274,7 @@ later grows a Renogy entity. Sungold island wires animate from SPH MQTT watts on
 | **Dashed KU 2-3 / PWM conductors** | Physical KU Victron pair and Voyager PWM exist; **no** live W. Never animated. Do **not** print 2x T2 watts. |
 | **Spinning fan** (plugs 1, 4, 5) | `switch.sim_ac_plug_*` state `on` |
 | **`prefers-reduced-motion: reduce`** | Disable line animation and fan spin; keep numeric updates |
+| **Demo mode** | Red **DEMO not live** badge, amber banner, watermark, `DEMO` prefix on numbers, no flow/fan animation |
 
 GX manuals do **not** publish Overview hex colors; dark charcoal + cyan is operator choice, not a Victron palette. Do **not** copy Victron logos, GX/VRM screenshots, or product bitmaps ([press assets](https://www.victronenergy.com/information/press) are for press, not this UI). Structure only: three columns, dark default, tappable-looking tiles. Title is **Solar flow**, not Cerbo / VRM / Remote Console.
 

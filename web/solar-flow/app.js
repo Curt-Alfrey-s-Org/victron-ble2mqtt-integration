@@ -7,26 +7,29 @@
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   var ENTITY_IDS = {
-    solar: 'sensor.solar_controller_solar_power',
-    battState: 'sensor.solar_controller_battery_state',
+    solar: 'sensor.solar_controller_solar',
+    battState: 'sensor.solar_controller_charge_state',
     mpptV: 'sensor.solar_controller_battery',
     mpptA: 'sensor.solar_controller_battery_charging',
     mpptChargeW: 'sensor.solar_controller_charging_power',
     mpptLoadA: 'sensor.solar_controller_load',
     mpptLoadW: 'sensor.solar_controller_load_power',
     mpptYield: 'sensor.solar_controller_yield_today',
-    batt1Soc: 'sensor.battery_1_soc',
+    mpptRssi: 'sensor.solar_controller_rssi',
+    batt1Soc: 'sensor.battery_1_state_of_charge',
     batt1V: 'sensor.battery_1_voltage',
     batt1A: 'sensor.battery_1_current',
     batt1W: 'sensor.battery_1_power',
     batt1Ah: 'sensor.battery_1_consumed_ah',
     batt1Rem: 'sensor.battery_1_remaining_minutes',
-    batt2Soc: 'sensor.battery_2_soc',
+    batt1Rssi: 'sensor.battery_1_rssi',
+    batt2Soc: 'sensor.battery_2_state_of_charge',
     batt2V: 'sensor.battery_2_voltage',
     batt2A: 'sensor.battery_2_current',
     batt2W: 'sensor.battery_2_power',
     batt2Ah: 'sensor.battery_2_consumed_ah',
     batt2Rem: 'sensor.battery_2_remaining_minutes',
+    batt2Rssi: 'sensor.battery_2_rssi',
     em16: 'sensor.em16_a3_power',
     em16V: 'sensor.em16_a3_voltage',
     em16A: 'sensor.em16_a3_current',
@@ -42,7 +45,7 @@
     sgGridV: 'sensor.sungold_sph302480a_grid_voltage',
     sgGridA: 'sensor.sungold_sph302480a_grid_current',
     sgGridHz: 'sensor.sungold_sph302480a_grid_frequency',
-    sgLoadW: 'sensor.sungold_sph302480a_load_power',
+    sgLoadW: 'sensor.sungold_sph302480a_load_active_power',
     sgLoadA: 'sensor.sungold_sph302480a_load_current',
     sgOutV: 'sensor.sungold_sph302480a_ac_output_voltage',
     sgOutHz: 'sensor.sungold_sph302480a_ac_output_frequency',
@@ -73,15 +76,15 @@
   }
 
   var ENTITY_ALIASES = {
-    'sensor.solar_controller_solar_power': ['sensor.solar_controller_solar'],
-    'sensor.solar_controller_battery_state': ['sensor.solar_controller_charge_state'],
-    'sensor.battery_1_soc': ['sensor.battery_1_state_of_charge'],
-    'sensor.battery_2_soc': ['sensor.battery_2_state_of_charge'],
+    'sensor.solar_controller_solar': ['sensor.solar_controller_solar_power'],
+    'sensor.solar_controller_charge_state': ['sensor.solar_controller_battery_state'],
+    'sensor.battery_1_state_of_charge': ['sensor.battery_1_soc'],
+    'sensor.battery_2_state_of_charge': ['sensor.battery_2_soc'],
     'sensor.battery_1_voltage': ['sensor.battery_1_battery_voltage'],
     'sensor.battery_2_voltage': ['sensor.battery_2_battery_voltage'],
     'sensor.battery_1_current': ['sensor.battery_1_battery_current'],
     'sensor.battery_2_current': ['sensor.battery_2_battery_current'],
-    'sensor.sungold_sph302480a_load_power': ['sensor.sungold_sph302480a_load_active_power']
+    'sensor.sungold_sph302480a_load_active_power': ['sensor.sungold_sph302480a_load_power']
   };
 
   function getEntity(entities, id) {
@@ -119,9 +122,23 @@
     return state === 'on';
   }
 
+  function isDemo() {
+    return !!(lastSnapshot && lastSnapshot.mode === 'demo');
+  }
+
+  function demoText(text) {
+    if (!isDemo()) return text;
+    if (String(text).indexOf('DEMO ') === 0) return text;
+    return 'DEMO ' + text;
+  }
+
   function setText(id, text) {
     var el = $(id);
     if (el) el.textContent = text;
+  }
+
+  function setValue(id, text) {
+    setText(id, demoText(text));
   }
 
   function setPip(id, active) {
@@ -170,7 +187,7 @@
       badge.textContent = 'live';
       badge.classList.add('mode-live');
     } else if (mode === 'demo') {
-      badge.textContent = 'demo';
+      badge.textContent = 'DEMO not live';
       badge.classList.add('mode-demo');
     } else {
       badge.textContent = 'waiting';
@@ -257,7 +274,7 @@
       }
       html += '<div class="metric-item' + (f.dim ? ' unsynced' : '') +
         '"><span class="metric-label">' + f.label +
-        '</span><span class="metric-value">' + display + '</span></div>';
+        '</span><span class="metric-value">' + escapeHtml(demoText(display)) + '</span></div>';
     }
     if (ai.charge_state) {
       html += '<div class="metric-item"><span class="metric-label">Charge</span>' +
@@ -332,19 +349,31 @@
         '<div class="meter-ch">' + ch.toUpperCase() +
         (note ? ' <span class="meter-va">' + escapeHtml(note) + '</span>' : '') +
         '</div>' +
-        '<div class="meter-w">' + formatSignedW(w) + '</div>' +
-        '<div class="meter-va">' + formatVA(v, a) + '</div>' +
+        '<div class="meter-w">' + escapeHtml(demoText(formatSignedW(w))) + '</div>' +
+        '<div class="meter-va">' + escapeHtml(demoText(formatVA(v, a))) + '</div>' +
         '</div>';
     }
     container.innerHTML = html;
   }
 
+  function formatRssi(n) {
+    if (n === null) return 'rssi --';
+    return 'rssi ' + formatNum(n, 0);
+  }
+
   function applySnapshot(snapshot) {
     if (!snapshot) return;
+    lastSnapshot = snapshot;
     var entities = snapshot.entities || {};
+    var demo = snapshot.mode === 'demo';
+    document.body.classList.toggle('demo-mode', demo);
+    var watermark = $('demo-watermark');
+    if (watermark) watermark.hidden = !demo;
+    var demoBanner = $('demo-banner');
+    if (demoBanner) demoBanner.hidden = !demo;
 
     updateModeBadge(snapshot.mode);
-    setFetchedAt(snapshot.fetched_at);
+    setFetchedAt(snapshot.fetched_at, snapshot.mode);
 
     var labelEl = $('snapshot-label');
     if (labelEl) {
@@ -360,58 +389,71 @@
     }
 
     var solarW = getPowerW(entities, ENTITY_IDS.solar);
-    setText('val-solar-w', formatW(solarW));
-    setPip('pip-solar', solarW !== null && solarW > 0);
+    setValue('val-solar-w', formatW(solarW));
+    setPip('pip-solar', !demo && solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
-    setText('val-batt-state', battState || '--');
+    setValue('val-batt-state', battState || '--');
     var mpptV = parseFloatSafe(getState(entities, ENTITY_IDS.mpptV));
     var mpptA = parseFloatSafe(getState(entities, ENTITY_IDS.mpptA));
     var mpptChargeW = getPowerW(entities, ENTITY_IDS.mpptChargeW);
     var mpptLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.mpptLoadA));
     var mpptLoadW = getPowerW(entities, ENTITY_IDS.mpptLoadW);
     var mpptYield = parseFloatSafe(getState(entities, ENTITY_IDS.mpptYield));
-    setText('val-mppt-va', formatVA(mpptV, mpptA));
-    setText('val-mppt-charge-w', 'chg ' + formatW(mpptChargeW));
-    setText(
+    var mpptRssi = parseFloatSafe(getState(entities, ENTITY_IDS.mpptRssi));
+    setValue('val-mppt-va', formatVA(mpptV, mpptA));
+    setValue('val-mppt-charge-w', 'chg ' + formatW(mpptChargeW));
+    setValue(
       'val-mppt-load',
       'load ' + (mpptLoadW !== null ? formatW(mpptLoadW) : '-- W') +
         (mpptLoadA !== null ? ' / ' + formatNum(mpptLoadA, 1) + ' A' : '')
     );
-    setText('val-mppt-yield', mpptYield !== null ? 'yield ' + formatNum(mpptYield, 0) + ' Wh' : 'yield --');
+    setValue(
+      'val-mppt-yield',
+      (mpptYield !== null ? 'yield ' + formatNum(mpptYield, 0) + ' Wh' : 'yield --') +
+        ' ' + formatRssi(mpptRssi)
+    );
 
     var batt1Soc = parseFloatSafe(getState(entities, ENTITY_IDS.batt1Soc));
     var batt1V = parseFloatSafe(getState(entities, ENTITY_IDS.batt1V));
     var batt1A = parseFloatSafe(getState(entities, ENTITY_IDS.batt1A));
     var batt1W = getBatteryPower(entities, 'battery_1');
-    setText('val-batt1-soc', formatSocUnsynced(batt1Soc));
-    setText('val-batt1-va', formatVA(batt1V, batt1A));
-    setText('val-batt1-w', formatSignedW(batt1W));
-    setText('val-batt1-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Ah))));
-    setText('val-batt1-rem', formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rem))));
-    setPip('pip-batt1', batt1W !== null && Math.abs(batt1W) > 0);
+    setValue('val-batt1-soc', formatSocUnsynced(batt1Soc));
+    setValue('val-batt1-va', formatVA(batt1V, batt1A));
+    setValue('val-batt1-w', formatSignedW(batt1W));
+    setValue('val-batt1-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Ah))));
+    setValue(
+      'val-batt1-rem',
+      formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rem))) +
+        ' ' + formatRssi(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rssi)))
+    );
+    setPip('pip-batt1', !demo && batt1W !== null && Math.abs(batt1W) > 0);
 
     var batt2Soc = parseFloatSafe(getState(entities, ENTITY_IDS.batt2Soc));
     var batt2V = parseFloatSafe(getState(entities, ENTITY_IDS.batt2V));
     var batt2A = parseFloatSafe(getState(entities, ENTITY_IDS.batt2A));
     var batt2W = getBatteryPower(entities, 'battery_2');
-    setText('val-batt2-soc', formatSocUnsynced(batt2Soc));
-    setText('val-batt2-va', formatVA(batt2V, batt2A));
-    setText('val-batt2-w', formatSignedW(batt2W));
-    setText('val-batt2-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Ah))));
-    setText('val-batt2-rem', formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rem))));
-    setPip('pip-batt2', batt2W !== null && Math.abs(batt2W) > 0);
+    setValue('val-batt2-soc', formatSocUnsynced(batt2Soc));
+    setValue('val-batt2-va', formatVA(batt2V, batt2A));
+    setValue('val-batt2-w', formatSignedW(batt2W));
+    setValue('val-batt2-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Ah))));
+    setValue(
+      'val-batt2-rem',
+      formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rem))) +
+        ' ' + formatRssi(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rssi)))
+    );
+    setPip('pip-batt2', !demo && batt2W !== null && Math.abs(batt2W) > 0);
 
     var em16W = getPowerW(entities, ENTITY_IDS.em16);
     var em16V = parseFloatSafe(getState(entities, ENTITY_IDS.em16V));
     var em16A = parseFloatSafe(getState(entities, ENTITY_IDS.em16A));
-    setText('val-em16-w', formatW(em16W));
-    setText('val-em16-va', formatVA(em16V, em16A));
-    setPip('pip-em16', em16W !== null && Math.abs(em16W) > 0);
+    setValue('val-em16-w', formatW(em16W));
+    setValue('val-em16-va', formatVA(em16V, em16A));
+    setPip('pip-em16', !demo && em16W !== null && Math.abs(em16W) > 0);
 
-    setText('val-t2-renogy-w', '-- W');
+    setValue('val-t2-renogy-w', '-- W');
     setPip('pip-t2-renogy', false);
-    setText('val-ku-renogy-w', '-- W');
+    setValue('val-ku-renogy-w', '-- W');
 
     var totalSoak = 0;
     var hasSoak = false;
@@ -419,10 +461,10 @@
     for (var p = 1; p <= PLUG_COUNT; p++) {
       var plugOn = isSwitchOn(entities, p);
       var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
-      setText('val-plug-' + p + '-w', formatW(plugW));
-      setPip('pip-plug-' + p, plugOn || (plugW !== null && plugW > 0));
+      setValue('val-plug-' + p + '-w', formatW(plugW));
+      setPip('pip-plug-' + p, !demo && (plugOn || (plugW !== null && plugW > 0)));
       setPlugOn(p, plugOn);
-      setFlow('path-ac-plug-' + p, plugOn || (plugW !== null && plugW > 0), false);
+      setFlow('path-ac-plug-' + p, !demo && (plugOn || (plugW !== null && plugW > 0)), false);
       if (plugOn) anyPlugOn = true;
       if (plugW !== null) {
         totalSoak += plugW;
@@ -431,54 +473,55 @@
     }
 
     var soakSensor = getPowerW(entities, ENTITY_IDS.soakTotal);
-    setText('val-soak-w', formatW(soakSensor !== null ? soakSensor : (hasSoak ? totalSoak : null)));
+    setValue('val-soak-w', formatW(soakSensor !== null ? soakSensor : (hasSoak ? totalSoak : null)));
 
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
     var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
     var sgPvA = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvA));
-    setText('val-sg-pv-w', formatW(sgPvW));
-    setText('val-sg-pv-va', formatVA(sgPvV, sgPvA));
-    setPip('pip-sg-pv', sgPvW !== null && sgPvW > 0);
+    setValue('val-sg-pv-w', formatW(sgPvW));
+    setValue('val-sg-pv-va', formatVA(sgPvV, sgPvA));
+    setPip('pip-sg-pv', !demo && sgPvW !== null && sgPvW > 0);
 
     var sgSoc = parseFloatSafe(getState(entities, ENTITY_IDS.sgSoc));
     var sgBattV = parseFloatSafe(getState(entities, ENTITY_IDS.sgBattV));
     var sgBattA = parseFloatSafe(getState(entities, ENTITY_IDS.sgBattA));
     var sgBattW = getPowerW(entities, ENTITY_IDS.sgBattW);
     var sgCharge = getState(entities, ENTITY_IDS.sgCharge);
-    setText('val-sg-soc', sgSoc !== null ? formatNum(sgSoc, 0) + ' %' : '-- %');
-    setText('val-sg-batt-va', formatVA(sgBattV, sgBattA));
-    setText('val-sg-batt-w', formatSignedW(sgBattW));
-    setText('val-sg-charge', sgCharge || '--');
-    setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
+    setValue('val-sg-soc', sgSoc !== null ? 'remain ' + formatNum(sgSoc, 0) + '%' : 'remain --');
+    setValue('val-sg-batt-va', formatVA(sgBattV, sgBattA));
+    setValue('val-sg-batt-w', formatSignedW(sgBattW));
+    setValue('val-sg-charge', sgCharge || '--');
+    setPip('pip-sg-batt', !demo && sgBattW !== null && Math.abs(sgBattW) > 0);
 
     var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
     var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
     var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
-    setText('val-sg-acin-va', formatVA(sgGridV, sgGridA));
-    setText('val-sg-acin-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
-    setPip('pip-sg-acin', sgGridA !== null && Math.abs(sgGridA) > 0.05);
+    setValue('val-sg-acin-va', formatVA(sgGridV, sgGridA));
+    setValue('val-sg-acin-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
+    setPip('pip-sg-acin', !demo && sgGridA !== null && Math.abs(sgGridA) > 0.05);
 
     var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
     var sgOutV = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutV));
     var sgOutHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutHz));
-    setText('val-sg-load-w', formatW(sgLoadW));
-    setText('val-sg-load-va', formatVA(sgOutV, sgLoadA));
-    setText('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
-    setPip('pip-sg-acout', sgLoadW !== null && Math.abs(sgLoadW) > 0);
+    setValue('val-sg-load-w', formatW(sgLoadW));
+    setValue('val-sg-load-va', formatVA(sgOutV, sgLoadA));
+    setValue('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
+    setPip('pip-sg-acout', !demo && sgLoadW !== null && Math.abs(sgLoadW) > 0);
 
     var sgMode = getState(entities, ENTITY_IDS.sgMode);
     var sgFail = getState(entities, ENTITY_IDS.sgFail);
     var sgFault = getState(entities, ENTITY_IDS.sgFault);
-    setText('val-sg-mode', sgMode ? 'mode ' + sgMode : 'mode --');
+    setValue('val-sg-mode', sgMode ? 'mode ' + sgMode : 'mode --');
     var faultOn = sgFault === 'on' || sgFault === 'true';
-    setText('val-sg-fault', faultOn ? 'fault on' : (sgFail && sgFail !== '0' ? 'fail ' + sgFail : 'fault off'));
-    setPip('pip-sg-inv', (sgBattW !== null && Math.abs(sgBattW) > 0) || (sgLoadW !== null && sgLoadW > 0) || faultOn);
+    setValue('val-sg-fault', faultOn ? 'fault on' : (sgFail && sgFail !== '0' ? 'fail ' + sgFail : 'fault off'));
+    setPip('pip-sg-inv', !demo && ((sgBattW !== null && Math.abs(sgBattW) > 0) || (sgLoadW !== null && sgLoadW > 0) || faultOn));
 
     renderEm16Meters(entities);
 
     var ai = snapshot.ai || {};
     var thinking = ai.thinking;
+    if (demo && thinking) thinking = 'DEMO snapshot: ' + thinking;
     setText('ai-thinking', thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
     renderMetrics(ai);
     renderDecisions(ai.decisions);
@@ -497,13 +540,19 @@
     });
     setPip(
       'pip-inverter',
-      (em16W !== null && Math.abs(em16W) > 0) || totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0)
+      !demo && ((em16W !== null && Math.abs(em16W) > 0) || totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0))
     );
   }
 
-  function setFetchedAt(iso) {
+  function setFetchedAt(iso, mode) {
     var el = $('fetched-at');
     if (!el) return;
+    if (mode === 'demo') {
+      el.textContent = 'DEMO not HA';
+      if (iso) el.setAttribute('datetime', iso);
+      else el.removeAttribute('datetime');
+      return;
+    }
     if (!iso) {
       el.textContent = 'no fetch';
       el.removeAttribute('datetime');
@@ -519,6 +568,19 @@
   }
 
   function updateFlows(opts) {
+    if (isDemo()) {
+      setFlow('path-t2-mppt-batt1', false, false);
+      setFlow('path-t2-batt1-renogy', false, false);
+      setFlow('path-ku-batt2-inverter', false, false);
+      setFlow('path-inverter-acbus', false, false);
+      setFlow('path-ac-riser', false, false);
+      setFlow('path-ac-em16', false, false);
+      setFlow('path-sg-pv-batt', false, false);
+      setFlow('path-sg-batt-inv', false, false);
+      setFlow('path-sg-acin-inv', false, false);
+      setFlow('path-sg-inv-acout', false, false);
+      return;
+    }
     var solarFlow = opts.solarW !== null && opts.solarW > 0;
     var batt1Charge = opts.batt1W !== null && opts.batt1W > 0;
     var batt1Discharge = opts.batt1W !== null && opts.batt1W < 0;

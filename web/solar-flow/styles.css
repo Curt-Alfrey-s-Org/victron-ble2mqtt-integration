@@ -39,6 +39,32 @@ html, body {
   letter-spacing: 0.02em;
 }
 
+.demo-banner {
+  background: #9e6a03;
+  color: #fff;
+  text-align: center;
+  padding: 0.45rem 1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  margin: 0;
+}
+
+.demo-watermark {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18vw;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: rgba(218, 54, 51, 0.09);
+  transform: rotate(-18deg);
+  user-select: none;
+}
+
 .snapshot-label {
   margin: 0;
   padding: 0.35rem 1.25rem;
@@ -92,9 +118,9 @@ html, body {
 }
 
 .mode-badge.mode-demo {
-  background: rgba(0, 188, 212, 0.15);
-  color: var(--cyan-bright);
-  border: 1px solid var(--cyan);
+  background: rgba(218, 54, 51, 0.22);
+  color: #ff7b72;
+  border: 1px solid var(--red-banner);
 }
 
 .mode-badge.mode-waiting {

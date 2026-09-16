@@ -275,6 +275,13 @@
       "state": "10",
       "attributes": { "unit_of_measurement": "W" }
     },
+    "sensor.sungold_sph302480a_load_active_power": {
+      "state": "10",
+      "attributes": {
+        "unit_of_measurement": "W",
+        "friendly_name": "[DEMO] Sungold load active power (not live 441 W)"
+      }
+    },
     "sensor.sungold_sph302480a_load_current": {
       "state": "0.10",
       "attributes": { "unit_of_measurement": "A" }
