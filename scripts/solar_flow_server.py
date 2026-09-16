@@ -32,6 +32,9 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web" / "solar-flow"
 DEMO_SNAPSHOT = WEB_ROOT / "demo-snapshot.json"
+# Same default as scripts/solar_flow_enable_tailscale.sh (never commit the token).
+DEFAULT_HA_TOKEN_FILE = Path("/opt/homeassistant/secrets/ha_long_lived.token")
+DEMO_LABEL = "DEMO illustrative numbers - not a live Home Assistant observation"
 
 _SIM_PLUG_ALLOWLIST = (
     "switch.sim_ac_plug_1,switch.sim_ac_plug_2,switch.sim_ac_plug_3,"
@@ -515,26 +518,61 @@ def decide_soak_view(
     }
 
 
-def resolve_ha_token() -> str | None:
-    direct = (os.environ.get("HA_TOKEN") or "").strip()
-    if direct:
-        return direct
+def _token_file_candidates() -> list[Path]:
+    """Ordered unique paths to try for a long-lived HA token (env first, then site default)."""
+    paths: list[Path] = []
+    seen: set[str] = set()
     for env_name in ("HA_TOKEN_FILE", "HA_LONG_LIVED_TOKEN_FILE"):
         path_raw = (os.environ.get(env_name) or "").strip()
         if not path_raw:
             continue
+        key = str(Path(path_raw))
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(Path(path_raw))
+    default_key = str(DEFAULT_HA_TOKEN_FILE)
+    if default_key not in seen:
+        paths.append(DEFAULT_HA_TOKEN_FILE)
+    return paths
+
+
+def resolve_ha_token() -> str | None:
+    direct = (os.environ.get("HA_TOKEN") or "").strip()
+    if direct:
+        return direct
+    for path in _token_file_candidates():
         try:
-            text = Path(path_raw).read_text(encoding="utf-8").strip()
+            text = path.read_text(encoding="utf-8").strip()
         except OSError:
-            logger.debug("Could not read %s", env_name)
+            logger.debug("Could not read HA token file %s", path)
             continue
         if text:
             return text
     return None
 
 
+def demo_reason_message() -> str:
+    """Explain why the diagram is in DEMO (no secrets). Used in API + operator logs."""
+    if (os.environ.get("HA_TOKEN") or "").strip():
+        return "HA_TOKEN is set but empty after strip"
+    checked: list[str] = []
+    for path in _token_file_candidates():
+        if path.is_file():
+            try:
+                if not path.read_text(encoding="utf-8").strip():
+                    checked.append(f"{path} (empty)")
+                else:
+                    checked.append(f"{path} (unreadable content)")
+            except OSError as exc:
+                checked.append(f"{path} ({exc.__class__.__name__})")
+        else:
+            checked.append(f"{path} (missing)")
+    return "No HA long-lived token; checked: " + "; ".join(checked)
+
+
 def ha_base_url() -> str:
-    return (os.environ.get("HA_BASE_URL") or "http://192.168.0.105:8123").rstrip("/")
+    return (os.environ.get("HA_BASE_URL") or "http://127.0.0.1:8123").rstrip("/")
 
 
 def redact_secrets(text: str, token: str | None = None) -> str:
@@ -653,9 +691,12 @@ def build_demo_snapshot(now: float | None = None) -> dict[str, Any]:
     entities = load_demo_entities()
     soak_states = entities_to_soak_states(entities)
     fetched_at = datetime.now(timezone.utc).isoformat()
+    reason = demo_reason_message()
+    logger.warning("Serving DEMO snapshot (not live HA): %s", reason)
     return {
         "mode": "demo",
-        "label": "DEMO illustrative numbers - not a live Home Assistant observation",
+        "label": DEMO_LABEL,
+        "demo_reason": reason,
         "fetched_at": fetched_at,
         "entities": entities,
         "ai": decide_soak_view(states=soak_states, now=now),
@@ -933,13 +974,23 @@ def main(argv: list[str] | None = None) -> int:
 
     httpd = ThreadingHTTPServer((host, args.port), SolarFlowHandler)
     print_access_urls(host, args.port)
+    mode = "live" if resolve_ha_token() else "demo"
     logger.info(
-        "Serving %s on %s:%s (mode=%s)",
+        "Serving %s on %s:%s (mode=%s) HA_BASE_URL=%s",
         WEB_ROOT,
         host,
         args.port,
-        "live" if resolve_ha_token() else "demo",
+        mode,
+        ha_base_url(),
     )
+    if mode == "demo":
+        logger.warning(
+            "DEMO mode: Battery 1 etc. are static placeholders (e.g. 29.0 V). "
+            "%s. Create a long-lived token (HA Profile) and write it to %s "
+            "(chmod 600), then restart solar-flow.",
+            demo_reason_message(),
+            DEFAULT_HA_TOKEN_FILE,
+        )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -195,10 +195,10 @@
     if (!badge) return;
     badge.classList.remove('mode-live', 'mode-demo', 'mode-waiting');
     if (mode === 'live') {
-      badge.textContent = 'live';
+      badge.textContent = 'LIVE';
       badge.classList.add('mode-live');
     } else if (mode === 'demo') {
-      badge.textContent = 'demo';
+      badge.textContent = 'DEMO';
       badge.classList.add('mode-demo');
     } else {
       badge.textContent = 'waiting';
@@ -210,6 +210,20 @@
     var banner = $('proxy-banner');
     if (!banner) return;
     banner.hidden = online;
+  }
+
+  function updateDemoBanner(mode, reason) {
+    var banner = $('demo-banner');
+    if (!banner) return;
+    if (mode === 'demo') {
+      banner.hidden = false;
+      var detail = reason
+        ? (' DEMO MODE — not live HA. ' + reason)
+        : ' DEMO MODE — illustrative placeholders (not live Home Assistant). Battery voltages like 29.0 V are fake until an HA long-lived token is configured on the host.';
+      banner.textContent = detail.trim();
+    } else {
+      banner.hidden = true;
+    }
   }
 
   function formatW(w) {
@@ -372,12 +386,18 @@
     var entities = snapshot.entities || {};
 
     updateModeBadge(snapshot.mode);
+    updateDemoBanner(snapshot.mode, snapshot.demo_reason);
     setFetchedAt(snapshot.fetched_at);
 
     var labelEl = $('snapshot-label');
     if (labelEl) {
       var label = snapshot.label || '';
       var missing = snapshot.missing_entity_ids;
+      if (snapshot.mode === 'demo' && snapshot.demo_reason) {
+        label = label
+          ? (label + ' — ' + snapshot.demo_reason)
+          : snapshot.demo_reason;
+      }
       if (snapshot.mode === 'live' && missing && missing.length) {
         var extra = 'Missing HA ids: ' + missing.slice(0, 8).join(', ');
         if (missing.length > 8) extra += ' (+' + (missing.length - 8) + ')';
@@ -385,6 +405,11 @@
       }
       labelEl.textContent = label;
       labelEl.hidden = !label;
+      if (snapshot.mode === 'demo') {
+        labelEl.classList.add('snapshot-label-demo');
+      } else {
+        labelEl.classList.remove('snapshot-label-demo');
+      }
     }
 
     var solarW = getPowerW(entities, ENTITY_IDS.solar);

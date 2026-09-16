@@ -39,12 +39,28 @@ html, body {
   letter-spacing: 0.02em;
 }
 
+.demo-banner {
+  background: #9a6700;
+  color: #fff;
+  text-align: center;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-size: 0.85rem;
+}
+
 .snapshot-label {
   margin: 0;
   padding: 0.35rem 1.25rem;
   font-size: 0.8rem;
   color: var(--muted, #90a4ae);
   border-bottom: 1px solid var(--border);
+}
+
+.snapshot-label.snapshot-label-demo {
+  background: rgba(154, 103, 0, 0.18);
+  color: var(--amber);
+  font-weight: 600;
 }
 
 .actuate-note {
@@ -122,9 +138,10 @@ html, body {
 }
 
 .mode-badge.mode-demo {
-  background: rgba(0, 188, 212, 0.15);
-  color: var(--cyan-bright);
-  border: 1px solid var(--cyan);
+  background: rgba(154, 103, 0, 0.35);
+  color: #ffd666;
+  border: 1px solid var(--amber);
+  box-shadow: 0 0 0 1px rgba(240, 160, 48, 0.4);
 }
 
 .mode-badge.mode-waiting {

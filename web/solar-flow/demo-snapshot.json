@@ -26,7 +26,10 @@
     },
     "sensor.battery_1_voltage": {
       "state": "29.0",
-      "attributes": { "unit_of_measurement": "V" }
+      "attributes": {
+        "unit_of_measurement": "V",
+        "friendly_name": "[DEMO] Battery 1 T2 voltage (placeholder)"
+      }
     },
     "sensor.battery_1_current": {
       "state": "2.0",

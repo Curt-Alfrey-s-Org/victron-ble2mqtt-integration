@@ -65,18 +65,33 @@ The Python proxy holds the long-lived token server-side only
 
 ## Operator (one path)
 
-**Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN. Token file
-on disk (gitignored) — create per alfa-ai
+**Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN (or
+`127.0.0.1:8123` when the diagram runs on the same host as HA). Token file on disk
+(gitignored) — create per alfa-ai
 [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
 (HA UI → Profile → Long-lived access token).
 
-**Step 1 — From the host running the dashboard** (e.g. `.93` dev box or `.105`):
+**Step 1 — From the host running the dashboard** (e.g. `.105` / `web-sites`):
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
-export HA_BASE_URL=http://192.168.0.105:8123
-export HA_TOKEN_FILE=/path/to/long-lived.token
+export HA_BASE_URL=http://127.0.0.1:8123
+export HA_TOKEN_FILE=/opt/homeassistant/secrets/ha_long_lived.token
 python scripts/solar_flow_server.py
+```
+
+If the token file is missing, the server starts in **DEMO** mode (static Battery 1
+**29.0 V**, etc.). Create the token file, then restart:
+
+```bash
+sudo mkdir -p /opt/homeassistant/secrets
+# HA UI → Profile → Long-lived access tokens → Create; paste one line:
+sudo tee /opt/homeassistant/secrets/ha_long_lived.token >/dev/null
+sudo chmod 600 /opt/homeassistant/secrets/ha_long_lived.token
+sudo systemctl restart solar-flow.service   # when using the systemd unit
+curl -fsS http://127.0.0.1:8765/api/snapshot | python3 -c \
+  'import json,sys; d=json.load(sys.stdin); print(d["mode"], d["entities"]["sensor.battery_1_voltage"]["state"])'
+# Expect: live <real V> — page badge LIVE, no amber DEMO banner
 ```
 
 **Step 2 —** Open in a local browser:
@@ -116,18 +131,19 @@ a token is present. `GET /api/access` returns discovered Tailscale / localhost U
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `HA_BASE_URL` | `http://192.168.0.105:8123` | HA Container base URL (no trailing slash) |
-| `HA_TOKEN_FILE` | — | Path to one-line long-lived token (preferred) |
+| `HA_BASE_URL` | `http://127.0.0.1:8123` | HA Container base URL (no trailing slash). Override when the diagram host is not the HA host. |
+| `HA_TOKEN_FILE` | `/opt/homeassistant/secrets/ha_long_lived.token` (tried when unset) | Path to one-line long-lived token (preferred) |
 | `HA_LONG_LIVED_TOKEN_FILE` | — | Alias for `HA_TOKEN_FILE` if the first is unset |
 | `SOLAR_FLOW_HOST` | `127.0.0.1` | Listen address (`--host`; `--lan` / `--tailscale` bind `0.0.0.0`) |
 | `SOLAR_FLOW_PORT` | `8765` | Listen port |
 | `SOLAR_FLOW_TAILSCALE` | unset | If `1`/`true`, same bind as `--tailscale` |
 | `SOLAR_FLOW_PUBLIC_URL` | — | Optional URL for `ha_label_sungold_solar.py` markdown link |
 
-**Demo mode:** If no token file exists or `HA_TOKEN_FILE` is unreadable, the server serves
-**static demo values**, sets `mode: demo`, and the page shows a **DEMO** badge plus the
-snapshot `label` (illustrative, not live). Soak math still runs on demo numbers for UI
-testing; no HA calls are made. The browser polls `GET /api/snapshot` every **2 s**.
+**Demo mode:** If no token is available (`HA_TOKEN` unset and token file missing/empty/unreadable),
+the server serves **static demo values** (including Battery 1 **29.0 V**), sets `mode: demo`,
+includes `demo_reason`, and the page shows an amber **DEMO** banner plus badge. Soak math still
+runs on demo numbers for UI testing; no HA calls are made. The browser polls `GET /api/snapshot`
+every **2 s**. Do not treat DEMO numbers as plant truth.
 
 **Secrets:** Never commit the token. Never pass the token as a query string or embed it in
 HTML/JS. Keep the file mode `600` on shared hosts.

@@ -48,12 +48,62 @@ def test_build_snapshot_demo_without_token(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.delenv("HA_TOKEN", raising=False)
     monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
     monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(sfs, "DEFAULT_HA_TOKEN_FILE", Path("/tmp/solar-flow-no-such-token"))
     snap = sfs.build_snapshot(now=1000.0)
     assert snap["mode"] == "demo"
     assert "DEMO" in snap.get("label", "")
+    assert "demo_reason" in snap
+    assert "No HA long-lived token" in snap["demo_reason"]
     assert snap["entities"]["sensor.solar_controller_solar_power"]["state"] == "400"
+    assert snap["entities"]["sensor.battery_1_voltage"]["state"] == "29.0"
     assert snap["ai"]["meta"]["surplus_w"] == 120.0
     assert all(d["action"] == "skip" for d in snap["ai"]["decisions"])
+
+
+def test_filter_aliases_battery_voltage_and_current() -> None:
+    rows = [
+        {
+            "entity_id": "sensor.battery_1_battery_voltage",
+            "state": "27.4",
+            "attributes": {"unit_of_measurement": "V"},
+            "last_updated": "2026-09-16T20:00:00+00:00",
+        },
+        {
+            "entity_id": "sensor.battery_1_battery_current",
+            "state": "-3.2",
+            "attributes": {"unit_of_measurement": "A"},
+        },
+        {
+            "entity_id": "sensor.battery_2_battery_voltage",
+            "state": "26.1",
+            "attributes": {"unit_of_measurement": "V"},
+        },
+    ]
+    filtered = sfs.filter_entities(rows)
+    assert filtered["sensor.battery_1_voltage"]["state"] == "27.4"
+    assert filtered["sensor.battery_1_voltage"]["source_entity_id"] == (
+        "sensor.battery_1_battery_voltage"
+    )
+    assert filtered["sensor.battery_1_current"]["state"] == "-3.2"
+    assert filtered["sensor.battery_2_voltage"]["state"] == "26.1"
+    assert "sensor.battery_1_battery_voltage" in filtered
+
+
+def test_resolve_ha_token_reads_default_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("HA_TOKEN", raising=False)
+    monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
+    monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    token_path = tmp_path / "ha_long_lived.token"
+    token_path.write_text("default-path-token\n", encoding="utf-8")
+    monkeypatch.setattr(sfs, "DEFAULT_HA_TOKEN_FILE", token_path)
+    assert sfs.resolve_ha_token() == "default-path-token"
+
+
+def test_ha_base_url_defaults_to_localhost(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HA_BASE_URL", raising=False)
+    assert sfs.ha_base_url() == "http://127.0.0.1:8123"
 
 
 def test_decide_soak_view_surplus_math() -> None:
@@ -130,6 +180,7 @@ def test_http_snapshot_cache_control(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("HA_TOKEN", raising=False)
     monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
     monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(sfs, "DEFAULT_HA_TOKEN_FILE", Path("/tmp/solar-flow-no-such-token"))
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
     _host, port = httpd.server_address
@@ -143,6 +194,7 @@ def test_http_snapshot_cache_control(monkeypatch: pytest.MonkeyPatch) -> None:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["mode"] == "demo"
         assert payload.get("fetched_at")
+        assert "demo_reason" in payload
     finally:
         httpd.shutdown()
         thread.join(timeout=2)
@@ -180,6 +232,7 @@ def test_http_demo_snapshot_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("HA_TOKEN", raising=False)
     monkeypatch.delenv("HA_TOKEN_FILE", raising=False)
     monkeypatch.delenv("HA_LONG_LIVED_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(sfs, "DEFAULT_HA_TOKEN_FILE", Path("/tmp/solar-flow-no-such-token"))
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
     _host, port = httpd.server_address

@@ -74,18 +74,26 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 
 The GX-style diagram (`scripts/solar_flow_server.py`, port **8765**) defaults to localhost only. To open it on a phone the same way as HA:
 
-On **`.105`** (after Tailscale is up and an HA long-lived token file exists):
+On **`.105`** (after Tailscale is up). Prefer creating the HA long-lived token **before**
+enable so the diagram starts **LIVE**; if the token file is missing the script still
+installs Serve but prints **DEMO** recovery steps:
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
+# Optional but recommended first:
+sudo mkdir -p /opt/homeassistant/secrets
+sudo tee /opt/homeassistant/secrets/ha_long_lived.token >/dev/null   # paste token, one line
+sudo chmod 600 /opt/homeassistant/secrets/ha_long_lived.token
+
 sudo bash scripts/solar_flow_enable_tailscale.sh
 ```
 
 That script:
 
 1. Installs `systemd/solar-flow.service` (listens on `127.0.0.1:8765`)
-2. Runs [`tailscale serve --bg 8765`](https://tailscale.com/docs/reference/tailscale-cli/serve) (HTTPS proxy for your tailnet only)
-3. **Prints the exact Tailscale address** — typically:
+2. Checks `GET /api/snapshot` — prints **LIVE** or **DEMO** (DEMO ≈ fake Battery 1 29.0 V)
+3. Runs [`tailscale serve --bg 8765`](https://tailscale.com/docs/reference/tailscale-cli/serve) (HTTPS proxy for your tailnet only)
+4. **Prints the exact Tailscale address** — typically:
 
 ```text
 https://YOUR-105-NAME.YOUR-TAILNET.ts.net/
@@ -123,6 +131,7 @@ Both talk to the **same** Home Assistant / same MQTT plant. You are not duplicat
 | “Can’t connect” with Tailscale off | Expected. Turn Tailscale on, or wait until you are on home Wi‑Fi. |
 | Sungold missing on phone, present on PC | Same HA URL? Open **Solar → Sungold**. Re-label with `ha_label_sungold_solar.py` if tiles are Entity not found. |
 | Solar flow 404 / connection refused on Tailscale | Run `sudo bash scripts/solar_flow_enable_tailscale.sh`; confirm `systemctl status solar-flow` and `tailscale serve status`. |
+| Diagram shows DEMO / Battery 1 stuck at ~29.0 V | Token missing. Write HA long-lived token to `/opt/homeassistant/secrets/ha_long_lived.token` (`chmod 600`), `sudo systemctl restart solar-flow`, confirm `curl …/api/snapshot` prints `live` and a real voltage. |
 
 ## Out of scope
 
