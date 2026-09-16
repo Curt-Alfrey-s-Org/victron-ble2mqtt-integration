@@ -341,27 +341,46 @@ html, body {
   filter: drop-shadow(0 0 4px rgba(63, 185, 80, 0.6));
 }
 
-/* Flow path animation */
+/* Conductors: bright solid wire = topology (always). Cyan dash overlay = power flowing.
+   Unmetered hops stay solid but slightly dimmer (physical path, no live W animation). */
+.flow-wire {
+  fill: none;
+  stroke: #c8d2dc;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 1;
+}
+
+.flow-wire.unmetered {
+  stroke: #9aa5b1;
+  stroke-width: 4;
+  opacity: 0.95;
+}
+
 .flow-path {
   fill: none;
-  stroke: #4a6572;
-  stroke-width: 3;
+  stroke: #00e5ff;
+  stroke-width: 5;
   stroke-linecap: round;
-  stroke-dasharray: 8 12;
+  stroke-linejoin: round;
+  stroke-dasharray: 8 10;
   stroke-dashoffset: 0;
-  opacity: 0.55;
-  transition: opacity 0.3s ease;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  filter: drop-shadow(0 0 3px rgba(0, 229, 255, 0.55));
 }
 
 .flow-path.unmetered {
-  stroke: #6e7681;
-  stroke-dasharray: 4 6;
-  opacity: 0.7;
+  /* Unmetered hops never animate; wire underlay carries the topology. */
+  opacity: 0 !important;
+  animation: none !important;
+  filter: none;
 }
 
 .flow-path.flowing {
-  stroke: url(#flow-gradient);
-  opacity: 0.95;
+  opacity: 1;
   animation: flow-forward var(--flow-speed) linear infinite;
 }
 
@@ -370,11 +389,11 @@ html, body {
 }
 
 @keyframes flow-forward {
-  to { stroke-dashoffset: -40; }
+  to { stroke-dashoffset: -36; }
 }
 
 @keyframes flow-reverse {
-  to { stroke-dashoffset: 40; }
+  to { stroke-dashoffset: 36; }
 }
 
 /* Plug animations */
@@ -555,7 +574,10 @@ html, body {
   .flow-path.flowing,
   .flow-path.flowing.reverse {
     animation: none;
+    stroke: var(--cyan-bright);
+    stroke-dasharray: none;
     stroke-dashoffset: 0;
+    opacity: 1;
   }
 
   .plug-node.on .fan-blades,

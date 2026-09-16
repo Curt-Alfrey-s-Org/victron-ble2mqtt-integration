@@ -147,9 +147,28 @@
     var el = $(pathId);
     if (!el) return;
     el.classList.remove('flowing', 'reverse');
-    if (flowing && !reducedMotion) {
+    // Overlay only — solid .flow-wire underlay always shows topology.
+    if (flowing) {
       el.classList.add('flowing');
       if (reverse) el.classList.add('reverse');
+    }
+  }
+
+  function ensureWireUnderlay() {
+    var pathGroup = document.querySelector('.flow-paths');
+    var wireGroup = document.querySelector('.flow-wires');
+    if (!pathGroup || !wireGroup) return;
+    wireGroup.innerHTML = '';
+    var paths = pathGroup.querySelectorAll('path.flow-path');
+    for (var i = 0; i < paths.length; i++) {
+      var src = paths[i];
+      var wire = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      wire.setAttribute('d', src.getAttribute('d') || '');
+      wire.setAttribute(
+        'class',
+        src.classList.contains('unmetered') ? 'flow-wire unmetered' : 'flow-wire'
+      );
+      wireGroup.appendChild(wire);
     }
   }
 
@@ -615,6 +634,7 @@
   }
 
   function init() {
+    ensureWireUnderlay();
     updateClock();
     setInterval(updateClock, 1000);
     showAccessUrl();

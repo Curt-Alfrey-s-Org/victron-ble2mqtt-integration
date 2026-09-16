@@ -240,9 +240,11 @@ Sungold island (not on T2/KU DC):
 | `path-sg-acin-inv` | Sungold AC in to SPH inverter |
 | `path-sg-inv-acout` | SPH inverter to AC out |
 
-Idle conductors stay visible (grey stroke). Animated cyan only when that hop has numeric W
-or an ON switch. KU 2-3 and PWM stay dashed and never flow. T2 Renogy stays idle unless HA
-later grows a Renogy entity. Sungold island wires animate from SPH MQTT watts only.
+Idle conductors stay **solid grey** (always-visible topology underlay). Animated cyan
+dashes are an **overlay** only when that hop has numeric W or an ON switch — the solid
+wire underneath never disappears. KU 2-3 and PWM stay solid but dimmer and never animate.
+T2 Renogy stays idle unless HA later grows a Renogy entity. Sungold island wires animate
+from SPH MQTT watts only.
 
 ---
 
@@ -250,11 +252,13 @@ later grows a Renogy entity. Sungold island wires animate from SPH MQTT watts on
 
 | Signal | Meaning |
 |--------|---------|
-| **Green LED / cyan flow line** | Switch ON, or **numeric** W/A flow on that hop |
-| **Grey LED / grey conductor** | Switch OFF, `unavailable` / `unknown`, or idle connected wire |
-| **Dashed KU 2-3 / PWM conductors** | Physical KU Victron pair and Voyager PWM exist; **no** live W. Never animated. Do **not** print 2x T2 watts. |
+| **Solid grey conductor** | Wired hop between nodes (topology always visible, including when idle) |
+| **Cyan animated overlay** | Switch ON, or **numeric** W/A flow on that hop (solid wire stays underneath) |
+| **Green LED** | Switch ON, or numeric flow on that hop |
+| **Grey LED** | Switch OFF, `unavailable` / `unknown`, or idle |
+| **Dim solid KU 2-3 / PWM** | Physical KU Victron pair and Voyager PWM exist; **no** live W. Never animated. Do **not** print 2x T2 watts. |
 | **Spinning fan** (plugs 1, 4, 5) | `switch.sim_ac_plug_*` state `on` |
-| **`prefers-reduced-motion: reduce`** | Disable line animation and fan spin; keep numeric updates |
+| **`prefers-reduced-motion: reduce`** | Solid cyan on flowing hops (no dash motion); disable fan spin; keep numeric updates |
 
 GX manuals do **not** publish Overview hex colors; dark charcoal + cyan is operator choice, not a Victron palette. Do **not** copy Victron logos, GX/VRM screenshots, or product bitmaps ([press assets](https://www.victronenergy.com/information/press) are for press, not this UI). Structure only: three columns, dark default, tappable-looking tiles. Title is **Solar flow**, not Cerbo / VRM / Remote Console.
 
