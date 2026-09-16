@@ -81,7 +81,16 @@
     'sensor.battery_2_voltage': ['sensor.battery_2_battery_voltage'],
     'sensor.battery_1_current': ['sensor.battery_1_battery_current'],
     'sensor.battery_2_current': ['sensor.battery_2_battery_current'],
-    'sensor.sungold_sph302480a_load_power': ['sensor.sungold_sph302480a_load_active_power']
+    'sensor.sungold_sph302480a_load_power': ['sensor.sungold_sph302480a_load_active_power'],
+    'sensor.sungold_sph302480a_pv_voltage': ['sensor.sungold_sph302480a_pv1_voltage'],
+    'sensor.sungold_sph302480a_pv_current': ['sensor.sungold_sph302480a_pv1_current'],
+    'sensor.sungold_sph302480a_pv_power': ['sensor.sungold_sph302480a_pv1_power'],
+    'sensor.sungold_sph302480a_charging_power': ['sensor.sungold_sph302480a_inverter_charging_power'],
+    'sensor.sungold_sph302480a_charge_state': ['sensor.sungold_sph302480a_battery_charge_state'],
+    'sensor.sungold_sph302480a_ac_output_voltage': ['sensor.sungold_sph302480a_inverter_voltage'],
+    'sensor.sungold_sph302480a_ac_output_frequency': ['sensor.sungold_sph302480a_inverter_frequency'],
+    'sensor.sungold_sph302480a_fail_code': ['sensor.sungold_sph302480a_inverter_failcode'],
+    'binary_sensor.sungold_sph302480a_fault_active': ['binary_sensor.sungold_sph302480a_inverter_fault_active']
   };
 
   function getEntity(entities, id) {
@@ -570,9 +579,45 @@
       });
   }
 
+  function showAccessUrl() {
+    fetch('/api/access', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        var el = $('access-url');
+        if (!el) return;
+        var urls = (data && data.urls) || [];
+        var prefer =
+          data.serve_https ||
+          urls.find(function (u) {
+            return u.indexOf('https://') === 0 && u.indexOf('.ts.net') !== -1;
+          }) ||
+          urls.find(function (u) {
+            return u.indexOf('.ts.net') !== -1;
+          }) ||
+          urls.find(function (u) {
+            return u.indexOf('100.') !== -1;
+          });
+        if (!prefer) return;
+        el.hidden = false;
+        el.textContent = prefer;
+        el.title = 'Tailscale / LAN access URL';
+      })
+      .catch(function () {
+        /* optional badge — ignore */
+      });
+  }
+
   function init() {
     updateClock();
     setInterval(updateClock, 1000);
+    showAccessUrl();
     poll();
     setInterval(poll, POLL_MS);
 

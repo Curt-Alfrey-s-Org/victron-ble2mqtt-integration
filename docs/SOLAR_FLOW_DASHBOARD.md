@@ -88,13 +88,27 @@ http://127.0.0.1:8765/
 Default bind is **localhost only** (`127.0.0.1:8765`). Do not expose the server to the public
 internet without an explicit operator change.
 
+**Away / phone (Tailscale):** on `.105` run:
+
+```bash
+sudo bash scripts/solar_flow_enable_tailscale.sh
+```
+
+The script prints the live address (do not commit it). Typical form:
+
+```text
+https://YOUR-105-NAME.YOUR-TAILNET.ts.net/
+```
+
+Details: [TAILSCALE.md](TAILSCALE.md#4-animated-solar-flow-diagram-on-tailscale).
+
 The browser polls `GET /api/snapshot` every **2 s** with `cache: 'no-store'`. The proxy
 sends `Cache-Control: no-store` ([RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html#name-cache-control);
 [http.server](https://docs.python.org/3/library/http.server.html)). Header **HA HH:MM:SS**
 is snapshot `fetched_at`. Watts / SoC / switch state come from HA
 [`last_updated`](https://www.home-assistant.io/docs/configuration/state_object/) on each
 entity. Demo mode still refreshes `fetched_at` every poll; numeric values stay static until
-a token is present.
+a token is present. `GET /api/access` returns discovered Tailscale / localhost URLs (no secrets).
 
 ---
 
@@ -105,8 +119,10 @@ a token is present.
 | `HA_BASE_URL` | `http://192.168.0.105:8123` | HA Container base URL (no trailing slash) |
 | `HA_TOKEN_FILE` | — | Path to one-line long-lived token (preferred) |
 | `HA_LONG_LIVED_TOKEN_FILE` | — | Alias for `HA_TOKEN_FILE` if the first is unset |
-| `SOLAR_FLOW_HOST` | `127.0.0.1` | Listen address (`--host`; `--lan` binds `0.0.0.0`) |
+| `SOLAR_FLOW_HOST` | `127.0.0.1` | Listen address (`--host`; `--lan` / `--tailscale` bind `0.0.0.0`) |
 | `SOLAR_FLOW_PORT` | `8765` | Listen port |
+| `SOLAR_FLOW_TAILSCALE` | unset | If `1`/`true`, same bind as `--tailscale` |
+| `SOLAR_FLOW_PUBLIC_URL` | — | Optional URL for `ha_label_sungold_solar.py` markdown link |
 
 **Demo mode:** If no token file exists or `HA_TOKEN_FILE` is unreadable, the server serves
 **static demo values**, sets `mode: demo`, and the page shows a **DEMO** badge plus the
@@ -337,6 +353,7 @@ Sungold tiles use the live MQTT ids in the table above (`tests/test_ha_label_sun
 | Token in file only | HA [REST API](https://developers.home-assistant.io/docs/api/rest/) Bearer auth |
 | No Lovelace scrape | Frontend is not a machine API (alfa-ai policy) |
 | Localhost bind default | Dashboard is operator LAN tooling, not a public surface |
+| Tailscale Serve (optional) | `scripts/solar_flow_enable_tailscale.sh` — HTTPS MagicDNS for the tailnet only; never Funnel |
 | Read-only loads | Soak **actuation** stays on alfa-ai `.111` with audit (`solar_soak_actuated`) |
 | Victron BLE / Sungold publishers unchanged | Sensor-only; no MQTT publish back to hardware |
 
@@ -344,6 +361,7 @@ Sungold tiles use the live MQTT ids in the table above (`tests/test_ha_label_sun
 
 ## Related
 
+- [TAILSCALE.md](TAILSCALE.md) — away-from-home HA + solar-flow Serve URL
 - [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md) — buses, EM16 A3 history, formulas
 - [SIM_SOAK_PLUGS.md](SIM_SOAK_PLUGS.md) — six sim switches on `.105`
 - [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md) — brain ↔ HA pointer

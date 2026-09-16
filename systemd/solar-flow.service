@@ -1,0 +1,23 @@
+[Unit]
+Description=Solar flow GX-style dashboard (HA REST proxy)
+Documentation=https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/SOLAR_FLOW_DASHBOARD.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO_ROOT@
+Environment=HA_BASE_URL=@HA_BASE_URL@
+Environment=HA_TOKEN_FILE=@HA_TOKEN_FILE@
+Environment=SOLAR_FLOW_PORT=@SOLAR_FLOW_PORT@
+# Localhost bind — Tailscale Serve proxies https://<magicdns>/ → this port.
+# Do not use Funnel (public internet).
+ExecStart=/usr/bin/python3 @REPO_ROOT@/scripts/solar_flow_server.py --host 127.0.0.1 --port @SOLAR_FLOW_PORT@
+Restart=on-failure
+RestartSec=5
+# Hardening (read-only token path only)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

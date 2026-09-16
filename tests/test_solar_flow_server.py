@@ -329,3 +329,56 @@ def test_synced_soc_zero_skips_min_percent() -> None:
     )
     assert view["skipped"] == "soc below 85"
     assert view["decisions"] == []
+
+
+def test_filter_aliases_sungold_pv1_entity_ids() -> None:
+    rows = [
+        {
+            "entity_id": "sensor.sungold_sph302480a_pv1_power",
+            "state": "42",
+            "attributes": {"unit_of_measurement": "W"},
+        },
+        {
+            "entity_id": "sensor.sungold_sph302480a_pv1_voltage",
+            "state": "48.1",
+            "attributes": {"unit_of_measurement": "V"},
+        },
+        {
+            "entity_id": "sensor.sungold_sph302480a_inverter_charging_power",
+            "state": "900",
+            "attributes": {"unit_of_measurement": "W"},
+        },
+    ]
+    filtered = sfs.filter_entities(rows)
+    assert filtered["sensor.sungold_sph302480a_pv_power"]["state"] == "42"
+    assert filtered["sensor.sungold_sph302480a_pv_voltage"]["state"] == "48.1"
+    assert filtered["sensor.sungold_sph302480a_charging_power"]["state"] == "900"
+
+
+def test_resolve_bind_host_tailscale_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SOLAR_FLOW_HOST", raising=False)
+    monkeypatch.delenv("SOLAR_FLOW_TAILSCALE", raising=False)
+    args = sfs.parse_args(["--tailscale"])
+    assert sfs.resolve_bind_host(args) == "0.0.0.0"
+
+
+def test_access_urls_localhost_only_by_default() -> None:
+    urls = sfs.access_urls("127.0.0.1", 8765)
+    assert urls == ["http://127.0.0.1:8765/"]
+
+
+def test_access_urls_includes_tailscale_when_discovered(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sfs,
+        "discover_tailscale_identity",
+        lambda: {
+            "tailscale_ip": "100.64.1.2",
+            "magicdns": "ha-host.tailnet.ts.net",
+        },
+    )
+    monkeypatch.setattr(sfs, "discover_serve_https_url", lambda: "https://ha-host.tailnet.ts.net")
+    urls = sfs.access_urls("0.0.0.0", 8765)
+    assert "http://127.0.0.1:8765/" in urls
+    assert "http://100.64.1.2:8765/" in urls
+    assert "http://ha-host.tailnet.ts.net:8765/" in urls
+    assert "https://ha-host.tailnet.ts.net/" in urls
