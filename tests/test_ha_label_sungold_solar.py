@@ -127,6 +127,7 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
     solar = json.loads((storage / "lovelace.dashboard_solar").read_text(encoding="utf-8"))
     sections = solar["data"]["config"]["views"][0]["sections"]
     assert len(sections) == 2
+    # Sungold is inserted near the top (index 1) for mobile Tailscale visibility.
     heading = sections[1]["cards"][0]
     assert heading == {
         "type": "heading",
@@ -142,6 +143,14 @@ def test_label_and_solar_section(tmp_path: Path) -> None:
     assert tiles[1]["entity"] == "sensor.sungold_sph302480a_load_active_power"
     assert "sensor.sungold_sph302480a_pv_total_power" not in [c["entity"] for c in tiles]
     assert sungold.RETIRED_UNIQUE_IDS.isdisjoint(sungold.PREFERRED_UNIQUE_IDS)
+
+    views = solar["data"]["config"]["views"]
+    assert len(views) == 2
+    sg_view = views[1]
+    assert sg_view["path"] == "sungold"
+    assert sg_view["title"] == "Sungold"
+    assert sg_view["type"] == "sections"
+    assert sg_view["sections"][0]["cards"][0]["heading"] == "Sungold"
 
 
 def test_heading_only_when_registry_empty(tmp_path: Path) -> None:
@@ -176,3 +185,47 @@ def test_heading_only_when_registry_empty(tmp_path: Path) -> None:
         {"type": "heading", "heading": "Sungold", "icon": "mdi:solar-power-variant"}
     ]
     assert not any(c.get("type") == "tile" for c in cards)
+    assert solar["data"]["config"]["views"][1]["path"] == "sungold"
+
+
+def test_solar_flow_url_markdown_card(tmp_path: Path) -> None:
+    storage = tmp_path / ".storage"
+    storage.mkdir()
+    _write(
+        storage / "core.entity_registry",
+        {
+            "version": 1,
+            "minor_version": 1,
+            "key": "core.entity_registry",
+            "data": {
+                "entities": [
+                    {
+                        "entity_id": "sensor.sungold_sph302480a_pv_voltage",
+                        "unique_id": "sungold_sph302480a-pv1-voltage",
+                        "labels": [],
+                        "device_id": "dev1",
+                    }
+                ]
+            },
+        },
+    )
+    _write(
+        storage / "core.device_registry",
+        {
+            "version": 1,
+            "minor_version": 1,
+            "key": "core.device_registry",
+            "data": {"devices": [{"id": "dev1", "labels": [], "identifiers": []}]},
+        },
+    )
+    _write(storage / "lovelace.dashboard_solar", _solar_stub())
+    found = sungold.label_entities_and_device(storage)
+    ordered = sungold.ordered_entities(found)
+    sungold.upsert_solar_section(
+        storage, ordered, solar_flow_url="https://ha-host.tailnet.ts.net"
+    )
+    solar = json.loads((storage / "lovelace.dashboard_solar").read_text(encoding="utf-8"))
+    first_cards = solar["data"]["config"]["views"][0]["sections"][0]["cards"]
+    assert first_cards[0]["type"] == "markdown"
+    assert "https://ha-host.tailnet.ts.net/" in first_cards[0]["content"]
+    assert "Animated solar flow" in first_cards[0]["content"]

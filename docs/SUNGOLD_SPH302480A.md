@@ -114,7 +114,7 @@ mosquitto_sub -h "$MQTT_HOST" -p 1883 -u "$MQTT_USER" -P "$MQTT_PASSWORD" \
 
 In Home Assistant: **Settings → Devices & services → MQTT** — device **Sungold SPH302480A** with PV, battery, grid, load, and temperature entities.
 
-**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity). Tiles bind **live** `entity_id`s from MQTT `unique_id` `sungold_sph302480a-*` and set `name: {type: entity}` so the card shows **PV input voltage**, not `Sungold S...` ([card naming](https://www.home-assistant.io/dashboards/naming/)). The cart stays off T2/KU.
+**Solar dashboard:** HA [label](https://www.home-assistant.io/docs/organizing/labels/) **Sungold** (`sungold`) on that device and its MQTT entities, plus a **Sungold** [sections](https://www.home-assistant.io/dashboards/sections/) heading on sidebar **Solar** (one [tile](https://www.home-assistant.io/dashboards/tile/) per entity) and a dedicated **Sungold** view (`/sungold`) for phone / Tailscale Companion. Tiles bind **live** `entity_id`s from MQTT `unique_id` `sungold_sph302480a-*` and set `name: {type: entity}` so the card shows **PV input voltage**, not `Sungold S...` ([card naming](https://www.home-assistant.io/dashboards/naming/)). The cart stays off T2/KU.
 
 Order: sidecar must already have republished discovery while HA is **running**, then stop HA and apply:
 

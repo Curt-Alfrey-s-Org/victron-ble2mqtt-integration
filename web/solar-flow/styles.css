@@ -62,6 +62,36 @@ html, body {
   border-bottom: 1px solid var(--border);
 }
 
+.jump-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  padding: 0.45rem 1.25rem;
+  background: #12171f;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.jump-nav a {
+  color: var(--cyan-bright);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.jump-nav a:hover,
+.jump-nav a:focus {
+  text-decoration: underline;
+}
+
+.access-url {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+
 .page-header h1 {
   margin: 0;
   font-size: 1.25rem;
@@ -554,5 +584,21 @@ html, body {
   .alfa-panel {
     border-left: none;
     border-top: 1px solid var(--border);
+  }
+
+  .jump-nav {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+
+  .flow-diagram {
+    /* Keep Sungold island reachable; avoid clipping tall SVG on phones */
+    -webkit-overflow-scrolling: touch;
+    max-height: none;
+  }
+
+  .flow-svg {
+    min-width: 640px;
   }
 }

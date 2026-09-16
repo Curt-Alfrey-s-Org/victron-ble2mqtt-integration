@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -227,7 +228,9 @@ def sungold_section(entity_ids: list[str]) -> dict:
         {"type": "heading", "heading": HEADING, "icon": LABEL_ICON}
     ]
     cards.extend(entity_tile(eid) for eid in entity_ids)
-    return {"type": "grid", "cards": cards}
+    # max_columns keeps tiles readable on phone-width Tailscale Companion views.
+    # https://www.home-assistant.io/dashboards/sections/
+    return {"type": "grid", "column_span": 1, "cards": cards}
 
 
 def is_sungold_section(section: dict) -> bool:
@@ -237,7 +240,67 @@ def is_sungold_section(section: dict) -> bool:
     return False
 
 
-def upsert_solar_section(storage: Path, entity_ids: list[str]) -> None:
+def is_sungold_view(view: dict) -> bool:
+    path = (view.get("path") or "").strip().lower()
+    title = (view.get("title") or "").strip().lower()
+    return path == "sungold" or title == "sungold"
+
+
+def sungold_view(entity_ids: list[str]) -> dict:
+    """Dedicated sidebar view so mobile Tailscale users do not bury Sungold under EM16."""
+    return {
+        "title": HEADING,
+        "path": "sungold",
+        "icon": LABEL_ICON,
+        "type": "sections",
+        "max_columns": 2,
+        "sections": [sungold_section(entity_ids)],
+    }
+
+
+def solar_flow_link_card(url: str) -> dict:
+    """Markdown card pointing at the Tailscale / LAN solar-flow URL (no token)."""
+    clean = url.rstrip("/") + "/"
+    return {
+        "type": "markdown",
+        "content": (
+            f"### Animated solar flow\n"
+            f"[Open live diagram]({clean}) — same Victron / Sungold / EM16 numbers "
+            f"as this dashboard (Tailscale or LAN)."
+        ),
+    }
+
+
+def upsert_sungold_view(views: list[dict], entity_ids: list[str]) -> None:
+    view = sungold_view(entity_ids)
+    for idx, existing in enumerate(views):
+        if is_sungold_view(existing):
+            # Preserve any operator-added cards after the Sungold section.
+            sections = existing.setdefault("sections", [])
+            replaced = False
+            for s_idx, section in enumerate(sections):
+                if is_sungold_section(section):
+                    sections[s_idx] = view["sections"][0]
+                    replaced = True
+                    break
+            if not replaced:
+                sections.insert(0, view["sections"][0])
+            existing["title"] = HEADING
+            existing["path"] = "sungold"
+            existing["icon"] = LABEL_ICON
+            existing["type"] = "sections"
+            existing["max_columns"] = 2
+            views[idx] = existing
+            return
+    views.append(view)
+
+
+def upsert_solar_section(
+    storage: Path,
+    entity_ids: list[str],
+    *,
+    solar_flow_url: str | None = None,
+) -> None:
     path = storage / "lovelace.dashboard_solar"
     if not path.exists():
         raise FileNotFoundError(f"missing {path}")
@@ -263,8 +326,28 @@ def upsert_solar_section(storage: Path, entity_ids: list[str]) -> None:
             replaced = True
             break
     if not replaced:
-        sections.append(section)
+        # Insert near the top so phone Tailscale users see Sungold without endless scroll.
+        insert_at = 1 if len(sections) >= 1 else 0
+        sections.insert(insert_at, section)
+
+    if solar_flow_url:
+        link = solar_flow_link_card(solar_flow_url)
+        # Keep a single animated-diagram markdown card at the front of the first section.
+        first = sections[0] if sections else None
+        if first and isinstance(first.get("cards"), list):
+            cards = first["cards"]
+            cards[:] = [
+                c
+                for c in cards
+                if not (
+                    c.get("type") == "markdown"
+                    and "Animated solar flow" in (c.get("content") or "")
+                )
+            ]
+            cards.insert(0, link)
+
     apply_entity_tile_names(view)
+    upsert_sungold_view(views, entity_ids)
     write_store(path, payload)
 
 
@@ -274,6 +357,11 @@ def main() -> int:
         "--storage",
         default="/opt/homeassistant/.storage",
         help="Home Assistant .storage directory",
+    )
+    parser.add_argument(
+        "--solar-flow-url",
+        default=os.environ.get("SOLAR_FLOW_PUBLIC_URL", "").strip() or None,
+        help="Public Tailscale/LAN URL for the animated diagram (markdown link on Solar)",
     )
     args = parser.parse_args()
     storage = Path(args.storage)
@@ -286,10 +374,13 @@ def main() -> int:
     ordered = ordered_entities(found)
     if not ordered:
         print("WARN: no Sungold entities in registry; Solar section is heading only")
-    upsert_solar_section(storage, ordered)
+    upsert_solar_section(storage, ordered, solar_flow_url=args.solar_flow_url)
     print(f"OK: label {LABEL_ID} ({LABEL_NAME}); entities={len(ordered)}")
     for eid in ordered:
         print(f"  {eid}")
+    print("OK: Solar view 'Sungold' (path=/sungold) for mobile Tailscale parity")
+    if args.solar_flow_url:
+        print(f"OK: solar-flow link -> {args.solar_flow_url.rstrip('/')}/")
     return 0
 
 

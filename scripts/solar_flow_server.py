@@ -7,7 +7,7 @@ Official:
   urllib.request: https://docs.python.org/3/library/urllib.request.html
 
 Token stays server-side (HA_TOKEN, HA_TOKEN_FILE, or HA_LONG_LIVED_TOKEN_FILE).
-Default bind 127.0.0.1:8765; use --lan for 0.0.0.0 (operator LAN only).
+Default bind 127.0.0.1:8765; use --lan / --tailscale for 0.0.0.0 (operator LAN + Tailscale).
 """
 from __future__ import annotations
 
@@ -17,6 +17,8 @@ import logging
 import mimetypes
 import os
 import re
+import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -66,6 +68,8 @@ DEFAULT_SETTINGS: dict[str, str] = {
 # MQTT discovery names: Solar power, Battery state, State of charge
 # (override/victron_ble2mqtt/mqtt.py SolarChargerHandler / BatteryMonitorHandler).
 # Sungold live ids: scripts/ha_label_sungold_solar.py + .105 entity registry 16 Sep 2026.
+# Fresh MQTT discovery for unique_id ...-pv1-* yields entity_id ..._pv1_*; older installs
+# reuse ..._pv_voltage. Alias both so PC and mobile Tailscale see the same numbers.
 ENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "sensor.solar_controller_solar_power": ("sensor.solar_controller_solar",),
     "sensor.solar_controller_battery_state": ("sensor.solar_controller_charge_state",),
@@ -77,6 +81,27 @@ ENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "sensor.battery_2_current": ("sensor.battery_2_battery_current",),
     "sensor.sungold_sph302480a_load_power": (
         "sensor.sungold_sph302480a_load_active_power",
+    ),
+    "sensor.sungold_sph302480a_pv_voltage": ("sensor.sungold_sph302480a_pv1_voltage",),
+    "sensor.sungold_sph302480a_pv_current": ("sensor.sungold_sph302480a_pv1_current",),
+    "sensor.sungold_sph302480a_pv_power": ("sensor.sungold_sph302480a_pv1_power",),
+    "sensor.sungold_sph302480a_charging_power": (
+        "sensor.sungold_sph302480a_inverter_charging_power",
+    ),
+    "sensor.sungold_sph302480a_charge_state": (
+        "sensor.sungold_sph302480a_battery_charge_state",
+    ),
+    "sensor.sungold_sph302480a_ac_output_voltage": (
+        "sensor.sungold_sph302480a_inverter_voltage",
+    ),
+    "sensor.sungold_sph302480a_ac_output_frequency": (
+        "sensor.sungold_sph302480a_inverter_frequency",
+    ),
+    "sensor.sungold_sph302480a_fail_code": (
+        "sensor.sungold_sph302480a_inverter_failcode",
+    ),
+    "binary_sensor.sungold_sph302480a_fault_active": (
+        "binary_sensor.sungold_sph302480a_inverter_fault_active",
     ),
 }
 
@@ -694,6 +719,9 @@ class SolarFlowHandler(BaseHTTPRequestHandler):
         if path == "/api/snapshot":
             self._handle_snapshot()
             return
+        if path == "/api/access":
+            self._handle_access()
+            return
         self._handle_static(path)
 
     def _handle_snapshot(self) -> None:
@@ -708,6 +736,18 @@ class SolarFlowHandler(BaseHTTPRequestHandler):
             safe = redact_secrets(str(exc), token)
             logger.warning("snapshot fetch failed: %s", safe)
             self._send_json({"mode": "live", "error": safe}, HTTPStatus.BAD_GATEWAY)
+
+    def _handle_access(self) -> None:
+        host, port = self.server.server_address[:2]
+        identity = discover_tailscale_identity()
+        payload = {
+            "bind_host": host,
+            "port": port,
+            "urls": access_urls(str(host), int(port)),
+            "tailscale": identity,
+            "serve_https": discover_serve_https_url(),
+        }
+        self._send_json(payload)
 
     def _handle_static(self, url_path: str) -> None:
         if url_path in ("", "/"):
@@ -733,7 +773,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--host",
         default=os.environ.get("SOLAR_FLOW_HOST"),
-        help="Bind address (default: SOLAR_FLOW_HOST or 127.0.0.1; 0.0.0.0 with --lan)",
+        help="Bind address (default: SOLAR_FLOW_HOST or 127.0.0.1; 0.0.0.0 with --lan/--tailscale)",
     )
     parser.add_argument(
         "--port",
@@ -746,15 +786,138 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Bind 0.0.0.0 for LAN operator use (default is localhost only)",
     )
+    parser.add_argument(
+        "--tailscale",
+        action="store_true",
+        help="Bind 0.0.0.0 and print Tailscale MagicDNS / 100.x URLs (same as --lan plus discovery)",
+    )
     return parser.parse_args(argv)
 
 
 def resolve_bind_host(args: argparse.Namespace) -> str:
     if args.host:
         return args.host
-    if args.lan:
+    if args.lan or args.tailscale or _env_truthy("SOLAR_FLOW_TAILSCALE"):
         return "0.0.0.0"
     return "127.0.0.1"
+
+
+def _env_truthy(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _tailscale_bin() -> str | None:
+    return shutil.which("tailscale")
+
+
+def discover_tailscale_identity() -> dict[str, str]:
+    """Return Tailscale IP / DNS name for this host when the CLI is available.
+
+    Does not invent names. Empty dict when Tailscale is missing or offline.
+    Official: https://tailscale.com/docs/reference/tailscale-cli
+    """
+    binary = _tailscale_bin()
+    if not binary:
+        return {}
+    out: dict[str, str] = {}
+    try:
+        ip_proc = subprocess.run(
+            [binary, "ip", "-4"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    if ip_proc.returncode == 0:
+        ip = (ip_proc.stdout or "").strip().split()[0] if ip_proc.stdout.strip() else ""
+        if ip.startswith("100."):
+            out["tailscale_ip"] = ip
+    try:
+        status_proc = subprocess.run(
+            [binary, "status", "--json"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return out
+    if status_proc.returncode != 0 or not (status_proc.stdout or "").strip():
+        return out
+    try:
+        status = json.loads(status_proc.stdout)
+    except json.JSONDecodeError:
+        return out
+    self_node = status.get("Self") or {}
+    dns = (self_node.get("DNSName") or "").rstrip(".")
+    if dns:
+        out["magicdns"] = dns
+    hostname = (self_node.get("HostName") or "").strip()
+    if hostname:
+        out["hostname"] = hostname
+    return out
+
+
+def discover_serve_https_url() -> str | None:
+    """Parse `tailscale serve status` for an HTTPS MagicDNS URL when Serve is configured."""
+    binary = _tailscale_bin()
+    if not binary:
+        return None
+    try:
+        proc = subprocess.run(
+            [binary, "serve", "status"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    text = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    match = re.search(r"https://[a-zA-Z0-9._-]+\.ts\.net(?:/\S*)?", text)
+    if match:
+        return match.group(0).rstrip("/")
+    return None
+
+
+def access_urls(bind_host: str, port: int) -> list[str]:
+    """Operator URLs for this process (localhost, Tailscale IP, MagicDNS, Serve)."""
+    urls: list[str] = [f"http://127.0.0.1:{port}/"]
+    if bind_host in ("0.0.0.0", "::", ""):
+        identity = discover_tailscale_identity()
+        ts_ip = identity.get("tailscale_ip")
+        if ts_ip:
+            urls.append(f"http://{ts_ip}:{port}/")
+        magic = identity.get("magicdns")
+        if magic:
+            urls.append(f"http://{magic}:{port}/")
+        serve = discover_serve_https_url()
+        if serve:
+            if not serve.endswith("/"):
+                serve = serve + "/"
+            if serve not in urls:
+                urls.append(serve)
+    # Dedupe while preserving order
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            ordered.append(url)
+    return ordered
+
+
+def print_access_urls(bind_host: str, port: int) -> None:
+    urls = access_urls(bind_host, port)
+    print("Solar flow dashboard access URLs:")
+    for url in urls:
+        print(f"  {url}")
+    if bind_host in ("0.0.0.0", "::") and len(urls) <= 1:
+        print(
+            "  (Tailscale offline or not installed — run scripts/solar_flow_enable_tailscale.sh on .105)"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -769,10 +932,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     httpd = ThreadingHTTPServer((host, args.port), SolarFlowHandler)
-    display_host = host if host != "0.0.0.0" else "127.0.0.1"
-    url = f"http://{display_host}:{args.port}/"
-    print(f"Solar flow dashboard: {url}")
-    logger.info("Serving %s on %s:%s (mode=%s)", WEB_ROOT, host, args.port, "live" if resolve_ha_token() else "demo")
+    print_access_urls(host, args.port)
+    logger.info(
+        "Serving %s on %s:%s (mode=%s)",
+        WEB_ROOT,
+        host,
+        args.port,
+        "live" if resolve_ha_token() else "demo",
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

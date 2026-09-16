@@ -26,7 +26,7 @@ Secrets stay in `.env` and `victron-secrets.env` (never commit those files).
 | **Solar-site Govee** (e.g. H5075 `A4:C1:38:CA:AF:6F`) | BLE on **Pi 4** Theengs → same broker | **Off.** Needs a **second** HCI (`ENABLE_PI4_THEENGS=1` + `THEENGS_ADAPTER` ≠ `BLE_ADAPTER`). **Cells dead 2026-09-14** | USB dongle + env + `sudo bash scripts/deploy.sh` | leave `ENABLE_PI4_THEENGS=0` (deploy runs Compose `--profile solar-theengs down`) |
 | **Ecobee / Rheem / other Wi‑Fi HVAC** | HomeKit Device / EcoNet (LAN), not BLE | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
 | **Refoss / Govee / other HA gear** | Home Assistant integrations | Not this repo | HA → Settings → Devices & services | Remove the integration in HA |
-| **Away-from-home view** | Tailscale VPN (optional) | Off (not in deploy) | Install Tailscale on **`.105`** + phone ([TAILSCALE.md](TAILSCALE.md)) | Uninstall / log out of Tailscale |
+| **Away-from-home view** | Tailscale VPN (optional) | Off (not in deploy) | Install Tailscale on **`.105`** + phone ([TAILSCALE.md](TAILSCALE.md)); solar-flow via `scripts/solar_flow_enable_tailscale.sh` | Uninstall / log out of Tailscale |
 
 Victron and Sungold both publish into the **same** Mosquitto broker. They do not replace each other.
 

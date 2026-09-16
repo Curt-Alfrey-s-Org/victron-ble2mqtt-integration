@@ -17,6 +17,11 @@
       <time id="clock" class="clock" aria-live="off">--:--:--</time>
     </div>
   </header>
+  <nav class="jump-nav" aria-label="Diagram sections">
+    <a href="#node-sg-pv">Sungold cart</a>
+    <a href="#meter-bank">EM16 meters</a>
+    <span id="access-url" class="access-url" hidden></span>
+  </nav>
   <p id="snapshot-label" class="snapshot-label" hidden></p>
 
   <main class="flow-layout">
@@ -288,7 +293,7 @@
         </g>
       </svg>
 
-      <section class="meter-bank" aria-label="Refoss EM16 channel meters">
+      <section id="meter-bank" class="meter-bank" aria-label="Refoss EM16 channel meters">
         <h2>Refoss EM16 meters</h2>
         <p class="meter-note">Numeric channels only as meters. Do not add A3+B2. B2 is the return of the same A3 feed. C1-C6 are unused CTs on this site. A2/B4 are candidate T2 Renogy idle, unconfirmed.</p>
         <div id="em16-meters" class="meter-grid"></div>
