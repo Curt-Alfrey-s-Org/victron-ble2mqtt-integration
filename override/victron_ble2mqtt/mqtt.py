@@ -456,6 +456,10 @@ class BatteryMonitorHandler(BaseHandler):
 
 class SolarChargerHandler(BaseHandler):
     VictronDeviceClass = SolarCharger
+    # Instant Readout solar-charger payload (keshavdv/victron-ble SolarCharger.parse_decrypted):
+    # charge_state, charger_error, battery_voltage, battery_charging_current,
+    # yield_today, solar_power, external_device_load. No PV voltage / PV current
+    # (VictronConnect 7.3.1 while GATT-connected; VE.Direct TEXT VPV).
     # example_data = {
     #     'battery_charging_current': 0.8,
     #     'battery_voltage': 25.91,

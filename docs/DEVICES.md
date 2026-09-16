@@ -79,12 +79,12 @@ This site's BLE dongle sits on that VE.Direct port; do **not** unplug it for USB
 | `battery_charging_current` | Battery current | yes |
 | `battery_voltage` | Battery voltage | yes |
 | `charge_state` | Battery state | yes |
-| `charger_error` | Charger error | added by `ha_label_victron_refoss.py` |
+| `charger_error` | (parsed, not a Solar tile) | no extra tile |
 | `external_device_load` | Load output | yes |
 | `solar_power` | Solar power | yes |
 | `yield_today` | Solar yield | yes |
-| (derived V x I) | Battery power | MQTT device always; Solar tile via label script |
-| (derived V x load A) | Load output power | MQTT device always; Solar tile via label script |
+| (derived V x I) | Battery power | MQTT device only |
+| (derived V x load A) | Load output power | MQTT device only |
 | RSSI | RSSI | yes |
 | solar voltage / solar current | **not in BLE ads** | not an entity |
 
