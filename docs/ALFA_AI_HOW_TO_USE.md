@@ -21,6 +21,7 @@ Canonical runbook (token, settings, soak physics):
 | Power buses (T2 vs KU, EM16 A3) | `docs/SOLAR_POWER_BALANCE.md` -- 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in |
 | Soak plugs must sit on the **intended AC circuit** | Trailer/KU vs house utility -- 15 Sep A3 clamp is Sungold; see SOLAR_POWER_BALANCE |
 | **Simulated** soak plugs (no hardware) | [SIM_SOAK_PLUGS.md](SIM_SOAK_PLUGS.md) -- six `switch.sim_ac_plug_*` on `.105` (YAML package; opt-in) |
+| **GX-style solar flow page** (local) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- `python scripts/solar_flow_server.py` then `http://127.0.0.1:8765/`; HA via LAN proxy, deterministic soak panel (read-only) |
 
 ## Safety
 

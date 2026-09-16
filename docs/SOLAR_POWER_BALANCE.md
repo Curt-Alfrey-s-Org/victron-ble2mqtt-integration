@@ -32,6 +32,13 @@ Sungold cart (not on T2 or KU)
   SPH302480A on a dolly + 2x LiTime 24V 100Ah in parallel (emergency).
 ```
 
+**Solar-flow Overview (operator 16 Sep 2026):** the local GX-style page
+([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) now shows **data tiles** for
+Sungold, KU PWM, and both Renogy inverters. Physics is unchanged: Sungold stays a
+**separate plant**; PWM and Renogy inverters stay **unmetered** unless HA has a
+numeric entity (registry on `.105` has Sungold MQTT; **no** Renogy/PWM entities).
+Do not merge Sungold DC into T2/KU. Do not print 2x T2 watts as live KU Victron.
+
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
 
 | Piece | Bus | Role |
@@ -97,6 +104,16 @@ What each SmartShunt shows ([operation](https://www.victronenergy.com/media/pg/S
 Charger-to-inverter watts: **MPPT solar** (T2 = reporter; KU Victron = 2x reporter) and **EM16** on the AC side. PWM is extra on KU and unmetered. `DC_leftover` below is an estimate, not a clamp.
 
 Charge-state **bulk** on the reporter means it is still pushing current. **Absorption** means it has reached the absorb voltage and current is tapering. LiTime 24 V 230 Ah charge is **28.8 V +/- 0.4 V** (recommended **28.4-29.2 V**) -- T2 **29.1 V** then **28.5 V** matches that. KU **SoC 0%** at ~27-29 V was unsynced. 14:53 **91.7% / -15.4 Ah** and 16:11 **85.4% / -33.7 Ah** fit **230 Ah**. T2 **28.5 V** vs KU **26.6 V** at 14:53 is the jumper not equalizing under HVAC+cluster. At 16:11 (cluster only) T2 **27.2 V** vs KU **27.0 V**.
+
+**16 Sep 2026 -- SoC still unsynced:** do not use HA `state_of_charge` for soak or
+dashboard control. Prefer shunt **V / A / W** and MPPT charge state. Victron
+does not publish a voltage-to-SoC formula; unsynchronised SoC is `---` until
+the monitor is synchronised when the battery is full
+([operation 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
+Operator: VictronConnect → Settings → Battery settings → **Synchronise** (or wait
+for automatic sync at charged voltage + tail current + charged time). This repo
+does not write SoC over MQTT/HA. Dashboard procedure:
+[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md#operator-synchronise-smartshunt-soc-victronconnect-only).
 
 ## Formulas
 

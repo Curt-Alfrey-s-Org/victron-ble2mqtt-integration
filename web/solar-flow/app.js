@@ -1,0 +1,593 @@
+(function () {
+  'use strict';
+
+  var POLL_MS = 2000;
+  var lastSnapshot = null;
+  var proxyOnline = false;
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var ENTITY_IDS = {
+    solar: 'sensor.solar_controller_solar_power',
+    battState: 'sensor.solar_controller_battery_state',
+    mpptV: 'sensor.solar_controller_battery',
+    mpptA: 'sensor.solar_controller_battery_charging',
+    mpptChargeW: 'sensor.solar_controller_charging_power',
+    mpptLoadA: 'sensor.solar_controller_load',
+    mpptLoadW: 'sensor.solar_controller_load_power',
+    mpptYield: 'sensor.solar_controller_yield_today',
+    batt1Soc: 'sensor.battery_1_soc',
+    batt1V: 'sensor.battery_1_voltage',
+    batt1A: 'sensor.battery_1_current',
+    batt1W: 'sensor.battery_1_power',
+    batt1Ah: 'sensor.battery_1_consumed_ah',
+    batt1Rem: 'sensor.battery_1_remaining_minutes',
+    batt2Soc: 'sensor.battery_2_soc',
+    batt2V: 'sensor.battery_2_voltage',
+    batt2A: 'sensor.battery_2_current',
+    batt2W: 'sensor.battery_2_power',
+    batt2Ah: 'sensor.battery_2_consumed_ah',
+    batt2Rem: 'sensor.battery_2_remaining_minutes',
+    em16: 'sensor.em16_a3_power',
+    em16V: 'sensor.em16_a3_voltage',
+    em16A: 'sensor.em16_a3_current',
+    soakTotal: 'sensor.sim_soak_load_power',
+    sgPvW: 'sensor.sungold_sph302480a_pv_power',
+    sgPvV: 'sensor.sungold_sph302480a_pv_voltage',
+    sgPvA: 'sensor.sungold_sph302480a_pv_current',
+    sgSoc: 'sensor.sungold_sph302480a_battery_soc',
+    sgBattV: 'sensor.sungold_sph302480a_battery_voltage',
+    sgBattA: 'sensor.sungold_sph302480a_battery_current',
+    sgBattW: 'sensor.sungold_sph302480a_charging_power',
+    sgCharge: 'sensor.sungold_sph302480a_charge_state',
+    sgGridV: 'sensor.sungold_sph302480a_grid_voltage',
+    sgGridA: 'sensor.sungold_sph302480a_grid_current',
+    sgGridHz: 'sensor.sungold_sph302480a_grid_frequency',
+    sgLoadW: 'sensor.sungold_sph302480a_load_power',
+    sgLoadA: 'sensor.sungold_sph302480a_load_current',
+    sgOutV: 'sensor.sungold_sph302480a_ac_output_voltage',
+    sgOutHz: 'sensor.sungold_sph302480a_ac_output_frequency',
+    sgMode: 'sensor.sungold_sph302480a_inverter_state',
+    sgFail: 'sensor.sungold_sph302480a_fail_code',
+    sgFault: 'binary_sensor.sungold_sph302480a_fault_active'
+  };
+
+  var PLUG_COUNT = 6;
+  var EM16_CHANNELS = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6'];
+
+  function $(id) {
+    return document.getElementById(id);
+  }
+
+  function formatNum(n, decimals) {
+    if (n === null || n === undefined || isNaN(n)) return null;
+    if (decimals === undefined) decimals = 0;
+    return Number(n).toFixed(decimals);
+  }
+
+  function parseFloatSafe(val) {
+    if (val === null || val === undefined || val === '' || val === 'unknown' || val === 'unavailable') {
+      return null;
+    }
+    var n = parseFloat(val);
+    return isNaN(n) ? null : n;
+  }
+
+  var ENTITY_ALIASES = {
+    'sensor.solar_controller_solar_power': ['sensor.solar_controller_solar'],
+    'sensor.solar_controller_battery_state': ['sensor.solar_controller_charge_state'],
+    'sensor.battery_1_soc': ['sensor.battery_1_state_of_charge'],
+    'sensor.battery_2_soc': ['sensor.battery_2_state_of_charge'],
+    'sensor.battery_1_voltage': ['sensor.battery_1_battery_voltage'],
+    'sensor.battery_2_voltage': ['sensor.battery_2_battery_voltage'],
+    'sensor.battery_1_current': ['sensor.battery_1_battery_current'],
+    'sensor.battery_2_current': ['sensor.battery_2_battery_current'],
+    'sensor.sungold_sph302480a_load_power': ['sensor.sungold_sph302480a_load_active_power']
+  };
+
+  function getEntity(entities, id) {
+    if (!entities) return null;
+    if (entities[id]) return entities[id];
+    var aliases = ENTITY_ALIASES[id];
+    if (!aliases) return null;
+    for (var a = 0; a < aliases.length; a++) {
+      if (entities[aliases[a]]) return entities[aliases[a]];
+    }
+    return null;
+  }
+
+  function getState(entities, id) {
+    var ent = getEntity(entities, id);
+    return ent ? ent.state : null;
+  }
+
+  function getPowerW(entities, id) {
+    var state = getState(entities, id);
+    return parseFloatSafe(state);
+  }
+
+  function getBatteryPower(entities, prefix) {
+    var w = getPowerW(entities, 'sensor.' + prefix + '_power');
+    if (w !== null) return w;
+    var v = parseFloatSafe(getState(entities, 'sensor.' + prefix + '_voltage'));
+    var a = parseFloatSafe(getState(entities, 'sensor.' + prefix + '_current'));
+    if (v !== null && a !== null) return v * a;
+    return null;
+  }
+
+  function isSwitchOn(entities, n) {
+    var state = getState(entities, 'switch.sim_ac_plug_' + n);
+    return state === 'on';
+  }
+
+  function setText(id, text) {
+    var el = $(id);
+    if (el) el.textContent = text;
+  }
+
+  function setPip(id, active) {
+    var el = $(id);
+    if (!el) return;
+    if (active) {
+      el.classList.add('active');
+    } else {
+      el.classList.remove('active');
+    }
+  }
+
+  function setFlow(pathId, flowing, reverse) {
+    var el = $(pathId);
+    if (!el) return;
+    el.classList.remove('flowing', 'reverse');
+    if (flowing && !reducedMotion) {
+      el.classList.add('flowing');
+      if (reverse) el.classList.add('reverse');
+    }
+  }
+
+  function setPlugOn(n, on) {
+    var node = $('node-plug-' + n);
+    if (!node) return;
+    if (on) {
+      node.classList.add('on');
+    } else {
+      node.classList.remove('on');
+    }
+  }
+
+  function updateClock() {
+    var now = new Date();
+    var el = $('clock');
+    if (el) {
+      el.textContent = now.toLocaleTimeString(undefined, { hour12: false });
+    }
+  }
+
+  function updateModeBadge(mode) {
+    var badge = $('mode-badge');
+    if (!badge) return;
+    badge.classList.remove('mode-live', 'mode-demo', 'mode-waiting');
+    if (mode === 'live') {
+      badge.textContent = 'live';
+      badge.classList.add('mode-live');
+    } else if (mode === 'demo') {
+      badge.textContent = 'demo';
+      badge.classList.add('mode-demo');
+    } else {
+      badge.textContent = 'waiting';
+      badge.classList.add('mode-waiting');
+    }
+  }
+
+  function updateProxyBanner(online) {
+    var banner = $('proxy-banner');
+    if (!banner) return;
+    banner.hidden = online;
+  }
+
+  function formatW(w) {
+    if (w === null) return '-- W';
+    return formatNum(Math.abs(w), 0) + ' W';
+  }
+
+  function formatSignedW(w) {
+    if (w === null) return '-- W';
+    var sign = w > 0 ? '+' : w < 0 ? '-' : '';
+    return sign + formatNum(Math.abs(w), 0) + ' W';
+  }
+
+  function formatVA(v, a) {
+    return (v !== null ? formatNum(v, 1) + ' V' : '-- V') + ' / ' +
+      (a !== null ? formatNum(a, 1) + ' A' : '-- A');
+  }
+
+  function formatAh(n) {
+    if (n === null) return '-- Ah';
+    var sign = n > 0 ? '+' : n < 0 ? '-' : '';
+    return sign + formatNum(Math.abs(n), 1) + ' Ah';
+  }
+
+  function formatRem(n) {
+    if (n === null) return 'rem --';
+    return 'rem ' + formatNum(n, 0) + ' min';
+  }
+
+  function formatSocUnsynced(pct) {
+    if (pct === null) return 'SoC unsynced --';
+    return 'SoC unsynced ' + formatNum(pct, 0) + '%';
+  }
+
+  function renderMetrics(ai) {
+    var container = $('ai-metrics');
+    if (!container) return;
+    if (!ai) {
+      container.innerHTML = '';
+      return;
+    }
+    var unsynced = !!ai.soc_unsynced;
+    var fields = [
+      { label: 'Surplus', key: 'surplus_w', signed: true },
+      { label: 'Solar', key: 'solar_w' },
+      { label: 'Load', key: 'load_w' },
+      { label: 'Sim plugs', key: 'sim_plug_w' },
+      { label: 'Eff. load', key: 'effective_load_w' },
+      { label: 'Shunt V', key: 'shunt_v', suffix: ' V' },
+      { label: 'Shunt A', key: 'shunt_a', signedA: true },
+      {
+        label: unsynced ? 'SoC unsynced' : 'SoC',
+        key: 'soc',
+        suffix: '%',
+        dim: unsynced
+      }
+    ];
+    var html = '';
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var val = ai[f.key];
+      var display;
+      if (val === null || val === undefined) {
+        display = '--';
+      } else if (f.signedA) {
+        display = (val > 0 ? '+' : '') + formatNum(val, 1) + ' A';
+      } else if (f.suffix) {
+        display = formatNum(val, 1) + f.suffix;
+      } else if (f.signed) {
+        display = formatSignedW(val);
+      } else {
+        display = formatW(val);
+      }
+      html += '<div class="metric-item' + (f.dim ? ' unsynced' : '') +
+        '"><span class="metric-label">' + f.label +
+        '</span><span class="metric-value">' + display + '</span></div>';
+    }
+    if (ai.charge_state) {
+      html += '<div class="metric-item"><span class="metric-label">Charge</span>' +
+        '<span class="metric-value">' + escapeHtml(String(ai.charge_state)) + '</span></div>';
+    }
+    if (ai.soc_gate) {
+      html += '<div class="metric-item unsynced"><span class="metric-label">SoC gate</span>' +
+        '<span class="metric-value">' + escapeHtml(String(ai.soc_gate)) + '</span></div>';
+    }
+    if (ai.skipped) {
+      html += '<div class="metric-item"><span class="metric-label">Skipped</span>' +
+        '<span class="metric-value">' + escapeHtml(String(ai.skipped)) + '</span></div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderDecisions(decisions) {
+    var list = $('ai-actions');
+    if (!list) return;
+    if (!decisions || decisions.length === 0) {
+      list.innerHTML = '<li class="ai-action-placeholder">no decisions</li>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < decisions.length; i++) {
+      var d = decisions[i];
+      var targetClass = 'target-' + (d.target || 'skip');
+      html += '<li class="ai-decision ' + targetClass + '">' +
+        '<span class="entity-id">' + escapeHtml(d.entity_id || '?') + '</span>' +
+        '<span class="decision-arrow">' + escapeHtml(d.current || '?') +
+        ' &rarr; ' + escapeHtml(d.target || '?') + '</span>';
+      if (d.reason) {
+        html += '<span class="reason">' + escapeHtml(d.reason) + '</span>';
+      }
+      html += '</li>';
+    }
+    list.innerHTML = html;
+  }
+
+  function channelNote(ch) {
+    if (ch === 'a3') return 'load meter (not a 2nd plant)';
+    if (ch === 'b2') return 'return of A3; do not add';
+    if (ch === 'a2' || ch === 'b4') return 'candidate T2 Renogy idle';
+    if (ch.charAt(0) === 'c') return 'unused CT';
+    return '';
+  }
+
+  function renderEm16Meters(entities) {
+    var container = $('em16-meters');
+    if (!container) return;
+    var html = '';
+    for (var i = 0; i < EM16_CHANNELS.length; i++) {
+      var ch = EM16_CHANNELS[i];
+      var prefix = 'sensor.em16_' + ch + '_';
+      var w = parseFloatSafe(getState(entities, prefix + 'power'));
+      var v = parseFloatSafe(getState(entities, prefix + 'voltage'));
+      var a = parseFloatSafe(getState(entities, prefix + 'current'));
+      var live = w !== null && Math.abs(w) >= 1;
+      var cls = 'meter-card';
+      if (ch === 'b2') cls += ' return';
+      cls += live ? ' live' : ' idle';
+      var note = channelNote(ch);
+      html += '<div class="' + cls + '">' +
+        '<div class="meter-ch">' + ch.toUpperCase() +
+        (note ? ' <span class="meter-va">' + escapeHtml(note) + '</span>' : '') +
+        '</div>' +
+        '<div class="meter-w">' + formatSignedW(w) + '</div>' +
+        '<div class="meter-va">' + formatVA(v, a) + '</div>' +
+        '</div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function applySnapshot(snapshot) {
+    if (!snapshot) return;
+    var entities = snapshot.entities || {};
+
+    updateModeBadge(snapshot.mode);
+    setFetchedAt(snapshot.fetched_at);
+
+    var labelEl = $('snapshot-label');
+    if (labelEl) {
+      var label = snapshot.label || '';
+      var missing = snapshot.missing_entity_ids;
+      if (snapshot.mode === 'live' && missing && missing.length) {
+        var extra = 'Missing HA ids: ' + missing.slice(0, 8).join(', ');
+        if (missing.length > 8) extra += ' (+' + (missing.length - 8) + ')';
+        label = label ? (label + ' -- ' + extra) : extra;
+      }
+      labelEl.textContent = label;
+      labelEl.hidden = !label;
+    }
+
+    var solarW = getPowerW(entities, ENTITY_IDS.solar);
+    setText('val-solar-w', formatW(solarW));
+    setPip('pip-solar', solarW !== null && solarW > 0);
+
+    var battState = getState(entities, ENTITY_IDS.battState);
+    setText('val-batt-state', battState || '--');
+    var mpptV = parseFloatSafe(getState(entities, ENTITY_IDS.mpptV));
+    var mpptA = parseFloatSafe(getState(entities, ENTITY_IDS.mpptA));
+    var mpptChargeW = getPowerW(entities, ENTITY_IDS.mpptChargeW);
+    var mpptLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.mpptLoadA));
+    var mpptLoadW = getPowerW(entities, ENTITY_IDS.mpptLoadW);
+    var mpptYield = parseFloatSafe(getState(entities, ENTITY_IDS.mpptYield));
+    setText('val-mppt-va', formatVA(mpptV, mpptA));
+    setText('val-mppt-charge-w', 'chg ' + formatW(mpptChargeW));
+    setText(
+      'val-mppt-load',
+      'load ' + (mpptLoadW !== null ? formatW(mpptLoadW) : '-- W') +
+        (mpptLoadA !== null ? ' / ' + formatNum(mpptLoadA, 1) + ' A' : '')
+    );
+    setText('val-mppt-yield', mpptYield !== null ? 'yield ' + formatNum(mpptYield, 0) + ' Wh' : 'yield --');
+
+    var batt1Soc = parseFloatSafe(getState(entities, ENTITY_IDS.batt1Soc));
+    var batt1V = parseFloatSafe(getState(entities, ENTITY_IDS.batt1V));
+    var batt1A = parseFloatSafe(getState(entities, ENTITY_IDS.batt1A));
+    var batt1W = getBatteryPower(entities, 'battery_1');
+    setText('val-batt1-soc', formatSocUnsynced(batt1Soc));
+    setText('val-batt1-va', formatVA(batt1V, batt1A));
+    setText('val-batt1-w', formatSignedW(batt1W));
+    setText('val-batt1-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Ah))));
+    setText('val-batt1-rem', formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rem))));
+    setPip('pip-batt1', batt1W !== null && Math.abs(batt1W) > 0);
+
+    var batt2Soc = parseFloatSafe(getState(entities, ENTITY_IDS.batt2Soc));
+    var batt2V = parseFloatSafe(getState(entities, ENTITY_IDS.batt2V));
+    var batt2A = parseFloatSafe(getState(entities, ENTITY_IDS.batt2A));
+    var batt2W = getBatteryPower(entities, 'battery_2');
+    setText('val-batt2-soc', formatSocUnsynced(batt2Soc));
+    setText('val-batt2-va', formatVA(batt2V, batt2A));
+    setText('val-batt2-w', formatSignedW(batt2W));
+    setText('val-batt2-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Ah))));
+    setText('val-batt2-rem', formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rem))));
+    setPip('pip-batt2', batt2W !== null && Math.abs(batt2W) > 0);
+
+    var em16W = getPowerW(entities, ENTITY_IDS.em16);
+    var em16V = parseFloatSafe(getState(entities, ENTITY_IDS.em16V));
+    var em16A = parseFloatSafe(getState(entities, ENTITY_IDS.em16A));
+    setText('val-em16-w', formatW(em16W));
+    setText('val-em16-va', formatVA(em16V, em16A));
+    setPip('pip-em16', em16W !== null && Math.abs(em16W) > 0);
+
+    setText('val-t2-renogy-w', '-- W');
+    setPip('pip-t2-renogy', false);
+    setText('val-ku-renogy-w', '-- W');
+
+    var totalSoak = 0;
+    var hasSoak = false;
+    var anyPlugOn = false;
+    for (var p = 1; p <= PLUG_COUNT; p++) {
+      var plugOn = isSwitchOn(entities, p);
+      var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
+      setText('val-plug-' + p + '-w', formatW(plugW));
+      setPip('pip-plug-' + p, plugOn || (plugW !== null && plugW > 0));
+      setPlugOn(p, plugOn);
+      setFlow('path-ac-plug-' + p, plugOn || (plugW !== null && plugW > 0), false);
+      if (plugOn) anyPlugOn = true;
+      if (plugW !== null) {
+        totalSoak += plugW;
+        hasSoak = true;
+      }
+    }
+
+    var soakSensor = getPowerW(entities, ENTITY_IDS.soakTotal);
+    setText('val-soak-w', formatW(soakSensor !== null ? soakSensor : (hasSoak ? totalSoak : null)));
+
+    var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
+    var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
+    var sgPvA = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvA));
+    setText('val-sg-pv-w', formatW(sgPvW));
+    setText('val-sg-pv-va', formatVA(sgPvV, sgPvA));
+    setPip('pip-sg-pv', sgPvW !== null && sgPvW > 0);
+
+    var sgSoc = parseFloatSafe(getState(entities, ENTITY_IDS.sgSoc));
+    var sgBattV = parseFloatSafe(getState(entities, ENTITY_IDS.sgBattV));
+    var sgBattA = parseFloatSafe(getState(entities, ENTITY_IDS.sgBattA));
+    var sgBattW = getPowerW(entities, ENTITY_IDS.sgBattW);
+    var sgCharge = getState(entities, ENTITY_IDS.sgCharge);
+    setText('val-sg-soc', sgSoc !== null ? formatNum(sgSoc, 0) + ' %' : '-- %');
+    setText('val-sg-batt-va', formatVA(sgBattV, sgBattA));
+    setText('val-sg-batt-w', formatSignedW(sgBattW));
+    setText('val-sg-charge', sgCharge || '--');
+    setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
+
+    var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
+    var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
+    var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
+    setText('val-sg-acin-va', formatVA(sgGridV, sgGridA));
+    setText('val-sg-acin-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
+    setPip('pip-sg-acin', sgGridA !== null && Math.abs(sgGridA) > 0.05);
+
+    var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
+    var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
+    var sgOutV = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutV));
+    var sgOutHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutHz));
+    setText('val-sg-load-w', formatW(sgLoadW));
+    setText('val-sg-load-va', formatVA(sgOutV, sgLoadA));
+    setText('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
+    setPip('pip-sg-acout', sgLoadW !== null && Math.abs(sgLoadW) > 0);
+
+    var sgMode = getState(entities, ENTITY_IDS.sgMode);
+    var sgFail = getState(entities, ENTITY_IDS.sgFail);
+    var sgFault = getState(entities, ENTITY_IDS.sgFault);
+    setText('val-sg-mode', sgMode ? 'mode ' + sgMode : 'mode --');
+    var faultOn = sgFault === 'on' || sgFault === 'true';
+    setText('val-sg-fault', faultOn ? 'fault on' : (sgFail && sgFail !== '0' ? 'fail ' + sgFail : 'fault off'));
+    setPip('pip-sg-inv', (sgBattW !== null && Math.abs(sgBattW) > 0) || (sgLoadW !== null && sgLoadW > 0) || faultOn);
+
+    renderEm16Meters(entities);
+
+    var ai = snapshot.ai || {};
+    var thinking = ai.thinking;
+    setText('ai-thinking', thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
+    renderMetrics(ai);
+    renderDecisions(ai.decisions);
+
+    updateFlows({
+      solarW: solarW,
+      batt1W: batt1W,
+      batt2W: batt2W,
+      em16W: em16W,
+      plugTotal: totalSoak,
+      anyPlugOn: anyPlugOn,
+      sgPvW: sgPvW,
+      sgBattW: sgBattW,
+      sgGridA: sgGridA,
+      sgLoadW: sgLoadW
+    });
+    setPip(
+      'pip-inverter',
+      (em16W !== null && Math.abs(em16W) > 0) || totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0)
+    );
+  }
+
+  function setFetchedAt(iso) {
+    var el = $('fetched-at');
+    if (!el) return;
+    if (!iso) {
+      el.textContent = 'no fetch';
+      el.removeAttribute('datetime');
+      return;
+    }
+    el.setAttribute('datetime', iso);
+    var parsed = new Date(iso);
+    if (isNaN(parsed.getTime())) {
+      el.textContent = iso;
+      return;
+    }
+    el.textContent = 'HA ' + parsed.toLocaleTimeString(undefined, { hour12: false });
+  }
+
+  function updateFlows(opts) {
+    var solarFlow = opts.solarW !== null && opts.solarW > 0;
+    var batt1Charge = opts.batt1W !== null && opts.batt1W > 0;
+    var batt1Discharge = opts.batt1W !== null && opts.batt1W < 0;
+    setFlow('path-t2-mppt-batt1', solarFlow || batt1Charge || batt1Discharge, batt1Discharge);
+    setFlow('path-t2-batt1-renogy', false, false);
+
+    var batt2Discharge = opts.batt2W !== null && opts.batt2W < 0;
+    var em16Flow = opts.em16W !== null && Math.abs(opts.em16W) > 0;
+    var acLoad = em16Flow || (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
+    setFlow('path-ku-batt2-inverter', batt2Discharge || acLoad, false);
+    setFlow('path-inverter-acbus', acLoad, false);
+    setFlow('path-ac-riser', acLoad, false);
+    setFlow('path-ac-em16', em16Flow, false);
+
+    setFlow('path-sg-pv-batt', opts.sgPvW !== null && opts.sgPvW > 0, false);
+    setFlow('path-sg-batt-inv', opts.sgBattW !== null && Math.abs(opts.sgBattW) > 0, false);
+    setFlow('path-sg-acin-inv', opts.sgGridA !== null && Math.abs(opts.sgGridA) > 0.05, false);
+    setFlow('path-sg-inv-acout', opts.sgLoadW !== null && opts.sgLoadW > 0, false);
+  }
+
+  function fetchSnapshot() {
+    return fetch('/api/snapshot', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    });
+  }
+
+  function poll() {
+    fetchSnapshot()
+      .then(function (data) {
+        proxyOnline = true;
+        updateProxyBanner(true);
+        lastSnapshot = data;
+        applySnapshot(data);
+      })
+      .catch(function () {
+        proxyOnline = false;
+        updateProxyBanner(false);
+        if (!lastSnapshot) {
+          updateModeBadge(null);
+          setText('ai-thinking', 'waiting for proxy');
+        } else {
+          applySnapshot(lastSnapshot);
+        }
+      });
+  }
+
+  function init() {
+    updateClock();
+    setInterval(updateClock, 1000);
+    poll();
+    setInterval(poll, POLL_MS);
+
+    if (window.matchMedia) {
+      var mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+      mq.addEventListener('change', function (e) {
+        reducedMotion = e.matches;
+        if (lastSnapshot) applySnapshot(lastSnapshot);
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();

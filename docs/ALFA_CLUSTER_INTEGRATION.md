@@ -69,4 +69,5 @@ Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
 | 24 V watt in vs watt out | `docs/SOLAR_POWER_BALANCE.md` -- T2 vs KU buses, two Renogy 2 kW, PWM on KU; 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in (do not add B2) |
 | alfa-ai HA soak / smart plugs | Brain REST on `.111` -> HA `:8123`; [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md); [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md) |
 | Simulated soak plugs (FAKE, opt-in `.105`) | [SIM_SOAK_PLUGS.md](SIM_SOAK_PLUGS.md) -- `switch.sim_ac_plug_1`..`6` + power sensors (HA YAML package) |
+| GX-style solar flow dashboard (local) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- victron clone + `scripts/solar_flow_server.py`; HA `.105:8123` via token file; soak explainer mirrors alfa-ai policy |
 | **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |

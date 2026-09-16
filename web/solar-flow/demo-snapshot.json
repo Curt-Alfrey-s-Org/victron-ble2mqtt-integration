@@ -1,0 +1,303 @@
+{
+  "mode": "demo",
+  "label": "DEMO illustrative numbers - not a live Home Assistant observation",
+  "fetched_at": "2026-01-01T12:00:00+00:00",
+  "entities": {
+    "sensor.solar_controller_solar_power": {
+      "state": "400",
+      "attributes": {
+        "unit_of_measurement": "W",
+        "friendly_name": "[DEMO] T2 PV solar power"
+      }
+    },
+    "sensor.em16_a3_power": {
+      "state": "100",
+      "attributes": {
+        "unit_of_measurement": "W",
+        "friendly_name": "[DEMO] EM16 A3"
+      }
+    },
+    "sensor.battery_1_soc": {
+      "state": "92",
+      "attributes": {
+        "unit_of_measurement": "%",
+        "friendly_name": "[DEMO] Battery 1 T2 SoC"
+      }
+    },
+    "sensor.battery_1_voltage": {
+      "state": "29.0",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.battery_1_current": {
+      "state": "2.0",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.battery_1_power": {
+      "state": "58",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.battery_2_soc": {
+      "state": "88",
+      "attributes": {
+        "unit_of_measurement": "%",
+        "friendly_name": "[DEMO] Battery 2 KU SoC"
+      }
+    },
+    "sensor.battery_2_voltage": {
+      "state": "26.8",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.battery_2_current": {
+      "state": "-5.0",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.battery_2_power": {
+      "state": "-134",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.solar_controller_battery_state": {
+      "state": "absorption",
+      "attributes": { "friendly_name": "[DEMO] Charge stage" }
+    },
+    "switch.sim_ac_plug_1": {
+      "state": "on",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 1 fan (180W rated)" }
+    },
+    "switch.sim_ac_plug_2": {
+      "state": "off",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 2 dehumidifier (300W rated)" }
+    },
+    "switch.sim_ac_plug_3": {
+      "state": "off",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 3 water heater (1200W rated)" }
+    },
+    "switch.sim_ac_plug_4": {
+      "state": "off",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 4 fan (130W rated)" }
+    },
+    "switch.sim_ac_plug_5": {
+      "state": "off",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 5 fan (130W rated)" }
+    },
+    "switch.sim_ac_plug_6": {
+      "state": "off",
+      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 6 gaming PC (300W rated)" }
+    },
+    "sensor.sim_ac_plug_1_power": {
+      "state": "180",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_ac_plug_2_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_ac_plug_3_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_ac_plug_4_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_ac_plug_5_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_ac_plug_6_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sim_soak_load_power": {
+      "state": "180",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.solar_controller_solar": {
+      "state": "400",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.solar_controller_charge_state": {
+      "state": "absorption",
+      "attributes": {}
+    },
+    "sensor.solar_controller_battery": {
+      "state": "29.0",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.solar_controller_battery_charging": {
+      "state": "13.8",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.solar_controller_charging_power": {
+      "state": "400",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.solar_controller_load": {
+      "state": "0.0",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.solar_controller_load_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.solar_controller_yield_today": {
+      "state": "1440",
+      "attributes": { "unit_of_measurement": "Wh" }
+    },
+    "sensor.solar_controller_rssi": {
+      "state": "-71",
+      "attributes": { "unit_of_measurement": "dBm" }
+    },
+    "sensor.battery_1_state_of_charge": {
+      "state": "92",
+      "attributes": { "unit_of_measurement": "%" }
+    },
+    "sensor.battery_1_consumed_ah": {
+      "state": "0.0",
+      "attributes": { "unit_of_measurement": "Ah" }
+    },
+    "sensor.battery_1_remaining_minutes": {
+      "state": "14400",
+      "attributes": { "unit_of_measurement": "min" }
+    },
+    "sensor.battery_1_rssi": {
+      "state": "-68",
+      "attributes": { "unit_of_measurement": "dBm" }
+    },
+    "sensor.battery_1_midpoint_voltage": {
+      "state": "14.5",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.battery_2_state_of_charge": {
+      "state": "88",
+      "attributes": { "unit_of_measurement": "%" }
+    },
+    "sensor.battery_2_consumed_ah": {
+      "state": "-17.9",
+      "attributes": { "unit_of_measurement": "Ah" }
+    },
+    "sensor.battery_2_remaining_minutes": {
+      "state": "343",
+      "attributes": { "unit_of_measurement": "min" }
+    },
+    "sensor.battery_2_rssi": {
+      "state": "-70",
+      "attributes": { "unit_of_measurement": "dBm" }
+    },
+    "sensor.em16_a3_voltage": {
+      "state": "118.3",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.em16_a3_current": {
+      "state": "0.8",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.em16_a3_power_factor": {
+      "state": "-1.0",
+      "attributes": {}
+    },
+    "sensor.em16_a2_power": {
+      "state": "73",
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] EM16 A2 candidate T2 Renogy idle" }
+    },
+    "sensor.em16_a2_voltage": {
+      "state": "118.4",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.em16_a2_current": {
+      "state": "0.6",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.em16_b2_power": {
+      "state": "-100",
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] EM16 B2 return of A3" }
+    },
+    "sensor.em16_b2_voltage": {
+      "state": "118.6",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.em16_b2_current": {
+      "state": "0.8",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.em16_b4_power": {
+      "state": "72",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.em16_c1_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sungold_sph302480a_pv_power": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] Sungold PV output power" }
+    },
+    "sensor.sungold_sph302480a_pv_voltage": {
+      "state": "0",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.sungold_sph302480a_pv_current": {
+      "state": "0.0",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.sungold_sph302480a_battery_soc": {
+      "state": "68",
+      "attributes": { "unit_of_measurement": "%" }
+    },
+    "sensor.sungold_sph302480a_battery_voltage": {
+      "state": "27.3",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.sungold_sph302480a_battery_current": {
+      "state": "39.4",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.sungold_sph302480a_charging_power": {
+      "state": "1042",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sungold_sph302480a_charge_state": {
+      "state": "Boost charge",
+      "attributes": {}
+    },
+    "sensor.sungold_sph302480a_grid_voltage": {
+      "state": "115",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.sungold_sph302480a_grid_current": {
+      "state": "10.40",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.sungold_sph302480a_grid_frequency": {
+      "state": "60",
+      "attributes": { "unit_of_measurement": "Hz" }
+    },
+    "sensor.sungold_sph302480a_load_power": {
+      "state": "10",
+      "attributes": { "unit_of_measurement": "W" }
+    },
+    "sensor.sungold_sph302480a_load_current": {
+      "state": "0.10",
+      "attributes": { "unit_of_measurement": "A" }
+    },
+    "sensor.sungold_sph302480a_ac_output_voltage": {
+      "state": "118",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.sungold_sph302480a_ac_output_frequency": {
+      "state": "50",
+      "attributes": { "unit_of_measurement": "Hz" }
+    },
+    "sensor.sungold_sph302480a_inverter_state": {
+      "state": "4",
+      "attributes": {}
+    },
+    "sensor.sungold_sph302480a_fail_code": {
+      "state": "0",
+      "attributes": {}
+    },
+    "binary_sensor.sungold_sph302480a_fault_active": {
+      "state": "off",
+      "attributes": {}
+    }
+  }
+}

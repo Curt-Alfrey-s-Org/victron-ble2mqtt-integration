@@ -1,0 +1,558 @@
+/* Solar flow - GX-inspired dark theme (original artwork) */
+
+:root {
+  --bg-deep: #0d1117;
+  --bg-panel: #161b22;
+  --bg-node: #1c2333;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --cyan: #00bcd4;
+  --cyan-bright: #00e5ff;
+  --green: #3fb950;
+  --grey-pip: #484f58;
+  --amber: #f0a030;
+  --red-banner: #da3633;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --flow-speed: 1.2s;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: var(--bg-deep);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.proxy-banner {
+  background: var(--red-banner);
+  color: #fff;
+  text-align: center;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.snapshot-label {
+  margin: 0;
+  padding: 0.35rem 1.25rem;
+  font-size: 0.8rem;
+  color: var(--muted, #90a4ae);
+  border-bottom: 1px solid var(--border);
+}
+
+.actuate-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted, #90a4ae);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cyan-bright);
+}
+
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mode-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mode-badge.mode-live {
+  background: rgba(63, 185, 80, 0.2);
+  color: var(--green);
+  border: 1px solid var(--green);
+}
+
+.mode-badge.mode-demo {
+  background: rgba(0, 188, 212, 0.15);
+  color: var(--cyan-bright);
+  border: 1px solid var(--cyan);
+}
+
+.mode-badge.mode-waiting {
+  background: rgba(139, 148, 158, 0.15);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.flow-layout {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 0;
+  min-height: calc(100vh - 52px);
+}
+
+.flow-diagram {
+  padding: 0.5rem;
+  overflow: auto;
+}
+
+.flow-svg {
+  width: 100%;
+  max-width: 1100px;
+  height: auto;
+  display: block;
+}
+
+.fetched-at {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+}
+
+.bus-banner {
+  fill: var(--text-dim);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font);
+}
+
+.jumper-note {
+  fill: #6e7681;
+  font-size: 9px;
+  font-family: var(--font);
+}
+
+.plant-island {
+  fill: rgba(28, 35, 51, 0.35);
+  stroke: #4a6572;
+  stroke-width: 1.5;
+  stroke-dasharray: 8 6;
+}
+
+.node-bg.unmetered {
+  stroke-dasharray: 4 3;
+  stroke: #6e7681;
+}
+
+.meter-bank {
+  max-width: 1100px;
+  padding: 0.75rem 0.5rem 1.25rem;
+}
+
+.meter-bank h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.85rem;
+  color: var(--cyan-bright);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.meter-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.meter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.45rem;
+}
+
+.meter-card {
+  background: var(--bg-node);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.5rem;
+}
+
+.meter-card .meter-ch {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.meter-card .meter-w {
+  color: var(--cyan);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-card .meter-va {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.meter-card.return {
+  border-color: #6e7681;
+}
+
+.meter-card.live {
+  border-color: rgba(63, 185, 80, 0.45);
+}
+
+.meter-card.idle {
+  opacity: 0.65;
+}
+
+/* SVG node styling */
+.node-bg {
+  fill: var(--bg-node);
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.node-bg.batt { fill: #1a2332; }
+.node-bg.hub { fill: #243044; stroke: var(--cyan); stroke-width: 2; }
+.node-bg.inverter { fill: #1e2a3a; stroke: var(--cyan); }
+.node-bg.load { fill: #1a2332; }
+.node-bg.plug { fill: #182030; }
+
+.note-box {
+  fill: rgba(28, 35, 51, 0.6);
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.node-label, .hub-label {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font);
+}
+
+.hub-label { font-size: 12px; fill: var(--cyan-bright); }
+
+.node-sublabel, .note-text {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-family: var(--font);
+}
+
+.node-sublabel.dim, .note-text.dim { fill: #6e7681; }
+
+.node-watts {
+  fill: var(--cyan-bright);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: var(--font);
+}
+
+.node-watts.small { font-size: 11px; }
+
+.node-detail {
+  fill: var(--text-dim);
+  font-size: 9px;
+  font-family: var(--font);
+}
+
+.soc-unsynced {
+  fill: #6e7681;
+  font-size: 8px;
+  font-style: italic;
+}
+
+.metric-item.unsynced .metric-label,
+.metric-item.unsynced .metric-value {
+  color: #6e7681;
+}
+
+.plug-label {
+  fill: var(--text);
+  font-size: 10px;
+  font-family: var(--font);
+}
+
+.plug-watts {
+  fill: var(--cyan);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font);
+}
+
+.status-pip {
+  fill: var(--grey-pip);
+  stroke: var(--bg-deep);
+  stroke-width: 1;
+  transition: fill 0.3s ease;
+}
+
+.status-pip.active {
+  fill: var(--green);
+  filter: drop-shadow(0 0 4px rgba(63, 185, 80, 0.6));
+}
+
+/* Flow path animation */
+.flow-path {
+  fill: none;
+  stroke: #4a6572;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 8 12;
+  stroke-dashoffset: 0;
+  opacity: 0.55;
+  transition: opacity 0.3s ease;
+}
+
+.flow-path.unmetered {
+  stroke: #6e7681;
+  stroke-dasharray: 4 6;
+  opacity: 0.7;
+}
+
+.flow-path.flowing {
+  stroke: url(#flow-gradient);
+  opacity: 0.95;
+  animation: flow-forward var(--flow-speed) linear infinite;
+}
+
+.flow-path.flowing.reverse {
+  animation: flow-reverse var(--flow-speed) linear infinite;
+}
+
+@keyframes flow-forward {
+  to { stroke-dashoffset: -40; }
+}
+
+@keyframes flow-reverse {
+  to { stroke-dashoffset: 40; }
+}
+
+/* Plug animations */
+.fan-blades {
+  transform-origin: 10px 10px;
+}
+
+.plug-node.on .fan-blades {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.droplets .drop {
+  fill: var(--cyan);
+  opacity: 0;
+}
+
+.plug-node.on .droplets .drop {
+  animation: drip 1.4s ease-in infinite;
+}
+
+.plug-node.on .droplets .d2 { animation-delay: 0.35s; }
+.plug-node.on .droplets .d3 { animation-delay: 0.7s; }
+
+@keyframes drip {
+  0% { opacity: 0; transform: translateY(0); }
+  30% { opacity: 0.9; }
+  100% { opacity: 0; transform: translateY(6px); }
+}
+
+.heater-coil {
+  fill: #455a64;
+  transition: fill 0.3s ease;
+}
+
+.plug-node.on .heater-coil {
+  fill: var(--amber);
+  filter: url(#glow-amber);
+  animation: heat-pulse 2s ease-in-out infinite;
+}
+
+@keyframes heat-pulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.pc-leds .led {
+  fill: #37474f;
+}
+
+.plug-node.on .pc-leds .led {
+  animation: led-blink 1.2s step-end infinite;
+}
+
+.plug-node.on .pc-leds .l2 { animation-delay: 0.2s; }
+.plug-node.on .pc-leds .l3 { animation-delay: 0.5s; }
+
+@keyframes led-blink {
+  0%, 40% { fill: var(--green); }
+  41%, 100% { fill: #37474f; }
+}
+
+.plug-node.on .node-bg.plug {
+  stroke: rgba(63, 185, 80, 0.4);
+}
+
+/* ALFa panel */
+.alfa-panel {
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  padding: 1rem;
+  overflow-y: auto;
+  position: sticky;
+  top: 0;
+  max-height: 100vh;
+}
+
+.alfa-panel h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  color: var(--cyan-bright);
+}
+
+.alfa-panel h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.alfa-thinking {
+  margin-bottom: 1rem;
+}
+
+.ai-text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.alfa-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  font-size: 0.75rem;
+}
+
+.metric-item {
+  background: var(--bg-node);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.35rem 0.5rem;
+}
+
+.metric-item .metric-label {
+  color: var(--text-dim);
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+}
+
+.metric-item .metric-value {
+  color: var(--cyan);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-actions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ai-actions-list li {
+  background: var(--bg-node);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.ai-action-placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.ai-decision .entity-id {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.ai-decision .decision-arrow {
+  color: var(--cyan);
+  margin: 0 0.25rem;
+}
+
+.ai-decision .reason {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+}
+
+.ai-decision.target-on .decision-arrow { color: var(--green); }
+.ai-decision.target-off .decision-arrow { color: var(--amber); }
+.ai-decision.target-skip .decision-arrow { color: var(--text-dim); }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .flow-path.flowing,
+  .flow-path.flowing.reverse {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .plug-node.on .fan-blades,
+  .plug-node.on .droplets .drop,
+  .plug-node.on .heater-coil,
+  .plug-node.on .pc-leds .led {
+    animation: none;
+  }
+
+  .plug-node.on .heater-coil {
+    fill: var(--amber);
+    opacity: 1;
+  }
+
+  .plug-node.on .pc-leds .led {
+    fill: var(--green);
+  }
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .flow-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .alfa-panel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
