@@ -32,8 +32,10 @@ Sungold cart (not on T2 or KU)
   SPH302480A on a dolly + 2x LiTime 24V 100Ah in parallel (emergency).
 ```
 
-**Solar-flow Overview (operator 17 Sep 2026):** the local GX-style page
-([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) shows **data tiles** for
+**Operator display (17 Sep 2026):** canonical live view is Home Assistant
+**Solar plant** Lovelace ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). The
+GX-style page ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) is **legacy**.
+That SVG still shows **data tiles** for
 Sungold, KU MPPT 1 / MPPT 2 / PWM, and both Renogy inverters. Physics is unchanged on **D/C**: Sungold stays
 off T2/KU battery negatives. **A/C:** Sungold **UTI / A/C INPUT** is in the **Sungold cart lane**
 (cord from the KU trailer outlet), **not** in the KU A/C / breaker lane. KU A/C lane:

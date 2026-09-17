@@ -1,9 +1,17 @@
-# Solar flow dashboard (Victron GX-style)
+# Solar flow dashboard (Victron GX-style) -- legacy SVG
 
-**Status:** Operator doc for the GX-style energy-flow page. **Production** runs on
-**`.105`** next to Home Assistant: one process, one LAN URL, one Tailscale URL
-(same port), same data. Implementation: `scripts/solar_flow_server.py` + static
-assets. No Lovelace scrape. No HA token in the browser or git.
+**Canonical operator power-flow view (17 Sep 2026):** Home Assistant Lovelace
+**Solar plant** on `.105:8123` -- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
+Stock energy / glance / gauge / history cards. **Do not add hops or SVG wires
+here.** Dump ON/OFF stays in alfa-ai `solar_dump.py`.
+
+**This page (`:8765`):** leftover GX-style SVG proxy. Keep the unit running until
+the operator retires it. No new topology drawing.
+
+**Status (legacy):** Production SVG still runs on **`.105`** next to Home Assistant:
+one process, one LAN URL, one Tailscale URL (same port). Implementation:
+`scripts/solar_flow_server.py` + static assets. No Lovelace scrape. No HA token in
+the browser or git.
 
 **Official references (RULE #1):**
 

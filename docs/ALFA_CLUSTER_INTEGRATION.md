@@ -69,5 +69,6 @@ Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
 | 24 V watt in vs watt out | `docs/SOLAR_POWER_BALANCE.md` -- T2 vs KU buses, two Renogy 2 kW, PWM on KU; 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in (do not add B2) |
 | alfa-ai HA dump load / smart plugs | Brain REST on `.111` -> HA `:8123`; [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md); [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md) |
 | Simulated dump-load plugs (FAKE, opt-in `.105`) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- `switch.sim_ac_plug_1`..`6` + power sensors (HA YAML package) |
-| GX-style solar flow dashboard (local) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- victron clone + `scripts/solar_flow_server.py`; HA `.105:8123` via token file; dump-load explainer mirrors alfa-ai policy |
+| Solar plant Lovelace (canonical) | [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- `.105:8123/solar-plant`; official energy/glance cards |
+| GX-style solar flow dashboard (legacy SVG) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- `:8765`; no new hops |
 | **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |

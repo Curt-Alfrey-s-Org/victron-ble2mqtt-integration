@@ -1,0 +1,162 @@
+# Solar plant helpers for Home Assistant on .105
+# Live W templates + Riemann kWh for the Energy dashboard / power-sankey.
+# Official: https://www.home-assistant.io/integrations/template/
+#           https://www.home-assistant.io/integrations/integration/
+#           https://www.home-assistant.io/docs/configuration/packages/
+# Physics: docs/SOLAR_POWER_BALANCE.md (jumper est., KU equal-share est.)
+# Dump actuation stays in alfa-ai solar_dump.py -- this package is read-only sensors.
+
+template:
+  - sensor:
+      - name: T2-KU jumper power
+        unique_id: t2_ku_jumper_power
+        default_entity_id: sensor.t2_ku_jumper_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.solar_controller_solar')) and is_number(states('sensor.battery_1_power')) }}"
+        state: "{{ (states('sensor.solar_controller_solar') | float(0)) - (states('sensor.battery_1_power') | float(0)) }}"
+
+      - name: Trailer outlet power
+        unique_id: trailer_outlet_power
+        default_entity_id: sensor.trailer_outlet_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.em16_a3_power')) or is_number(states('sensor.em16_b3_power')) }}"
+        state: >-
+          {% if is_number(states('sensor.em16_b3_power')) and (states('sensor.em16_b3_power') | float | abs) >= 0.5 %}
+            {{ states('sensor.em16_b3_power') | float | abs }}
+          {% elif is_number(states('sensor.em16_a3_power')) %}
+            {{ states('sensor.em16_a3_power') | float | abs }}
+          {% else %}
+            unknown
+          {% endif %}
+
+      - name: KU unmetered PV est power
+        unique_id: ku_unmetered_pv_est_power
+        default_entity_id: sensor.ku_unmetered_pv_est_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.battery_2_power')) and is_number(states('sensor.t2_ku_jumper_power')) and is_number(states('sensor.trailer_outlet_power')) }}"
+        state: "{{ (states('sensor.battery_2_power') | float(0)) - (states('sensor.t2_ku_jumper_power') | float(0)) + (states('sensor.trailer_outlet_power') | float(0)) }}"
+
+      - name: KU charger equal share power
+        unique_id: ku_charger_equal_share_power
+        default_entity_id: sensor.ku_charger_equal_share_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.ku_unmetered_pv_est_power')) }}"
+        state: "{{ (states('sensor.ku_unmetered_pv_est_power') | float(0)) / 3 }}"
+
+      - name: Battery 1 charge power
+        unique_id: battery_1_charge_power
+        default_entity_id: sensor.battery_1_charge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.battery_1_power')) }}"
+        state: "{{ [states('sensor.battery_1_power') | float(0), 0] | max }}"
+
+      - name: Battery 1 discharge power
+        unique_id: battery_1_discharge_power
+        default_entity_id: sensor.battery_1_discharge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.battery_1_power')) }}"
+        state: "{{ [-(states('sensor.battery_1_power') | float(0)), 0] | max }}"
+
+      - name: Battery 2 charge power
+        unique_id: battery_2_charge_power
+        default_entity_id: sensor.battery_2_charge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.battery_2_power')) }}"
+        state: "{{ [states('sensor.battery_2_power') | float(0), 0] | max }}"
+
+      - name: Battery 2 discharge power
+        unique_id: battery_2_discharge_power
+        default_entity_id: sensor.battery_2_discharge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.battery_2_power')) }}"
+        state: "{{ [-(states('sensor.battery_2_power') | float(0)), 0] | max }}"
+
+sensor:
+  - platform: integration
+    source: sensor.solar_controller_solar
+    name: T2 MPPT energy kWh
+    unique_id: t2_mppt_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.battery_1_charge_power
+    name: Battery 1 charge energy kWh
+    unique_id: battery_1_charge_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.battery_1_discharge_power
+    name: Battery 1 discharge energy kWh
+    unique_id: battery_1_discharge_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.battery_2_charge_power
+    name: Battery 2 charge energy kWh
+    unique_id: battery_2_charge_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.battery_2_discharge_power
+    name: Battery 2 discharge energy kWh
+    unique_id: battery_2_discharge_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.em16_a3_power
+    name: EM16 A3 energy kWh
+    unique_id: em16_a3_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.sim_dump_load_power
+    name: Sim dump energy kWh
+    unique_id: sim_dump_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.sungold_sph302480a_load_active_power
+    name: Sungold load energy kWh
+    unique_id: sungold_load_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5

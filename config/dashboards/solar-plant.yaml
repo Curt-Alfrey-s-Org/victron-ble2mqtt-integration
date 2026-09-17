@@ -1,0 +1,169 @@
+# Solar plant Lovelace (YAML). Official cards only.
+# https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
+# https://www.home-assistant.io/dashboards/energy/
+title: Solar plant
+views:
+  - title: Now
+    path: now
+    cards:
+      - type: markdown
+        title: Solar plant
+        content: >
+          Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
+          **power-sankey** fills after **Settings > Dashboards > Energy**
+          ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
+          Dump ON/OFF is alfa-ai `solar_dump.py`, not this page.
+          KU charger watts are **est.** (no live Victron KU clamps).
+          Do not add A3 as utility grid.
+
+      - type: power-sankey
+        title: Power flow
+        layout: horizontal
+        collection_key: energy_dashboard
+        group_by_area: false
+        group_by_floor: false
+
+      - type: horizontal-stack
+        cards:
+          - type: gauge
+            entity: sensor.solar_controller_solar
+            name: T2 MPPT
+            min: 0
+            max: 400
+            needle: true
+          - type: gauge
+            entity: sensor.battery_1_power
+            name: Battery 1 T2
+            min: -400
+            max: 400
+            needle: true
+          - type: gauge
+            entity: sensor.battery_2_power
+            name: Battery 2 KU
+            min: -400
+            max: 400
+            needle: true
+          - type: gauge
+            entity: sensor.ku_charger_equal_share_power
+            name: KU share est.
+            min: 0
+            max: 400
+            needle: true
+
+      - type: glance
+        title: T2 24 V
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.solar_controller_solar
+            name: MPPT W
+          - entity: sensor.solar_controller_charge_state
+            name: Charge
+          - entity: sensor.battery_1_power
+            name: Batt 1 W
+          - entity: sensor.battery_1_voltage
+            name: Batt 1 V
+          - entity: sensor.battery_1_current
+            name: Batt 1 A
+          - entity: sensor.t2_ku_jumper_power
+            name: Jumper est.
+
+      - type: glance
+        title: KU 24 V (est. chargers)
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.ku_unmetered_pv_est_power
+            name: KU PV est.
+          - entity: sensor.ku_charger_equal_share_power
+            name: Each charger est.
+          - entity: sensor.battery_2_power
+            name: Batt 2 W
+          - entity: sensor.battery_2_voltage
+            name: Batt 2 V
+          - entity: sensor.battery_2_current
+            name: Batt 2 A
+          - entity: sensor.trailer_outlet_power
+            name: Trailer A/C
+
+      - type: glance
+        title: Loads (not losses)
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.em16_a3_power
+            name: A3 hot leg
+          - entity: sensor.em16_b3_power
+            name: B3 breaker
+          - entity: sensor.sim_dump_load_power
+            name: Sim dump
+          - entity: sensor.sungold_sph302480a_load_active_power
+            name: Sungold A/C out
+
+      - type: glance
+        title: Sungold cart
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.sungold_sph302480a_pv_power
+            name: PV
+          - entity: sensor.sungold_sph302480a_charging_power
+            name: Cart batt
+          - entity: sensor.sungold_sph302480a_grid_voltage
+            name: UTI V
+          - entity: sensor.sungold_sph302480a_inverter_state
+            name: Mode
+
+      - type: distribution
+        title: Instant W
+        entities:
+          - entity: sensor.solar_controller_solar
+            name: T2 MPPT
+          - entity: sensor.ku_unmetered_pv_est_power
+            name: KU PV est.
+          - entity: sensor.trailer_outlet_power
+            name: Trailer A/C
+          - entity: sensor.sim_dump_load_power
+            name: Sim dump
+
+  - title: History
+    path: history
+    cards:
+      - type: markdown
+        content: >
+          History graph needs [Recorder](https://www.home-assistant.io/integrations/recorder/)
+          and [History](https://www.home-assistant.io/integrations/history/).
+
+      - type: history-graph
+        title: T2 and KU watts
+        hours_to_show: 12
+        entities:
+          - entity: sensor.solar_controller_solar
+            name: T2 MPPT
+          - entity: sensor.battery_1_power
+            name: Battery 1
+          - entity: sensor.battery_2_power
+            name: Battery 2
+          - entity: sensor.t2_ku_jumper_power
+            name: Jumper est.
+
+      - type: history-graph
+        title: Trailer A/C and dump
+        hours_to_show: 12
+        entities:
+          - entity: sensor.em16_a3_power
+            name: A3
+          - entity: sensor.trailer_outlet_power
+            name: Trailer outlet
+          - entity: sensor.sim_dump_load_power
+            name: Sim dump
+          - entity: sensor.sungold_sph302480a_load_active_power
+            name: Sungold load
