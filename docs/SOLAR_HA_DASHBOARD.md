@@ -1,7 +1,7 @@
 # Solar plant (Home Assistant Lovelace)
 
-**Canonical operator power-flow view** is this Lovelace dashboard on **`.105:8123`**,
-not the custom SVG page on `:8765`.
+**Canonical operator power-flow view** is this Lovelace dashboard on **`.105:8123`**.
+The custom SVG proxy on `:8765` is **retired** ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
 
 Home Assistant already holds the Victron, shunt, Refoss, Sungold, and sim-dump
 entities. This dashboard uses **stock cards** only:
@@ -39,8 +39,7 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 |---------|------|
 | **Solar plant** Lovelace | Live W glance + gauges + `power-sankey` (after Energy is configured) |
 | Template sensors | Jumper est., trailer outlet W, KU PV est., KU equal-share est. |
-| Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, A3, dump, Sungold load) |
-| `:8765` GX SVG | **Legacy.** No new hops. Keep running until the operator retires the unit. |
+| Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
 
 HA Energy / `power-sankey` is a **sources / battery / home / devices** Sankey, not a
 Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron clamps).
@@ -133,3 +132,13 @@ install script adds `recorder:` and `history:` when missing
 [History](https://www.home-assistant.io/integrations/history/)).
 It also adds `energy:` so the Energy settings page exists
 ([Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).
+
+---
+
+## Retired SVG (`:8765`)
+
+The custom GX proxy is gone. After pull on `.105`:
+
+```bash
+bash scripts/uninstall_solar_flow.sh
+```

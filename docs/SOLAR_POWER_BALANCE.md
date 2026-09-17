@@ -33,10 +33,8 @@ Sungold cart (not on T2 or KU)
 ```
 
 **Operator display (17 Sep 2026):** canonical live view is Home Assistant
-**Solar plant** Lovelace ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). The
-GX-style page ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) is **legacy**.
-That SVG still shows **data tiles** for
-Sungold, KU MPPT 1 / MPPT 2 / PWM, and both Renogy inverters. Physics is unchanged on **D/C**: Sungold stays
+**Solar plant** Lovelace ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
+The GX-style SVG page is **retired**. Physics is unchanged on **D/C**: Sungold stays
 off T2/KU battery negatives. **A/C:** Sungold **UTI / A/C INPUT** is in the **Sungold cart lane**
 (cord from the KU trailer outlet), **not** in the KU A/C / breaker lane. KU A/C lane:
 panel → B3 → outlet → vent fan. PWM and Renogy
@@ -58,7 +56,7 @@ B3 → outlet). **B3** = breaker feeding the trailer outlet (`path-panel-b3` / `
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
 from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or **0 W**) -- branch
 starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. Do **not** use A3 as
-`ha_load_entity`. See [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
+`ha_load_entity`. See [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
 
@@ -134,8 +132,8 @@ the monitor is synchronised when the battery is full
 ([operation 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
 Operator: VictronConnect → Settings → Battery settings → **Synchronise** (or wait
 for automatic sync at charged voltage + tail current + charged time). This repo
-does not write SoC over MQTT/HA. Dashboard procedure:
-[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md#operator-synchronise-smartshunt-soc-victronconnect-only).
+does not write SoC over MQTT/HA. Sync in VictronConnect only (Settings -> Battery
+settings -> Synchronise).
 
 ## Formulas
 
@@ -224,8 +222,8 @@ rewrite out of scope for this doc pass).
 
 **Vent fan (17 Sep):** four speeds; live speed **1** (lowest). HA entity **TODO:**
 search `fan.*` on `.105` ([REST states](https://developers.home-assistant.io/docs/api/rest/)).
-Weather strip: **TODO** `weather.*` / `climate.*` ecobee — see
-[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md#weather-strip-outside-equipment-17-sep).
+Weather strip: **TODO** `weather.*` / `climate.*` ecobee -- HA weather cards on
+Solar plant / Solar, not a custom SVG.
 
 **Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio; ~5 W
 via `sensor.sungold_sph302480a_load_active_power`). Cargo-trailer **vent fan** shares the
@@ -307,7 +305,7 @@ combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
 Conversion + vdrop loss = path losses (example: 3 W + 3 W = 6 W). **Vdrop D/C** and
 **Vdrop A/C** are nested volt readings under vdrop; do not add 0.1 V + 1.8 V into the W
 total. Vent fan, KU Renogy A/C est., UTI passthrough, dump plugs, Pi4, and surplus lines
-live outside Losses ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
+live outside Losses (HA glance / Energy devices, not a custom SVG).
 
 ### Inbound amps per battery (display-only)
 

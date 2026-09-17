@@ -156,19 +156,9 @@ python -m pytest tests/test_sim_dump_plugs.py -q
 
 ---
 
-## Solar flow dashboard
-
-When the HA package is installed, **production** view on the solar-flow page reads sim
-plug states from HA REST (same entity ids as this doc). Until install, the proxy fills
-missing sim-dump ids from `web/solar-flow/demo-snapshot.json` and sets `sim_dump_demo:
-true`. Use header **Demo** for the full illustrative snapshot. See
-[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
-
----
-
 ## Related
 
-- [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- production vs demo view
+- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- HA Solar plant (canonical)
 - [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md)
 - [ALFA_CLUSTER_INTEGRATION.md](ALFA_CLUSTER_INTEGRATION.md)
 - alfa-ai [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)

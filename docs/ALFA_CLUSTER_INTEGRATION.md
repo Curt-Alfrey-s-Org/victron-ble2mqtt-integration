@@ -70,5 +70,4 @@ Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
 | alfa-ai HA dump load / smart plugs | Brain REST on `.111` -> HA `:8123`; [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md); [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md) |
 | Simulated dump-load plugs (FAKE, opt-in `.105`) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- `switch.sim_ac_plug_1`..`6` + power sensors (HA YAML package) |
 | Solar plant Lovelace (canonical) | [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- `.105:8123/solar-plant`; official energy/glance cards |
-| GX-style solar flow dashboard (legacy SVG) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- `:8765`; no new hops |
 | **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |

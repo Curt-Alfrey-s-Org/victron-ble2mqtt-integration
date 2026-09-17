@@ -22,7 +22,6 @@ Canonical runbook (token, settings, dump-load physics):
 | Dump-load plugs must sit on the **intended AC circuit** | Fed from **Sungold AC out**, not KU Renogy; 15 Sep A3 clamp is Sungold AC-in; see SOLAR_POWER_BALANCE |
 | **Simulated** dump-load plugs (no hardware) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- six `switch.sim_ac_plug_*` on `.105` (YAML package; opt-in) |
 | **Solar plant (HA Lovelace)** | [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- canonical live W on `.105:8123/solar-plant`; dump stays alfa-ai |
-| **GX-style solar flow page (legacy)** | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- leftover SVG on `.105:8765`; no new hops |
 
 ## Safety
 

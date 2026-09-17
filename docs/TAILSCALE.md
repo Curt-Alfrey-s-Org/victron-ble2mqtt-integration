@@ -68,18 +68,18 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 
 ## 4. Home Wi-Fi vs away
 
-| Where you are | How to open HA | How to open solar flow |
-|---------------|----------------|------------------------|
-| Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) | `http://YOUR-LAN-IP:8765` |
-| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** | `http://YOUR-TAILSCALE-NAME:8765` (same name, port **8765**) |
+| Where you are | How to open HA |
+|---------------|----------------|
+| Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) |
+| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** |
 
-Both HA URLs talk to the **same** Home Assistant. Both solar-flow URLs talk to the **same**
-`solar-flow.service` on `.105` ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)). You are
-not duplicating either stack. `127.0.0.1` is not a Tailscale address.
+Both URLs talk to the **same** Home Assistant. Canonical solar view is Lovelace
+**Solar plant** (`/solar-plant`) -- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
+The old SVG proxy on `:8765` is retired. `127.0.0.1` is not a Tailscale address.
 
-Optional: [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) may proxy
-HTTPS `/` on `.105` to `http://127.0.0.1:8765`. That is the same solar-flow process. Do not
-enable Funnel. Do not commit the Serve FQDN.
+Optional: [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) may
+proxy HTTPS `/` on `.105` to Home Assistant on `http://127.0.0.1:8123`. Do not
+enable Funnel. Do not commit the Serve FQDN. Do not point Serve at retired `:8765`.
 
 ## Troubleshooting
 

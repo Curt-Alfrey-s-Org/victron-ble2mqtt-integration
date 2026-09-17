@@ -208,7 +208,7 @@ Close the Victron phone app if sensors stay empty.
 | [docs/SUNGOLD_SPH302480A.md](docs/SUNGOLD_SPH302480A.md) | Sungold USB, udev, smoke test (optional; this site not connected) |
 | [docs/SOLAR_POWER_BALANCE.md](docs/SOLAR_POWER_BALANCE.md) | 24 V watt in vs watt out (3 MPPTs, shunts, EM16 A3/B2) |
 | [docs/SOLAR_HA_DASHBOARD.md](docs/SOLAR_HA_DASHBOARD.md) | Canonical live watts: HA Lovelace **Solar plant** on `.105:8123` |
-| [docs/SOLAR_FLOW_DASHBOARD.md](docs/SOLAR_FLOW_DASHBOARD.md) | Legacy GX-style SVG on `.105:8765` (no new hops) |
+| [docs/SOLAR_FLOW_DASHBOARD.md](docs/SOLAR_FLOW_DASHBOARD.md) | Retired SVG `:8765` stub |
 | [docs/PI4_BMS_SOFTWARE.md](docs/PI4_BMS_SOFTWARE.md) | Pi battery **supervisor** (VE.Direct shunt / MQTT). Not a pack BMS. Default off. |
 | [docs/SOLAR_ARRAY_SOLARK.md](docs/SOLAR_ARRAY_SOLARK.md) | Planned **separate** 48 V island (not T2/KU) |
 | [DEPLOY.md](DEPLOY.md) | Installer flags, Dockge, troubleshooting |
