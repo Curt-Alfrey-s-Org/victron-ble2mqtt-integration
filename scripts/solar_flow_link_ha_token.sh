@@ -40,9 +40,13 @@ DEST="${SOLAR_FLOW_HA_TOKEN_DEST:-/opt/homeassistant/secrets/ha_long_lived.token
 # Optional override for tests: colon-separated extra roots for find (default below).
 SEARCH_ROOTS="${SOLAR_FLOW_HA_TOKEN_SEARCH_ROOTS:-/opt/homeassistant:/home/ansible:/opt/stacks:/opt/dockge:/run/secrets:/root:/home}"
 VERBOSE="${SOLAR_FLOW_TOKEN_VERBOSE:-0}"
-# Remote HA-token host (canonical Mosquitto/HA LAN). Empty or HA_TOKEN_REMOTE=0 skips ssh.
+# Remote HA-token hosts. Primary = HA LAN (.105). Extra = operator/dev boxes that may
+# hold a saved copy (e.g. .93 Windows/dev host via OpenSSH). Colon-separated.
 HA_TOKEN_HOST="${HA_TOKEN_HOST:-192.168.0.105}"
+HA_TOKEN_EXTRA_HOSTS="${HA_TOKEN_EXTRA_HOSTS:-192.168.0.93}"
 HA_TOKEN_SSH_USER="${HA_TOKEN_SSH_USER:-ansible}"
+# Optional per-host user override for .93 (often a different account on the PC).
+HA_TOKEN_SSH_USER_93="${HA_TOKEN_SSH_USER_93:-${HA_TOKEN_SSH_USER}}"
 HA_TOKEN_REMOTE="${HA_TOKEN_REMOTE:-1}"
 HA_TOKEN_SSH_OPTS="${HA_TOKEN_SSH_OPTS:--o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new}"
 
