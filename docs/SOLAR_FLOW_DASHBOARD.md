@@ -331,7 +331,7 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 | **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Policy canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when solar W is numeric and > 0 (demo or live). **No decorative sun inside this tile** — weather strip is separate ([Weather strip](#weather-strip-outside-equipment-17-sep)). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
 | **KU Victron** (MPPT 1 and 2) | **No entity.** Equal-share **est.** W (and A if batt2 V known) | Same solid card language as T2 MPPT; subtitle **est.** Do **not** display 2× T2 watts as live. Do **not** use dashed empty charger bricks. |
 
-**KU 24 V D/C visual order (matches T2):** left to right **suitcase panels → MPPT/PWM charger → Battery 2**. Three stacked rows (MPPT 1, MPPT 2, PWM); each row is panel \| charger \| bus to Battery 2. Panel and charger hops use the same equal-share **est.** W (`kuEqualShareW`). SVG [`use`](https://www.w3.org/TR/SVG11/struct.html#UseElement) + [`text`](https://www.w3.org/TR/SVG11/text.html) follow T2 panel brick layout — **solid** `#node-bg` tiles, not dashed unmetered placeholders.
+**KU 24 V D/C visual order (matches T2):** left to right **suitcase panels → MPPT/PWM charger → Battery 2**. Three stacked rows (MPPT 1, MPPT 2, PWM); each row is panel \| charger \| bus to Battery 2. **Panel spacing:** each KU suitcase tile is the same **150×100** brick as T2 (`x=40`); **16 px** vertical gutter between the three KU rows; **16 px** between the T2 lane bottom and the KU D/C lane (no empty left-column hole). Panel→charger gap matches T2 (`path-t2-panels-mppt` `190→254`). Panel and charger hops use the same equal-share **est.** W (`kuEqualShareW`). SVG [`use`](https://www.w3.org/TR/SVG11/struct.html#UseElement) + [`text`](https://www.w3.org/TR/SVG11/text.html) follow T2 panel brick layout — **solid** `#node-bg` tiles, not dashed unmetered placeholders.
 
 ### Weather strip (outside equipment, 17 Sep)
 
@@ -476,11 +476,11 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 
 | Lane | x | y | width | height |
 |------|---|---|-------|--------|
-| T2 24 V D/C | 16 | 12 | 1116 | 280 |
-| KU 24 V D/C | 16 | 352 | 1116 | 448 |
+| T2 24 V D/C | 16 | 12 | 1116 | 276 |
+| KU 24 V D/C | 16 | 304 | 1116 | 400 |
 | KU A/C path | 16 | 816 | 1116 | 252 |
 | Sungold cart | 16 | 1084 | 1116 | 316 |
-| Sim dump loads | 1148 | 12 | 380 | 708 |
+| Sim dump loads | 1148 | 12 | 380 | 756 |
 
 **Tile bounding boxes** (from live `index.html` `rect` / path `d`; no `transform` on these nodes):
 
@@ -490,10 +490,11 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | `node-b3` | 250 | 856 | 160 | 118 |
 | `node-trailer-outlet` | 434 | 856 | 170 | 118 |
 | `node-vent-fan` | 434 | 990 | 170 | 58 |
-| `node-sg-uti` | **Sungold cart lane** (relocate from KU A/C lane) | | | |
-| `node-weather-sky` | 1148 | 12 | 380 | 88 (weather strip atop dump lane) |
+| `node-sg-uti` | 300 | 1088 | 100 | 48 (above DC row; no overlap with cart batt) |
+| `node-weather-sky` | 1148 | 12 | 380 | 88 (outside dump plugs **and** the Sim dump loads banner) |
+| `sim-dump-banner` | 1338 | 128 | (text) | 15px; SVG `text` **y** is the alphabetic baseline ([SVG 1.1 text](https://www.w3.org/TR/SVG11/text.html#TextElement)), so ink sits in about `[y-15, y]`. Banner ink must start at **y ≥ 100** (weather rect bottom) with a gutter — baseline **128** |
 | `path-sim-acbus` | 1086-1140 | 1212 | | |
-| plug tiles 1-6 | 1176 | 48-548 | 340 | 76 |
+| plug tiles 1-6 | 1176 | 140-640 | 340 | 76 |
 
 **Conductors (snap to node edges; hop ids in `app.js`):**
 

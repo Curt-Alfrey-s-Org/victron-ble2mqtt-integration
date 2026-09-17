@@ -86,6 +86,43 @@ def test_decide_dump_view_surplus_math() -> None:
     assert "Battery 2 load 100W" in view["thinking"]
 
 
+def test_weather_strip_clear_of_dump_banner_and_plug1() -> None:
+    """SVG text y is the alphabetic baseline (SVG 1.1 TextElement)."""
+    html = (ROOT / "web" / "solar-flow" / "index.html").read_text(encoding="utf-8")
+    css = (ROOT / "web" / "solar-flow" / "styles.css").read_text(encoding="utf-8")
+    weather_y = 12
+    weather_h = 88
+    weather_bottom = weather_y + weather_h
+    banner_baseline = 128
+    banner_font_px = 15
+    assert 'class="wx-sky-bg" x="1148" y="12" width="380" height="88"' in html
+    assert 'class="sim-dump-banner" x="1338" y="128"' in html
+    assert "font-size: 15px" in css
+    assert banner_baseline - banner_font_px >= weather_bottom
+    plug1 = html.split('id="node-plug-1"', 1)[1]
+    assert 'x="1176" y="140" width="340" height="76"' in plug1[:800]
+    plug1_top = 140
+    assert plug1_top >= banner_baseline
+
+
+def test_ku_suitcase_panel_spacing_matches_t2() -> None:
+    """T2 panel brick 150x100 at x=40; KU rows use 16px gutters and T2's 190-254 hop."""
+    html = (ROOT / "web" / "solar-flow" / "index.html").read_text(encoding="utf-8")
+    assert 'id="node-t2-panels"' in html
+    assert 'x="40" y="76" width="150" height="100"' in html
+    p1 = html.split('id="node-ku-panel-mppt1"', 1)[1]
+    p2 = html.split('id="node-ku-panel-mppt2"', 1)[1]
+    p3 = html.split('id="node-ku-panel-pwm"', 1)[1]
+    assert 'x="40" y="332" width="150" height="100"' in p1[:400]
+    assert 'x="40" y="448" width="150" height="100"' in p2[:400]
+    assert 'x="40" y="564" width="150" height="100"' in p3[:400]
+    assert 448 - (332 + 100) == 16
+    assert 564 - (448 + 100) == 16
+    assert 'd="M 190 126 L 254 126"' in html
+    assert 'd="M 190 382 L 254 382"' in html
+    assert 'class="lane-band lane-ku-dc" x="16" y="304" width="1116" height="400"' in html
+
+
 def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     html = (ROOT / "web" / "solar-flow" / "index.html").read_text(encoding="utf-8")
     js = (ROOT / "web" / "solar-flow" / "app.js").read_text(encoding="utf-8")
@@ -124,6 +161,10 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "function kuEqualShareW" in js
     assert "function utiHopW" in js
     assert "function ventFanEstimateW" in js
+    assert "trailerW - utiW" in js
+    assert 'x="300" y="1088"' in html
+    assert 'id="node-plug-1"' in html
+    assert 'x="1176" y="140" width="340" height="76"' in html
     assert "function b3OutletHopW" in js
     assert "return batt2W - jumperW + kuRenogyAcW" in js
     assert "function setHopLabel" in js

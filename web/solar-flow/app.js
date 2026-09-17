@@ -260,14 +260,9 @@
   var HOP_EPS_W = 0.5;
 
   // Sungold UTI lives in the cart lane (AC-in of SPH), not the KU A/C breaker row.
-  function ventFanEstimateW(trailerW, utiW, utiPassthrough) {
-    if (trailerW === null) return null;
-    if (utiPassthrough) {
-      return trailerW > HOP_EPS_W ? trailerW : 0;
-    }
-    if (utiW === null) {
-      return trailerW > HOP_EPS_W ? trailerW : 0;
-    }
+  // Matches solar_watt_ledger: vent = max(0, trailer_outlet_W - utiHopW).
+  function ventFanEstimateW(trailerW, utiW) {
+    if (trailerW === null || utiW === null) return null;
     var residual = trailerW - utiW;
     return residual > 0 ? residual : 0;
   }
@@ -483,7 +478,7 @@
     }
     setHopLabel('path-sg-pv-panels', opts.sgPvW, false);
     setHopLabel('path-sg-pv-batt', opts.sgPvW, false);
-    setHopLabel('path-sg-batt-inv', opts.sgBattW, false);
+    setHopLabel('path-sg-batt-inv', opts.sgBattTare ? null : opts.sgBattW, false);
     setHopLabel('path-sg-inv-acout', opts.sgLoadW, false, { load: true });
   }
 
@@ -964,8 +959,7 @@
     var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var trailerW = trailerOutletW(entities);
     var utiW = utiHopW(sgGridV, sgGridA, sgLoadW);
-    var utiPassthrough = utiPassthroughFromAcOut(sgGridV, sgGridA, sgLoadW);
-    var ventW = ventFanEstimateW(trailerW, utiW, utiPassthrough);
+    var ventW = ventFanEstimateW(trailerW, utiW);
     var kuRenogyAcW = trailerW;
     setWattValue('val-ku-renogy-w', kuRenogyAcW, { load: true });
     setValue(
@@ -1062,6 +1056,7 @@
       plugWs: plugWs,
       sgPvW: sgPvW,
       sgBattW: sgBattW,
+      sgBattTare: sgBattTare,
       sgLoadW: sgLoadW
     });
     updateFlows({
@@ -1079,6 +1074,7 @@
       anyPlugOn: anyPlugOn,
       sgPvW: sgPvW,
       sgBattW: sgBattW,
+      sgBattTare: sgBattTare,
       sgLoadW: sgLoadW
     });
     setPip(
@@ -1131,7 +1127,11 @@
     setFlow('path-sim-riser', plugLoad, false);
     setFlow('path-sg-pv-panels', opts.sgPvW !== null && opts.sgPvW > 0, false);
     setFlow('path-sg-pv-batt', opts.sgPvW !== null && opts.sgPvW > 0, false);
-    setFlow('path-sg-batt-inv', opts.sgBattW !== null && Math.abs(opts.sgBattW) > 0, false);
+    setFlow(
+      'path-sg-batt-inv',
+      !opts.sgBattTare && opts.sgBattW !== null && Math.abs(opts.sgBattW) > 0,
+      false
+    );
     setFlow(
       'path-sg-inv-acout',
       (opts.sgLoadW !== null && opts.sgLoadW > 0) || plugLoad,
