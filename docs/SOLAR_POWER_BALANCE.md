@@ -32,29 +32,31 @@ Sungold cart (not on T2 or KU)
   SPH302480A on a dolly + 2x LiTime 24V 100Ah in parallel (emergency).
 ```
 
-**Solar-flow Overview (operator 16 Sep 2026):** the local GX-style page
-([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) now shows **data tiles** for
-Sungold, KU PWM, and both Renogy inverters. Physics is unchanged on **D/C**: Sungold stays
-off T2/KU battery negatives. **A/C:** operator 16 Sep -- Sungold **A/C INPUT** is plugged
-into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold A/C-in). PWM and Renogy
+**Solar-flow Overview (operator 17 Sep 2026):** the local GX-style page
+([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) shows **data tiles** for
+Sungold, KU MPPT 1 / MPPT 2 / PWM, and both Renogy inverters. Physics is unchanged on **D/C**: Sungold stays
+off T2/KU battery negatives. **A/C:** Sungold **UTI / A/C INPUT** is in the **Sungold cart lane**
+(cord from the KU trailer outlet), **not** in the KU A/C / breaker lane. KU A/C lane:
+panel → B3 → outlet → vent fan. PWM and Renogy
 inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
-Do not merge Sungold D/C into T2/KU. Do not print 2x T2 watts as live KU Victron.
+Do not merge Sungold D/C into T2/KU. Do not print 2× T2 watts as live KU Victron.
 Dashboard hop policy: KU Renogy tile shows **0 W** (no HA inverter entity; never `-- W`).
 **T2-KU jumper** on the Overview is an **estimate** (`solar_W - T2_Renogy_W - batt1_W`,
 signed; T2 Renogy **0 W** while idle). Negative Battery 1 W with idle T2 Renogy means
 current is leaving T2 through the jumper toward the KU bus (KU Renogy / trailer A/C),
 not into the T2 RV outlet. The SmartShunt still does **not** measure jumper amps
 ([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-**A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). **B3** =
-breaker feeding the Sungold outlet (`path-panel-b3`, \|B3\| or A3 fallback while Sungold
-is the only outlet load). **UTI hop** (`path-b3-outlet-sg-uti`, `path-sg-uti-sph`) uses
-B3/A3 or Sungold `grid_*`. **Dump loads** (Morningstar diversion; not "soak"): fed from
+**A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). When A3 shows load, **every
+downstream hop** on that path carries the same magnitude until the outlet split (panel →
+B3 → outlet). **B3** = breaker feeding the trailer outlet (`path-panel-b3` / `path-b3-outlet`).
+**UTI hop** (`path-outlet-uti`, `path-sg-uti-sph`) uses **`utiHopW`** (passthrough — not A3).
+**Vent fan** = residual on the outlet split; **load**, not loss. **Dump loads** (Morningstar diversion; not "soak"): fed from
 **Sungold A/C out** (SPH INV OUTPUT / `node-sg-acout`,
 `sensor.sungold_sph302480a_load_active_power` per
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
 from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or **0 W**) -- branch
-starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. See
-[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
+starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. Do **not** use A3 as
+`ha_load_entity`. See [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
 
@@ -174,9 +176,9 @@ sun. Do **not** use it as dump-load `ha_solar_entity`. If A3 is missing, the
 residual stays **None** (do not substitute 0 for the inverter).
 
 **Dashboard:** KU MPPT 1, KU MPPT 2, and KU PWM tiles show that equal-share
-**est.** (dashed / unmetered). Combined KU PV est stays in the sidebar. KU Renogy
+**est.** (solid T2-style cards; subtitle **est.**). Combined KU PV est stays in the sidebar. KU Renogy
 tile and Battery 2 **load** use the A3 A/C estimate. Shunt watts stay on
-the Battery 2 node.
+the Battery 2 node. **Do not** use dashed empty charger bricks.
 
 **Split** into two MPPT vs PWM is not measured. Panel counts (2+2+2 suitcases)
 are the equal-share assumption. Victron: PWM pulls the array near Vbat
@@ -196,16 +198,38 @@ lower bound above.
 **Sungold cart (15 Sep, AC charge, PV = 0)** -- LCD names from the SPH302480A manual ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1). `INPUT BATT` is battery **input** power; `INV OUTPUT LOAD KW` is AC load; `AC INPUT` is mains. HA **Output mode** `4` is not in the sidecar lookup (0-3 only) -- leave it as the raw integer ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)).
 
 ```
-SG_AC_in   = SPH AC INPUT V * A                    # reprint §4.1; do NOT use A3
+SG_AC_in   = utiHopW(SG_grid V×A, SG_load_active_power)   # passthrough; do NOT use A3
 SG_batt_in = Sungold battery input power       # LCD INPUT BATT KW (Boost charge = charging)
-SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (includes Pi4)
+SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (includes Pi4 ~5 W live)
 SG_PV      = Sungold PV output power
 trailer_outlet_W = |EM16 B3| if B3 >= 0.5 W else |EM16 A3|
-vent_fan_W = max(0, trailer_outlet_W - SG_AC_in)   # sibling on KU trailer outlet
+vent_fan_W = max(0, trailer_outlet_W - utiHopW)   # sibling on KU trailer outlet; load not loss
 SG_loss    = (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out
 ```
 
-**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio; no HA watt entity). Cargo-trailer **vent fan** shares the **KU Renogy trailer outlet** with Sungold UTI / A/C INPUT. EM16 A3 is that hot-leg total -- **not** Sungold-only. Do not force A3 = SPH A/C in.
+**`utiHopW` (17 Sep):** let `grid_w = SG_grid V × A`. If `grid_w` ≥ 0.5 W, use `grid_w`.
+Else if `SG_AC_out` ≥ 0.5 W (Pi4 on A/C out), UTI must show at least the power feeding
+that load (use `SG_AC_out` plus a small conversion allowance — do not show **0 W** on UTI
+while A/C out is ~5 W). Never substitute \|A3\| for UTI hop W.
+
+**A3 downstream (17 Sep):** when \|A3\| ≥ 0.5 W, KU Renogy → panel → B3 → outlet hops
+display that magnitude until the split; vent and UTI branches split from `trailer_outlet_W`.
+
+**Cart tare (17 Sep):** cart battery **0.1 A** (or similar) while SPH is on **UTI/grid**
+is inverter DC standby, **not** pack discharge supplying Pi4. Do not treat as bus discharge
+for dump-load math (alfa-ai `solar_dump.py` should ignore cart tare in UTI mode — gate
+rewrite out of scope for this doc pass).
+
+**Vent fan (17 Sep):** four speeds; live speed **1** (lowest). HA entity **TODO:**
+search `fan.*` on `.105` ([REST states](https://developers.home-assistant.io/docs/api/rest/)).
+Weather strip: **TODO** `weather.*` / `climate.*` ecobee — see
+[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md#weather-strip-outside-equipment-17-sep).
+
+**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio; ~5 W
+via `sensor.sungold_sph302480a_load_active_power`). Cargo-trailer **vent fan** shares the
+**KU Renogy trailer outlet** with Sungold UTI (UTI tile in **Sungold cart lane**). EM16 A3
+is that hot-leg **total** — **not** Sungold-only. Do not force A3 = SPH A/C in. Do not
+use A3 as `ha_load_entity`.
 
 When `SG_PV` is 0 this matches the 15 Sep LCD split on the hybrid itself. With PV present, add PV to the input side (reprint §4.1). Do not subtract `SG_PV` from the right-hand side.
 
@@ -258,9 +282,10 @@ The same PWM-vs-MPPT paper shows the advantage **vanishes at 75 °C cell tempera
 There is **no** single site derate to apply. Do not invent one.
 
 **Dashboard / dump-load:** KU MPPT 1 / MPPT 2 / PWM tiles show equal-share **est.**
-(dashed, not live HA). Do **not** print 2× T2 as a KU Victron reading. Do **not** paint residual
+(solid cards, not live HA). Do **not** print 2× T2 as a KU Victron reading. Do **not** paint residual
 watts as live HA W. `ha_solar_entity` stays the T2 reporter only. The watt-ledger hop
-`ku_victron_pwm` stays unmetered and is **not** in `combined_losses_w`. Historical
+`ku_victron_pwm` stays unmetered and is **not** in `combined_losses_w`. Vent fan and UTI
+passthrough are **loads**, not conversion losses. Historical
 10-11 Sep tables still use `PV x3` as a paper close, not live telemetry.
 
 Voltage drop (D/C vs A/C kept separate; never 24 V minus 120 V):
@@ -279,8 +304,8 @@ combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
 **Dashboard sidebar (Losses block):** only the **W** rows in that block sum to **Total path losses**.
 Conversion + vdrop loss = path losses (example: 3 W + 3 W = 6 W). **Vdrop D/C** and
 **Vdrop A/C** are nested volt readings under vdrop; do not add 0.1 V + 1.8 V into the W
-total. Vent fan, KU Renogy A/C, dump plugs, and surplus lines live outside Losses
-([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
+total. Vent fan, KU Renogy A/C est., UTI passthrough, dump plugs, Pi4, and surplus lines
+live outside Losses ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
 
 ### Inbound amps per battery (display-only)
 

@@ -106,6 +106,12 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "setHopLabel('path-ku-batt2-inverter', opts.batt2W" not in js
     assert 'id="art-pv"' in html
     assert 'id="path-outlet-vent-fan"' in html
+    assert 'id="path-b3-outlet"' in html
+    assert 'id="path-outlet-uti"' in html
+    assert 'id="hop-path-b3-outlet"' in html
+    assert 'id="hop-path-outlet-uti"' in html
+    assert 'id="node-sg-uti"' in html
+    assert 'path-b3-outlet-sg-uti' not in html
     assert 'id="path-sg-acout-pi4"' in html
     assert "watt-pos" in css
     assert "watt-neg" in css
@@ -116,6 +122,9 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "function formatSignedW" in js
     assert "function kuUnmeteredPvEstW" in js
     assert "function kuEqualShareW" in js
+    assert "function utiHopW" in js
+    assert "function ventFanEstimateW" in js
+    assert "function b3OutletHopW" in js
     assert "return batt2W - jumperW + kuRenogyAcW" in js
     assert "function setHopLabel" in js
     assert "{ label: 'T2 shunt V'" in js

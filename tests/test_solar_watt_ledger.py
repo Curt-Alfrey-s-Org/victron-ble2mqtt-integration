@@ -76,6 +76,25 @@ def test_ku_renogy_ac_est_is_batt2_load_not_shunt() -> None:
     assert not isclose(ledger["ku_charger_equal_share_w"], naive, rel_tol=1e-6)
 
 
+def test_sungold_ac_in_passthrough_from_load_when_grid_va_zero() -> None:
+    states = {
+        "sensor.em16_a3_power": _row("sensor.em16_a3_power", "25"),
+        "sensor.sungold_sph302480a_grid_voltage": _row(
+            "sensor.sungold_sph302480a_grid_voltage", "117"
+        ),
+        "sensor.sungold_sph302480a_grid_current": _row(
+            "sensor.sungold_sph302480a_grid_current", "0"
+        ),
+        "sensor.sungold_sph302480a_load_active_power": _row(
+            "sensor.sungold_sph302480a_load_active_power", "5"
+        ),
+    }
+    ledger = build_watt_ledger(states)
+    assert ledger["sungold_ac_in_w"] == 5.0
+    hops = {h["id"]: h for h in ledger["watt_hops"]}
+    assert hops["ac_a3_uti"]["watts_in"] == 5.0
+
+
 def test_combined_path_losses_and_vent_fan_not_conversion() -> None:
     states = {
         "sensor.solar_controller_solar_power": _row(

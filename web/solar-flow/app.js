@@ -257,25 +257,69 @@
     return null;
   }
 
-  function ventFanEstimateW(trailerW, sgAcInW) {
-    if (trailerW === null || sgAcInW === null) return null;
-    var residual = trailerW - sgAcInW;
+  var HOP_EPS_W = 0.5;
+
+  // Sungold UTI lives in the cart lane (AC-in of SPH), not the KU A/C breaker row.
+  function ventFanEstimateW(trailerW, utiW, utiPassthrough) {
+    if (trailerW === null) return null;
+    if (utiPassthrough) {
+      return trailerW > HOP_EPS_W ? trailerW : 0;
+    }
+    if (utiW === null) {
+      return trailerW > HOP_EPS_W ? trailerW : 0;
+    }
+    var residual = trailerW - utiW;
     return residual > 0 ? residual : 0;
   }
 
-  function b3HopW(entities, panelW) {
+  function b3MeteredW(entities) {
     var b3W = getPowerW(entities, ENTITY_IDS.b3W);
-    if (b3W !== null && Math.abs(b3W) >= 0.5) {
+    if (b3W !== null && Math.abs(b3W) >= HOP_EPS_W) {
       return Math.abs(b3W);
     }
+    return null;
+  }
+
+  function b3OutletHopW(entities, panelW) {
+    var b3 = b3MeteredW(entities);
+    if (b3 !== null) return b3;
     return panelW;
   }
 
-  function utiHopW(entities, b3W, sgGridV, sgGridA) {
-    var acIn = sungoldAcInW(entities, sgGridV, sgGridA);
-    if (acIn !== null) return acIn;
-    if (b3W !== null && Math.abs(b3W) >= 0.5) return Math.abs(b3W);
+  function a3DownstreamHopW(panelW) {
+    if (panelW === null || panelW < HOP_EPS_W) return null;
+    return panelW;
+  }
+
+  function utiPassthroughFromAcOut(sgGridV, sgGridA, sgLoadW) {
+    var acIn = sungoldAcInW(null, sgGridV, sgGridA);
+    var acOut = sgLoadW !== null ? Math.abs(sgLoadW) : null;
+    if (acOut === null || acOut < HOP_EPS_W) return false;
+    if (acIn === null || acIn < HOP_EPS_W) return true;
+    return false;
+  }
+
+  // P = V*I (HA REST state); prefer SPH grid V x A, else AC-out lower bound in UTI mode.
+  function utiHopW(sgGridV, sgGridA, sgLoadW) {
+    var acIn = sungoldAcInW(null, sgGridV, sgGridA);
+    var acOut = sgLoadW !== null ? Math.abs(sgLoadW) : null;
+    if (acIn !== null && acIn >= HOP_EPS_W) return acIn;
+    if (acOut !== null && acOut >= HOP_EPS_W) return acOut;
+    if (acIn !== null && acIn > 0) return acIn;
     return null;
+  }
+
+  function isSgUtiMode(sgMode, sgGridV) {
+    if (sgGridV !== null && sgGridV > 50) return true;
+    if (sgMode === '2' || sgMode === 'Mains output') return true;
+    return false;
+  }
+
+  function isSgCartBattTare(sgMode, sgGridV, sgBattA, sgBattW) {
+    if (!isSgUtiMode(sgMode, sgGridV)) return false;
+    if (sgBattA === null || Math.abs(sgBattA) >= 0.5) return false;
+    if (sgBattW !== null && Math.abs(sgBattW) >= 5) return false;
+    return sgBattA !== null && Math.abs(sgBattA) > 0.01;
   }
 
   function mpptToBattHopW(entities, solarW) {
@@ -423,9 +467,10 @@
     setHopLabel('path-ku-pwm-panels', opts.kuShareW, true);
     setHopLabel('path-ku-pwm-batt2', opts.kuShareW, true);
     setHopLabel('path-ku-batt2-inverter', opts.kuRenogyAcW, false, { load: true });
-    setHopLabel('path-ku-renogy-panel', opts.panelW, false, { load: true });
-    setHopLabel('path-panel-b3', opts.b3W, false, { load: true });
-    setHopLabel('path-b3-outlet-sg-uti', opts.utiW, false, { load: true });
+    setHopLabel('path-ku-renogy-panel', opts.a3DownstreamW, false, { load: true });
+    setHopLabel('path-panel-b3', opts.a3DownstreamW, false, { load: true });
+    setHopLabel('path-b3-outlet', opts.outletHopW, false, { load: true });
+    setHopLabel('path-outlet-uti', opts.utiW, false, { load: true });
     setHopLabel('path-sg-uti-sph', opts.utiW, false, { load: true });
     setHopLabel('path-outlet-vent-fan', opts.ventW, opts.ventW === null, { load: true });
     setHopLabel('path-sg-acout-pi4', null, true, { load: true });
@@ -853,10 +898,12 @@
     var b3RawW = getPowerW(entities, ENTITY_IDS.b3W);
     var b3V = parseFloatSafe(getState(entities, ENTITY_IDS.b3V));
     var b3A = parseFloatSafe(getState(entities, ENTITY_IDS.b3A));
-    var b3W = b3HopW(entities, panelW);
-    setWattValue('val-b3-w', b3RawW !== null ? b3RawW : panelA3W, { load: true });
+    var b3MeterW = b3MeteredW(entities);
+    var outletHopW = b3OutletHopW(entities, panelW);
+    var a3DownstreamW = a3DownstreamHopW(panelW);
+    setWattValue('val-b3-w', b3RawW !== null ? b3RawW : 0, { load: true });
     setValue('val-b3-va', formatVA(b3V, b3A));
-    setPip('pip-b3', b3W !== null && b3W > 0);
+    setPip('pip-b3', b3MeterW !== null && b3MeterW > 0);
 
     setWattValue('val-t2-renogy-w', 0);
     setPip('pip-t2-renogy', false);
@@ -897,17 +944,28 @@
     var sgBattW = getPowerW(entities, ENTITY_IDS.sgBattW);
     var sgCharge = getState(entities, ENTITY_IDS.sgCharge);
     setValue('val-sg-soc', sgSoc !== null ? 'remain ' + formatNum(sgSoc, 0) + '%' : 'remain --');
+    var sgModeEarly = getState(entities, ENTITY_IDS.sgMode);
+    var sgGridVEarly = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
+    var sgBattTare = isSgCartBattTare(sgModeEarly, sgGridVEarly, sgBattA, sgBattW);
     setSignedCurrent('val-sg-batt-va', sgBattV, sgBattA);
-    setWattValue('val-sg-batt-w', sgBattW, true);
-    setValue('val-sg-charge', sgCharge || '--');
-    setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
+    if (sgBattTare) {
+      setWattValue('val-sg-batt-w', sgBattW !== null ? sgBattW : 0, true);
+      setValue('val-sg-charge', 'standby (UTI tare)');
+      setPip('pip-sg-batt', false);
+    } else {
+      setWattValue('val-sg-batt-w', sgBattW, true);
+      setValue('val-sg-charge', sgCharge || '--');
+      setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
+    }
 
-    var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
+    var sgGridV = sgGridVEarly;
     var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
     var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
+    var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var trailerW = trailerOutletW(entities);
-    var utiW = utiHopW(entities, b3W, sgGridV, sgGridA);
-    var ventW = ventFanEstimateW(trailerW, utiW);
+    var utiW = utiHopW(sgGridV, sgGridA, sgLoadW);
+    var utiPassthrough = utiPassthroughFromAcOut(sgGridV, sgGridA, sgLoadW);
+    var ventW = ventFanEstimateW(trailerW, utiW, utiPassthrough);
     var kuRenogyAcW = trailerW;
     setWattValue('val-ku-renogy-w', kuRenogyAcW, { load: true });
     setValue(
@@ -932,11 +990,12 @@
       setWattValue('val-vent-fan-w', ventW, { load: true });
     }
     setPip('pip-vent-fan', ventW !== null && ventW > 0.5);
+    setFanSpeedClass(ventW !== null && ventW > 0.5, resolveVentFanSpeed(snapshot));
+    paintWeatherSky(snapshot);
     setValue('val-pi4-w', 'unmetered');
     applyWattSign($('val-pi4-w'), 0);
     setPip('pip-pi4', true);
 
-    var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
     var sgOutV = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutV));
     var sgOutHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutHz));
@@ -994,7 +1053,9 @@
       kuRenogyAcW: kuRenogyAcW,
       kuShareW: kuShareW,
       panelW: panelW,
-      b3W: b3W,
+      a3DownstreamW: a3DownstreamW,
+      outletHopW: outletHopW,
+      b3MeterW: b3MeterW,
       utiW: utiW,
       ventW: ventW,
       simBusW: simBusW,
@@ -1010,7 +1071,8 @@
       jumperW: jumperW,
       panelW: panelW,
       kuRenogyAcW: kuRenogyAcW,
-      b3W: b3W,
+      a3DownstreamW: a3DownstreamW,
+      outletHopW: outletHopW,
       utiW: utiW,
       ventW: ventW,
       plugTotal: totalDump,
@@ -1052,15 +1114,16 @@
     var jumperAbs = opts.jumperW !== null ? Math.abs(opts.jumperW) : 0;
     setFlow('path-t2-ku-jumper', jumperAbs >= 0.5, opts.jumperW !== null && opts.jumperW < 0);
 
-    var panelFlow = opts.panelW !== null && opts.panelW > 0;
-    var b3Flow = opts.b3W !== null && opts.b3W > 0;
+    var downstreamFlow = opts.a3DownstreamW !== null && opts.a3DownstreamW > 0;
+    var outletFlow = opts.outletHopW !== null && opts.outletHopW > 0;
     var utiFlow = opts.utiW !== null && opts.utiW > 0;
     var kuRenogyFlow = opts.kuRenogyAcW !== null && opts.kuRenogyAcW > 0.5;
     var plugLoad = (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
     setFlow('path-ku-batt2-inverter', kuRenogyFlow, false);
-    setFlow('path-ku-renogy-panel', panelFlow || b3Flow || utiFlow || kuRenogyFlow, false);
-    setFlow('path-panel-b3', b3Flow || utiFlow, false);
-    setFlow('path-b3-outlet-sg-uti', utiFlow, false);
+    setFlow('path-ku-renogy-panel', downstreamFlow || kuRenogyFlow, false);
+    setFlow('path-panel-b3', downstreamFlow, false);
+    setFlow('path-b3-outlet', outletFlow, false);
+    setFlow('path-outlet-uti', utiFlow, false);
     setFlow('path-sg-uti-sph', utiFlow, false);
     setFlow('path-outlet-vent-fan', opts.ventW !== null && opts.ventW > 0.5, false);
     setFlow('path-sg-acout-pi4', true, false);
@@ -1360,5 +1423,121 @@
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
+  }
+
+  /* Weather + vent fan visual hooks (CSS classes only; no watt math). */
+  function mapWeatherClass(condition) {
+    if (!condition) return 'wx-clear';
+    var c = String(condition).toLowerCase().replace(/[\s_]+/g, '');
+    if (/lightning|thunder|exceptional|storm/.test(c)) return 'wx-storm';
+    if (/rain|pour|drizzle|shower|snow|hail|sleet|wintry|snowyrainy/.test(c)) return 'wx-rain';
+    if (c === 'cloudy' || c === 'fog' || c === 'windy' || c === 'windyvariant' || /overcast/.test(c)) {
+      return 'wx-cloudy';
+    }
+    if (c === 'partlycloudy' || /partly|mostlycloud|scattered/.test(c)) return 'wx-partly';
+    if (c === 'sunny' || c === 'clearnight' || c === 'clear' || /fair/.test(c)) return 'wx-clear';
+    return 'wx-partly';
+  }
+
+  function setWeatherClass(condition, label, temp) {
+    var sky = $('node-weather-sky');
+    if (!sky) return;
+    sky.className = 'weather-sky ' + mapWeatherClass(condition);
+    var lbl = $('val-weather-condition');
+    if (lbl) lbl.textContent = label || condition || '--';
+    var tempEl = $('val-weather-temp');
+    if (tempEl) tempEl.textContent = temp != null && temp !== '' ? String(temp) : '';
+    setPip('pip-weather-sky', condition != null && condition !== '' && condition !== '--');
+  }
+
+  function resolveWeatherFromSnapshot(snapshot) {
+    var block = snapshot.weather || snapshot.ecobee_weather || null;
+    if (block) {
+      return {
+        condition: block.condition || block.state,
+        label: block.label || block.condition || block.state,
+        temp: block.temperature != null
+          ? formatNum(block.temperature, 0) + (block.temperature_unit ? ' ' + block.temperature_unit : '')
+          : null
+      };
+    }
+    var entities = snapshot.entities || {};
+    var keys = Object.keys(entities);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('weather.') === 0) {
+        var ent = entities[keys[i]];
+        var attrs = ent.attributes || {};
+        return {
+          condition: attrs.condition || ent.state,
+          label: attrs.condition || ent.state,
+          temp: attrs.temperature != null
+            ? formatNum(attrs.temperature, 0) + (attrs.temperature_unit ? ' ' + attrs.temperature_unit : '')
+            : null
+        };
+      }
+    }
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('climate.') === 0) {
+        var clim = entities[keys[i]];
+        var cattrs = clim.attributes || {};
+        return {
+          condition: cattrs.condition || clim.state,
+          label: cattrs.condition || clim.state,
+          temp: cattrs.current_temperature != null
+            ? formatNum(cattrs.current_temperature, 0) + (cattrs.temperature_unit ? ' ' + cattrs.temperature_unit : '')
+            : null
+        };
+      }
+    }
+    return null;
+  }
+
+  function paintWeatherSky(snapshot) {
+    var info = resolveWeatherFromSnapshot(snapshot);
+    if (info) {
+      setWeatherClass(info.condition, info.label, info.temp);
+    } else {
+      setWeatherClass(null, '--', null);
+    }
+  }
+
+  function fanSpeedFromPercentage(pct) {
+    if (pct == null || isNaN(pct)) return null;
+    if (pct <= 25) return 1;
+    if (pct <= 50) return 2;
+    if (pct <= 75) return 3;
+    return 4;
+  }
+
+  function resolveVentFanSpeed(snapshot) {
+    var meta = snapshot.meta || {};
+    if (meta.vent_fan_speed != null) return meta.vent_fan_speed;
+    if (snapshot.vent_fan_speed != null) return snapshot.vent_fan_speed;
+    var entities = snapshot.entities || {};
+    var keys = Object.keys(entities);
+    var i;
+    for (i = 0; i < keys.length; i++) {
+      if (keys[i].indexOf('fan.') !== 0) continue;
+      var ent = entities[keys[i]];
+      var attrs = ent.attributes || {};
+      if (attrs.percentage != null) return fanSpeedFromPercentage(parseFloatSafe(attrs.percentage));
+      if (ent.state && /^\d+$/.test(ent.state)) {
+        var level = parseInt(ent.state, 10);
+        if (level >= 1 && level <= 4) return level;
+      }
+    }
+    return null;
+  }
+
+  function setFanSpeedClass(running, speed) {
+    var node = $('node-vent-fan');
+    if (!node) return;
+    node.classList.remove('vent-running', 'fan-speed-1', 'fan-speed-2', 'fan-speed-3', 'fan-speed-4');
+    if (!running || reducedMotion) return;
+    var s = parseInt(speed, 10);
+    if (isNaN(s) || s < 1) s = 1;
+    if (s > 4) s = 4;
+    node.classList.add('vent-running', 'fan-speed-' + s);
   }
 })();

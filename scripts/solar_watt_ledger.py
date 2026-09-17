@@ -236,7 +236,13 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
     sg_grid_v = _first_w(states, _SG_GRID_V_IDS)
     sg_grid_a = _first_w(states, _SG_GRID_A_IDS)
+    sg_load = _first_w(states, _SG_LOAD_IDS)
     sg_ac_in = _va_w(sg_grid_v, sg_grid_a)
+    # UTI passthrough: P = V*I on grid first; if ~0 but A/C out flows, use AC-out
+    # as lower bound (HA REST). Do not use A3/B3 for Sungold AC-in hop W.
+    if sg_ac_in is None or sg_ac_in < 0.5:
+        if sg_load is not None and abs(sg_load) >= 0.5:
+            sg_ac_in = abs(sg_load)
     vent_fan_w: float | None = None
     vent_unmetered = False
     if trailer_w is not None and sg_ac_in is not None:
@@ -248,7 +254,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if sg_pv is None:
         sg_pv = _va_w(_first_w(states, _SG_PV_V_IDS), _first_w(states, _SG_PV_A_IDS))
     sg_batt = _first_w(states, _SG_BATT_IDS)
-    sg_load = _first_w(states, _SG_LOAD_IDS)
+    sg_batt_a = _first_w(states, ("sensor.sungold_sph302480a_battery_current",))
 
     b1v = _first_w(states, _BATT1_V_IDS)
     b2v = _first_w(states, _BATT2_V_IDS)
@@ -352,13 +358,25 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         sg_in = sg_ac_in + (sg_pv or 0.0)
         if sg_batt is not None or sg_load is not None:
             sg_out = (sg_batt or 0.0) + (sg_load or 0.0)
+    sg_batt_note = "SPH A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3"
+    if (
+        sg_grid_v is not None
+        and sg_grid_v > 50
+        and sg_batt_a is not None
+        and abs(sg_batt_a) < 0.5
+        and (sg_batt is None or abs(sg_batt) < 5)
+        and abs(sg_batt_a) > 0.01
+    ):
+        sg_batt_note += (
+            "; cart ~0.1 A in UTI is inverter DC standby/tare, not battery supplying A/C out"
+        )
     hops.append(
         _hop(
             "sungold",
             "Sungold SPH",
             sg_in,
             sg_out,
-            note="SPH A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3",
+            note=sg_batt_note,
         )
     )
     hops.append(

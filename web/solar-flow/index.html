@@ -67,8 +67,19 @@
           <symbol id="art-fan" viewBox="0 0 40 40">
             <title>Vent fan</title>
             <circle cx="20" cy="20" r="16" fill="#1a2733" stroke="#78909c" stroke-width="1.5"/>
-            <ellipse cx="20" cy="20" rx="12" ry="4" fill="#90a4ae"/>
-            <ellipse cx="20" cy="20" rx="4" ry="12" fill="#90a4ae"/>
+            <g class="vent-fan-blades">
+              <ellipse cx="20" cy="20" rx="12" ry="4" fill="#90a4ae"/>
+              <ellipse cx="20" cy="20" rx="4" ry="12" fill="#90a4ae"/>
+            </g>
+            <circle cx="20" cy="20" r="3" fill="#cfd8dc"/>
+          </symbol>
+          <symbol id="art-vent-fan" viewBox="0 0 40 40">
+            <title>Vent fan blades</title>
+            <circle cx="20" cy="20" r="16" fill="#1a2733" stroke="#78909c" stroke-width="1.5"/>
+            <g class="vent-fan-blades">
+              <ellipse cx="20" cy="20" rx="12" ry="4" fill="#90a4ae"/>
+              <ellipse cx="20" cy="20" rx="4" ry="12" fill="#90a4ae"/>
+            </g>
             <circle cx="20" cy="20" r="3" fill="#cfd8dc"/>
           </symbol>
           <symbol id="art-pi" viewBox="0 0 56 36">
@@ -86,31 +97,71 @@
             <rect x="26" y="19" width="14" height="4" fill="#263832"/>
             <rect x="26" y="26" width="14" height="4" fill="#263832"/>
           </symbol>
+          <symbol id="art-pwm" viewBox="0 0 48 36">
+            <title>PWM charge controller</title>
+            <rect x="2" y="6" width="44" height="28" rx="3" fill="#1e2a3a" stroke="#4db6ac" stroke-width="1.5"/>
+            <rect x="8" y="14" width="32" height="12" rx="2" fill="#263832" stroke="#78909c" stroke-width="0.8"/>
+            <path d="M 10 20 L 16 14 L 16 26 L 10 20 Z M 18 14 L 26 14 L 26 26 L 18 26 Z M 28 14 L 38 20 L 28 26 Z" fill="#ffc107" opacity="0.9"/>
+          </symbol>
         </defs>
 
         <rect class="lane-band lane-t2" x="16" y="12" width="1116" height="280" rx="10"/>
         <rect class="lane-band lane-ku-dc" x="16" y="352" width="1116" height="448" rx="10"/>
         <rect class="lane-band lane-ku-ac" x="16" y="816" width="1116" height="252" rx="10"/>
         <rect class="lane-band lane-sg" x="16" y="1084" width="1116" height="316" rx="10"/>
-        <rect class="lane-band lane-dump" x="1148" y="12" width="396" height="1044" rx="10"/>
+        <rect class="lane-band lane-dump" x="1148" y="12" width="380" height="708" rx="10"/>
+
+        <g id="node-weather-sky" class="weather-sky wx-clear" role="img" aria-label="Weather conditions">
+          <title id="node-weather-sky-title">Weather</title>
+          <rect class="wx-sky-bg" x="1148" y="12" width="380" height="88" rx="10"/>
+          <g class="wx-sun" transform="translate(1228, 56)">
+            <circle class="wx-sun-disc" cx="0" cy="0" r="22" fill="#ffc107"/>
+            <g class="wx-sun-rays" stroke="#ffc107" stroke-width="2.5" stroke-linecap="round">
+              <line x1="0" y1="-34" x2="0" y2="-26"/>
+              <line x1="0" y1="26" x2="0" y2="34"/>
+              <line x1="-34" y1="0" x2="-26" y2="0"/>
+              <line x1="26" y1="0" x2="34" y2="0"/>
+              <line x1="-24" y1="-24" x2="-18" y2="-18"/>
+              <line x1="18" y1="18" x2="24" y2="24"/>
+              <line x1="24" y1="-24" x2="18" y2="-18"/>
+              <line x1="-18" y1="18" x2="-24" y2="24"/>
+            </g>
+          </g>
+          <g class="wx-clouds" fill="#eceff1" stroke="#b0bec5" stroke-width="1">
+            <ellipse class="wx-cloud wx-cloud-a" cx="1310" cy="52" rx="34" ry="16"/>
+            <ellipse class="wx-cloud wx-cloud-b" cx="1344" cy="58" rx="28" ry="14"/>
+            <ellipse class="wx-cloud wx-cloud-c" cx="1278" cy="60" rx="22" ry="12"/>
+          </g>
+          <g class="wx-rain-drops" stroke="#64b5f6" stroke-width="2" stroke-linecap="round">
+            <line class="wx-drop" x1="1296" y1="68" x2="1292" y2="80"/>
+            <line class="wx-drop wx-drop-2" x1="1318" y1="72" x2="1314" y2="84"/>
+            <line class="wx-drop wx-drop-3" x1="1340" y1="70" x2="1336" y2="82"/>
+            <line class="wx-drop wx-drop-4" x1="1362" y1="74" x2="1358" y2="86"/>
+          </g>
+          <path class="wx-storm-bolt" d="M 1334 34 L 1326 58 L 1338 58 L 1328 86 L 1348 52 L 1336 52 Z" fill="#ffeb3b" stroke="#f9a825" stroke-width="1"/>
+          <text class="wx-label" id="val-weather-condition" x="1516" y="58" text-anchor="end">--</text>
+          <text class="wx-temp" id="val-weather-temp" x="1516" y="78" text-anchor="end"></text>
+          <circle class="status-pip" id="pip-weather-sky" cx="1162" cy="26" r="4"/>
+        </g>
 
         <g class="flow-paths" aria-hidden="true">
           <path id="path-t2-panels-mppt" class="flow-path" d="M 190 126 L 254 126"/>
           <path id="path-t2-mppt-batt1" class="flow-path" d="M 474 166 L 538 166"/>
           <path id="path-t2-batt1-renogy" class="flow-path unmetered" d="M 748 166 L 812 166"/>
           <path id="path-t2-ku-jumper" class="flow-path" d="M 748 260 L 758 260 L 758 400 L 748 400"/>
-          <path id="path-ku-mppt1-panels" class="flow-path unmetered" d="M 190 446 L 214 446"/>
-          <path id="path-ku-mppt1-batt2" class="flow-path unmetered" d="M 398 455 L 538 494"/>
-          <path id="path-ku-mppt2-panels" class="flow-path unmetered" d="M 190 580 L 214 580"/>
-          <path id="path-ku-mppt2-batt2" class="flow-path unmetered" d="M 398 589 L 538 508"/>
-          <path id="path-ku-pwm-panels" class="flow-path unmetered" d="M 190 714 L 214 714"/>
-          <path id="path-ku-pwm-batt2" class="flow-path unmetered" d="M 398 723 L 538 560"/>
+          <path id="path-ku-mppt1-panels" class="flow-path unmetered" d="M 190 456 L 214 456"/>
+          <path id="path-ku-mppt1-batt2" class="flow-path unmetered" d="M 434 457 L 538 494"/>
+          <path id="path-ku-mppt2-panels" class="flow-path unmetered" d="M 190 590 L 214 590"/>
+          <path id="path-ku-mppt2-batt2" class="flow-path unmetered" d="M 434 599 L 538 508"/>
+          <path id="path-ku-pwm-panels" class="flow-path unmetered" d="M 190 724 L 214 724"/>
+          <path id="path-ku-pwm-batt2" class="flow-path unmetered" d="M 434 741 L 538 560"/>
           <path id="path-ku-batt2-inverter" class="flow-path" d="M 748 508 L 852 508"/>
           <path id="path-ku-renogy-panel" class="flow-path" d="M 952 574 L 952 836 L 226 836 L 226 856"/>
           <path id="path-panel-b3" class="flow-path" d="M 226 915 L 250 915"/>
-          <path id="path-b3-outlet-sg-uti" class="flow-path" d="M 410 915 L 434 915 L 604 915 L 628 915"/>
+          <path id="path-b3-outlet" class="flow-path" d="M 410 915 L 434 915 L 519 915"/>
           <path id="path-outlet-vent-fan" class="flow-path" d="M 519 974 L 519 990"/>
-          <path id="path-sg-uti-sph" class="flow-path" d="M 742 974 L 742 1084 L 758 1084 L 758 1148"/>
+          <path id="path-outlet-uti" class="flow-path" d="M 519 974 L 519 1056 L 598 1056 L 598 1148"/>
+          <path id="path-sg-uti-sph" class="flow-path" d="M 648 1212 L 658 1212"/>
           <path id="path-sg-acout-pi4" class="flow-path" d="M 984 1284 L 984 1308"/>
           <path id="path-sim-acbus" class="flow-path" d="M 1086 1212 L 1140 1212"/>
           <path id="path-sim-riser" class="flow-path" d="M 1140 86 L 1140 1212"/>
@@ -132,21 +183,22 @@
           <text class="hop-watt unmetered watt-zero" id="hop-path-t2-batt1-renogy" x="780" y="154" text-anchor="middle">0 W</text>
           <text class="hop-watt watt-zero" id="hop-path-t2-ku-jumper" x="758" y="306" text-anchor="middle">0 W</text>
           <text class="jumper-note" id="lbl-jumper-dir" x="758" y="324" text-anchor="middle">T2-KU jumper est.</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt1-panels" x="202" y="436" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt1-batt2" x="468" y="444" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt2-panels" x="202" y="570" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt2-batt2" x="468" y="578" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-panels" x="202" y="704" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-batt2" x="468" y="712" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt1-panels" x="202" y="446" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt1-batt2" x="486" y="472" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt2-panels" x="202" y="580" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-mppt2-batt2" x="486" y="558" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-panels" x="202" y="714" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-batt2" x="486" y="648" text-anchor="middle">0 W</text>
           <text class="hop-watt watt-zero" id="hop-path-ku-batt2-inverter" x="788" y="496" text-anchor="middle">0 W</text>
           <text class="hop-watt watt-zero" id="hop-path-ku-renogy-panel" x="972" y="700" text-anchor="middle">0 W</text>
-          <text class="hop-watt watt-zero" id="hop-path-panel-b3" x="238" y="824" text-anchor="middle">0 W</text>
-          <text class="hop-watt watt-zero" id="hop-path-b3-outlet-sg-uti" x="519" y="824" text-anchor="middle">0 W</text>
-          <text class="hop-watt watt-zero" id="hop-path-outlet-vent-fan" x="360" y="1010" text-anchor="start">0 W</text>
-          <text class="hop-watt watt-zero" id="hop-path-sg-uti-sph" x="770" y="1036" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-panel-b3" x="238" y="906" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-b3-outlet" x="474" y="906" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-outlet-vent-fan" x="528" y="982" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-outlet-uti" x="558" y="1046" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-uti-sph" x="697" y="1202" text-anchor="middle">0 W</text>
           <text class="hop-watt unmetered watt-zero" id="hop-path-sg-acout-pi4" x="1094" y="1300" text-anchor="start">0 W</text>
           <text class="hop-watt watt-zero" id="hop-path-sim-acbus" x="1130" y="1198" text-anchor="middle">0 W</text>
-          <text class="hop-watt watt-zero" id="hop-path-sim-riser" x="1158" y="800" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sim-riser" x="1128" y="649" text-anchor="end">0 W</text>
           <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-1" x="1174" y="42">0 W</text>
           <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-2" x="1174" y="142">0 W</text>
           <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-3" x="1174" y="242">0 W</text>
@@ -172,23 +224,15 @@
 
         <g class="node-group node-clickable" id="node-solar" transform="translate(40,0)" data-history-entity="sensor.solar_controller_solar" data-history-title="BlueSolar MPPT" role="button" tabindex="0" aria-label="T2 BlueSolar MPPT">
           <rect class="node-bg" x="214" y="56" width="220" height="220" rx="6"/>
-          <g class="sun-icon" aria-hidden="true">
-            <circle cx="324" cy="100" r="16" fill="#ffc107"/>
-            <g class="sun-rays">
-              <line x1="324" y1="72" x2="324" y2="80"/><line x1="324" y1="120" x2="324" y2="128"/>
-              <line x1="296" y1="100" x2="304" y2="100"/><line x1="344" y1="100" x2="352" y2="100"/>
-              <line x1="304" y1="80" x2="310" y2="86"/><line x1="338" y1="114" x2="344" y2="120"/>
-              <line x1="344" y1="80" x2="338" y2="86"/><line x1="310" y1="114" x2="304" y2="120"/>
-            </g>
-          </g>
-          <text class="node-watts watt-zero" id="val-solar-w" x="324" y="142" text-anchor="middle">0 W</text>
-          <text class="node-label" x="324" y="162" text-anchor="middle">BlueSolar MPPT</text>
-          <text class="node-sublabel" x="324" y="178" text-anchor="middle">T2 reporter</text>
-          <text class="node-detail" id="val-batt-state" x="324" y="196" text-anchor="middle">--</text>
-          <text class="node-detail" id="val-mppt-va" x="324" y="212" text-anchor="middle">-- V / -- A</text>
-          <text class="node-detail" id="val-mppt-charge-w" x="324" y="228" text-anchor="middle">chg 0 W</text>
-          <text class="node-detail" id="val-mppt-load" x="324" y="244" text-anchor="middle">load 0 W</text>
-          <text class="node-detail" id="val-mppt-yield" x="324" y="260" text-anchor="middle">yield --</text>
+          <use href="#art-mppt" x="300" y="64" width="48" height="36"/>
+          <text class="node-watts watt-zero" id="val-solar-w" x="324" y="118" text-anchor="middle">0 W</text>
+          <text class="node-label" x="324" y="138" text-anchor="middle">BlueSolar MPPT</text>
+          <text class="node-sublabel" x="324" y="154" text-anchor="middle">T2 reporter</text>
+          <text class="node-detail" id="val-batt-state" x="324" y="172" text-anchor="middle">--</text>
+          <text class="node-detail" id="val-mppt-va" x="324" y="188" text-anchor="middle">-- V / -- A</text>
+          <text class="node-detail" id="val-mppt-charge-w" x="324" y="204" text-anchor="middle">chg 0 W</text>
+          <text class="node-detail" id="val-mppt-load" x="324" y="220" text-anchor="middle">load 0 W</text>
+          <text class="node-detail" id="val-mppt-yield" x="324" y="236" text-anchor="middle">yield --</text>
           <circle class="status-pip" id="pip-solar" cx="422" cy="68" r="5"/>
         </g>
 
@@ -222,58 +266,64 @@
         <text class="legacy-alias" id="val-ku-victron-panels-w">0 W</text>
 
         <g class="node-group node-unmetered" id="node-ku-panel-mppt1" role="group" aria-label="KU MPPT 1 suitcases two in series estimate">
-          <rect class="node-bg panel unmetered" x="40" y="396" width="150" height="100" rx="6"/>
-          <use href="#art-pv" x="48" y="400" width="56" height="34"/>
-          <text class="node-label" x="115" y="426" text-anchor="middle">KU MPPT 1</text>
-          <text class="node-sublabel" x="115" y="444" text-anchor="middle">2 in series</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-mppt1-w" x="115" y="472" text-anchor="middle">0 W</text>
-          <text class="est-label" x="115" y="486" text-anchor="middle">est.</text>
+          <rect class="node-bg panel" x="40" y="406" width="150" height="100" rx="6"/>
+          <use href="#art-pv" x="48" y="410" width="56" height="34"/>
+          <text class="node-label" x="115" y="436" text-anchor="middle">KU MPPT 1</text>
+          <text class="node-sublabel" x="115" y="454" text-anchor="middle">2 in series</text>
+          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-mppt1-w" x="115" y="482" text-anchor="middle">0 W</text>
+          <text class="est-label" x="115" y="496" text-anchor="middle">est.</text>
         </g>
 
         <g class="node-group node-unmetered" id="node-ku-mppt-1" role="group" aria-label="KU MPPT 1 charger estimate">
-          <rect class="node-bg unmetered" x="214" y="396" width="184" height="118" rx="6"/>
-          <use href="#art-mppt" x="282" y="402" width="48" height="32"/>
-          <text class="node-label" x="306" y="446" text-anchor="middle">KU MPPT 1</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-mppt-1-w" x="306" y="468" text-anchor="middle">0 W</text>
-          <text class="est-label" x="306" y="482" text-anchor="middle">est.</text>
-          <text class="node-detail dim" id="val-ku-mppt-1-a" x="306" y="500" text-anchor="middle">-- A</text>
+          <rect class="node-bg" x="214" y="392" width="220" height="130" rx="6"/>
+          <use href="#art-mppt" x="300" y="398" width="48" height="36"/>
+          <text class="node-watts unmetered-text watt-zero" id="val-ku-mppt-1-w" x="324" y="446" text-anchor="middle">0 W</text>
+          <text class="node-label" x="324" y="464" text-anchor="middle">KU MPPT 1</text>
+          <text class="node-sublabel" x="324" y="480" text-anchor="middle">est.</text>
+          <text class="node-detail" id="val-ku-mppt-1-state" x="324" y="496" text-anchor="middle">--</text>
+          <text class="node-detail unmetered-text" id="val-ku-mppt-1-a" x="324" y="512" text-anchor="middle">-- V / -- A</text>
+          <circle class="status-pip" id="pip-ku-mppt-1" cx="422" cy="404" r="5"/>
         </g>
 
         <g class="node-group node-unmetered" id="node-ku-panel-mppt2" role="group" aria-label="KU MPPT 2 suitcases two in series estimate">
-          <rect class="node-bg panel unmetered" x="40" y="530" width="150" height="100" rx="6"/>
-          <use href="#art-pv" x="48" y="534" width="56" height="34"/>
-          <text class="node-label" x="115" y="560" text-anchor="middle">KU MPPT 2</text>
-          <text class="node-sublabel" x="115" y="578" text-anchor="middle">2 in series</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-mppt2-w" x="115" y="606" text-anchor="middle">0 W</text>
-          <text class="est-label" x="115" y="620" text-anchor="middle">est.</text>
+          <rect class="node-bg panel" x="40" y="540" width="150" height="100" rx="6"/>
+          <use href="#art-pv" x="48" y="544" width="56" height="34"/>
+          <text class="node-label" x="115" y="570" text-anchor="middle">KU MPPT 2</text>
+          <text class="node-sublabel" x="115" y="588" text-anchor="middle">2 in series</text>
+          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-mppt2-w" x="115" y="616" text-anchor="middle">0 W</text>
+          <text class="est-label" x="115" y="630" text-anchor="middle">est.</text>
         </g>
 
         <g class="node-group node-unmetered" id="node-ku-mppt-2" role="group" aria-label="KU MPPT 2 charger estimate">
-          <rect class="node-bg unmetered" x="214" y="530" width="184" height="118" rx="6"/>
-          <use href="#art-mppt" x="282" y="536" width="48" height="32"/>
-          <text class="node-label" x="306" y="580" text-anchor="middle">KU MPPT 2</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-mppt-2-w" x="306" y="602" text-anchor="middle">0 W</text>
-          <text class="est-label" x="306" y="616" text-anchor="middle">est.</text>
-          <text class="node-detail dim" id="val-ku-mppt-2-a" x="306" y="634" text-anchor="middle">-- A</text>
+          <rect class="node-bg" x="214" y="534" width="220" height="130" rx="6"/>
+          <use href="#art-mppt" x="300" y="540" width="48" height="36"/>
+          <text class="node-watts unmetered-text watt-zero" id="val-ku-mppt-2-w" x="324" y="588" text-anchor="middle">0 W</text>
+          <text class="node-label" x="324" y="606" text-anchor="middle">KU MPPT 2</text>
+          <text class="node-sublabel" x="324" y="622" text-anchor="middle">est.</text>
+          <text class="node-detail" id="val-ku-mppt-2-state" x="324" y="638" text-anchor="middle">--</text>
+          <text class="node-detail unmetered-text" id="val-ku-mppt-2-a" x="324" y="654" text-anchor="middle">-- V / -- A</text>
+          <circle class="status-pip" id="pip-ku-mppt-2" cx="422" cy="546" r="5"/>
         </g>
 
         <g class="node-group node-unmetered" id="node-ku-panel-pwm" role="group" aria-label="KU PWM suitcases two in series estimate">
-          <rect class="node-bg panel unmetered" x="40" y="664" width="150" height="100" rx="6"/>
-          <use href="#art-pv" x="48" y="668" width="56" height="34"/>
-          <text class="node-label" x="115" y="694" text-anchor="middle">KU PWM</text>
-          <text class="node-sublabel" x="115" y="712" text-anchor="middle">2 in series</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-pwm-w" x="115" y="740" text-anchor="middle">0 W</text>
-          <text class="est-label" x="115" y="754" text-anchor="middle">est.</text>
+          <rect class="node-bg panel" x="40" y="674" width="150" height="100" rx="6"/>
+          <use href="#art-pv" x="48" y="678" width="56" height="34"/>
+          <text class="node-label" x="115" y="704" text-anchor="middle">KU PWM</text>
+          <text class="node-sublabel" x="115" y="722" text-anchor="middle">2 in series</text>
+          <text class="node-watts small unmetered-text watt-zero" id="val-ku-panel-pwm-w" x="115" y="750" text-anchor="middle">0 W</text>
+          <text class="est-label" x="115" y="764" text-anchor="middle">est.</text>
         </g>
 
         <g class="node-group node-unmetered" id="node-ku-pwm" role="group" aria-label="KU PWM charger estimate">
           <text class="legacy-alias" id="val-ku-pwm-panels-w">0 W</text>
-          <rect class="node-bg unmetered" x="214" y="664" width="184" height="118" rx="6"/>
-          <use href="#art-mppt" x="282" y="670" width="48" height="32"/>
-          <text class="node-label" x="306" y="714" text-anchor="middle">KU PWM</text>
-          <text class="node-watts small unmetered-text watt-zero" id="val-ku-pwm-w" x="306" y="736" text-anchor="middle">0 W</text>
-          <text class="est-label" x="306" y="750" text-anchor="middle">est.</text>
-          <text class="node-detail dim" id="val-ku-pwm-a" x="306" y="768" text-anchor="middle">-- A</text>
+          <rect class="node-bg" x="214" y="676" width="220" height="130" rx="6"/>
+          <use href="#art-pwm" x="300" y="682" width="48" height="36"/>
+          <text class="node-watts unmetered-text watt-zero" id="val-ku-pwm-w" x="324" y="730" text-anchor="middle">0 W</text>
+          <text class="node-label" x="324" y="748" text-anchor="middle">KU PWM</text>
+          <text class="node-sublabel" x="324" y="764" text-anchor="middle">Voyager est.</text>
+          <text class="node-detail" id="val-ku-pwm-state" x="324" y="780" text-anchor="middle">--</text>
+          <text class="node-detail unmetered-text" id="val-ku-pwm-a" x="324" y="796" text-anchor="middle">-- V / -- A</text>
+          <circle class="status-pip" id="pip-ku-pwm" cx="422" cy="688" r="5"/>
         </g>
 
         <g class="node-group node-clickable" id="node-batt2" transform="translate(80,0)" data-history-entity="sensor.battery_2_power" data-history-title="Battery 2 KU" role="button" tabindex="0" aria-label="Battery 2 KU">
@@ -328,26 +378,23 @@
           <text class="node-sublabel" x="519" y="914" text-anchor="middle">Sungold + vent fan</text>
         </g>
 
-        <g class="node-group" id="node-vent-fan" role="group" aria-label="Cargo trailer vent fan on KU outlet">
+        <g class="node-group vent-fan-node" id="node-vent-fan" role="group" aria-label="Cargo trailer vent fan on KU outlet">
           <title>Cargo trailer vent fan (sibling of Sungold A/C in)</title>
           <rect class="node-bg load" x="434" y="990" width="170" height="58" rx="6"/>
-          <use href="#art-fan" x="444" y="998" width="36" height="36"/>
+          <g class="vent-fan-icon" transform="translate(444, 998) scale(0.9)">
+            <circle cx="20" cy="20" r="16" fill="#1a2733" stroke="#78909c" stroke-width="1.5"/>
+            <g class="vent-fan-blades">
+              <ellipse cx="20" cy="20" rx="12" ry="4" fill="#90a4ae"/>
+              <ellipse cx="20" cy="20" rx="4" ry="12" fill="#90a4ae"/>
+            </g>
+            <circle cx="20" cy="20" r="3" fill="#cfd8dc"/>
+          </g>
           <text class="node-label" x="560" y="1014" text-anchor="middle">Vent fan</text>
           <text class="node-watts small watt-zero" id="val-vent-fan-w" x="560" y="1034" text-anchor="middle">0 W</text>
           <circle class="status-pip" id="pip-vent-fan" cx="592" cy="1002" r="4"/>
         </g>
 
-        <g class="node-group node-clickable" id="node-sg-uti" data-history-entity="sensor.em16_a3_power" data-history-title="Sungold A/C input" role="button" tabindex="0" aria-label="Sungold A/C input">
-          <rect class="node-bg load highlight" x="628" y="856" width="228" height="118" rx="6"/>
-          <text class="node-label" x="742" y="882" text-anchor="middle">Sungold UTI</text>
-          <text class="node-sublabel" x="742" y="900" text-anchor="middle">A/C INPUT</text>
-          <text class="node-watts watt-zero" id="val-sg-uti-w" x="742" y="926" text-anchor="middle">0 W</text>
-          <text class="node-detail" id="val-sg-uti-va" x="742" y="946" text-anchor="middle">-- V / -- A</text>
-          <text class="node-detail" id="val-sg-uti-hz" x="742" y="964" text-anchor="middle">-- Hz</text>
-          <circle class="status-pip" id="pip-sg-uti" cx="844" cy="868" r="5"/>
-        </g>
-
-        <text class="sim-dump-banner" x="1346" y="40" text-anchor="middle">Sim dump loads</text>
+        <text class="sim-dump-banner" x="1338" y="40" text-anchor="middle">Sim dump loads</text>
 
         <g class="plugs-column" role="group" aria-label="Simulated A/C dump load plugs">
           <g class="node-group plug-node node-clickable" id="node-plug-1" data-plug="1" data-history-entity="sensor.sim_ac_plug_1_power" data-history-title="Sim plug 1 fan" role="button" tabindex="0" aria-label="Plug 1 fan 180W">
@@ -431,8 +478,8 @@
         </g>
 
         <g class="node-group" id="node-dump-load-total" role="group" aria-label="Total sim dump load">
-          <text class="node-sublabel" x="1346" y="656" text-anchor="middle">Dump load total</text>
-          <text class="node-watts small watt-zero" id="val-dump-w" x="1346" y="680" text-anchor="middle">0 W</text>
+          <text class="node-sublabel" x="1338" y="656" text-anchor="middle">Dump load total</text>
+          <text class="node-watts small watt-zero" id="val-dump-w" x="1338" y="680" text-anchor="middle">0 W</text>
         </g>
 
         <text class="bus-banner" x="574" y="1108" text-anchor="middle">Sungold cart (D/C off T2/KU; A/C from UTI above)</text>
@@ -460,6 +507,16 @@
           <text class="node-watts small watt-zero" id="val-sg-batt-w" x="524" y="1234" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-sg-charge" x="524" y="1256" text-anchor="middle">--</text>
           <circle class="status-pip" id="pip-sg-batt" cx="614" cy="1152" r="5"/>
+        </g>
+
+        <g class="node-group node-clickable" id="node-sg-uti" data-history-entity="sensor.sungold_sph302480a_grid_voltage" data-history-title="Sungold A/C input (UTI)" role="button" tabindex="0" aria-label="Sungold A/C input UTI">
+          <rect class="node-bg load highlight" x="548" y="1148" width="100" height="128" rx="6"/>
+          <text class="node-label" x="598" y="1180" text-anchor="middle">Sungold UTI</text>
+          <text class="node-sublabel" x="598" y="1198" text-anchor="middle">A/C INPUT</text>
+          <text class="node-watts watt-zero" id="val-sg-uti-w" x="598" y="1222" text-anchor="middle">0 W</text>
+          <text class="node-detail" id="val-sg-uti-va" x="598" y="1242" text-anchor="middle">-- V / -- A</text>
+          <text class="node-detail" id="val-sg-uti-hz" x="598" y="1260" text-anchor="middle">-- Hz</text>
+          <circle class="status-pip" id="pip-sg-uti" cx="636" cy="1160" r="5"/>
         </g>
 
         <g class="node-group node-clickable" id="node-sg-inv" data-history-entity="sensor.sungold_sph302480a_inverter_state" data-history-title="Sungold SPH302480A" role="button" tabindex="0" aria-label="Sungold SPH inverter">

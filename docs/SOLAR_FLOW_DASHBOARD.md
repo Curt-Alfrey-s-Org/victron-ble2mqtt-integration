@@ -28,10 +28,11 @@ A **Victron GX Overview**-style single-page view of this site's 24 V plant:
 
 | GX region | This site |
 |-----------|-----------|
-| **Left — sources** | T2 MPPT (live HA reporter, all BlueSolar datapoints). KU Victron chargers 2-3: **grey unmetered** (no live W; do not print 2x T2 as a reading). KU Renogy PWM: **grey unmetered** (not in HA). |
+| **Left — sources** | T2 MPPT (live HA reporter, all BlueSolar datapoints). KU **MPPT 1**, **MPPT 2**, and **PWM**: same **card chrome** as T2 (`#art-mppt`, V/A/state rows, **est.** subtitle) — **solid tiles**, not dashed empty bricks. Watts are equal-thirds **est.** only (no live Victron KU clamps; do not print 2× T2 as live). PWM is visually distinct (PWM label / controller type) but same card language. |
 | **Centre — storage** | Two LiTime 24 V packs: T2 (`HQ2239CQYT2`) and KU (`HQ2239JTRKU`). Jumper is not a numbered bus. |
-| **Right — loads** | KU Renogy **A/C** path (tile **est. from A3 A/C**, no DC clamp) through **cargo-trailer breaker panel** (Refoss EM16): **A3 hot leg**, **B3 Sungold-outlet breaker**, trailer outlet, **Sungold UTI / A/C INPUT**, then SPH, then **Sungold A/C out** ([reprint §4.1 INV OUTPUT LOAD](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). Battery 2 **load** line uses the same A3 watts as KU Renogy. **Sim dump load** plugs 1-6 sit in a **separate column** fed from Sungold A/C out (not trailer outlets; not a branch from KU Renogy). T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
-| **Sungold cart (A/C from KU outlet)** | SPH302480A + 2x 100 Ah. **D/C stays off T2/KU.** Operator (16 Sep): **A/C input is plugged into a KU Renogy trailer outlet.** Draw that A/C hop on the Overview (not a disconnected island). Live MQTT when the sidecar is up. |
+| **Right — loads** | KU Renogy **A/C** path through **cargo-trailer breaker panel** (Refoss EM16): **A3 hot leg**, **B3 Sungold-outlet breaker**, trailer outlet, **cargo-trailer vent fan** (sibling load). Battery 2 **load** line uses the same \|A3\| watts as KU Renogy. **Sim dump load** plugs 1-6 sit in a **separate column** fed from Sungold A/C out (not trailer outlets; not a branch from KU Renogy). T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
+| **Sungold cart lane** | **UTI / A/C INPUT**, SG panels, PV, cart 2×100 Ah, SPH302480A, **A/C out**, Pi4. **Not** in the KU A/C / breaker lane. **D/C stays off T2/KU.** A/C cord from the KU trailer outlet feeds UTI in this lane. Live MQTT when the sidecar is up. |
+| **Weather strip (outside tiles)** | One **weather-channel-style** sun/sky (clear, partly cloudy, cloudy, storm, …) driven by HA weather / Ecobee — **outside** all equipment boxes, not a sun glyph inside the T2 MPPT tile. Entity: **TODO** (grep `.105` registry; see [Weather strip](#weather-strip-outside-equipment-17-sep)). |
 | **Meters — Refoss** | All EM16 A1-C6 numeric channels as **meters**, not extra loads. **Do not add A3+B2.** |
 
 Dark theme by default (matches GX). Numbers on every node: **W**, **V**, **A**, **SoC %**, MPPT
@@ -244,6 +245,34 @@ Keep the file mode `600` on shared hosts.
 
 ## Layout and site physics
 
+**Operator end state (17 Sep 2026)** — implement from this doc before changing
+`index.html` / `app.js` / `styles.css` / Python.
+
+1. **KU D/C bus matches T2 MPPT card language** — three charger rows (MPPT 1, MPPT 2,
+   PWM): panels → charger → Battery 2; six suitcases **2+2+2**; equal-thirds **est.** W
+   (`kuEqualShareW`); PWM visually distinct, same `#art-mppt` chrome as T2 (not dashed
+   empty bricks).
+2. **Weather sun/sky outside equipment** — strip above or beside the diagram, not inside
+   `#node-solar`. States: clear, partly cloudy, cloudy, storm, … from HA weather /
+   Ecobee climate (entity **TODO** below).
+3. **`node-sg-uti` in the Sungold cart lane only** — KU A/C lane stops at trailer outlet +
+   vent fan; UTI sits with SG panels, PV, cart battery, SPH, A/C out, Pi4.
+4. **Downstream A3 load propagation** — when `sensor.em16_a3_power` shows load W, every
+   hop on that path shows that magnitude until the split: panel → B3 → trailer outlet →
+   vent vs UTI branch. Vent is a **load**, not a loss. Do **not** use A3 as
+   `ha_load_entity`.
+5. **UTI passthrough** — if SPH A/C out (~5 W live, Pi4) is non-zero while grid V×A reads
+   ~0 W, UTI / A/C-in hop W must still show the power feeding that output (plus inverter
+   conversion), not **0 W** on UTI while A/C out flows.
+6. **Cart battery tare in UTI/grid mode** — cart **0.1 A** (or similar standby) is inverter
+   DC tare while on UTI/mains, **not** “battery supplying Pi4” for dump math; alfa-ai dump
+   should ignore cart tare in UTI mode (ledger note only — gate rewrite is out of scope).
+7. **Vent fan** — four speeds; live is speed **1** (lowest). Animate `#art-fan` when
+   running. HA entity **TODO** below.
+8. **Hop W labels on conductors** — midpoint on the wire path (`hop-path-*` on the
+   `<path>`), especially Sungold cart hops; not in the lane-title gutter.
+9. **Losses sidebar unchanged** — conversion + vdrop W sum to total; loads are not losses.
+
 Follows Victron GX Overview
 ([Cerbo GX UI](https://www.victronenergy.com/media/pg/Cerbo_GX/en/the-new-user-interface.html)):
 energy sources on the **left** (including **suitcase panel** tiles), batteries in the
@@ -251,17 +280,26 @@ energy sources on the **left** (including **suitcase panel** tiles), batteries i
 
 **KU AC hop (operator 16-17 Sep):** Refoss EM16 lives **in the cargo-trailer
 breaker panel**. KU Renogy feeds that panel. **EM16 A3 is the hot leg** (B2 is the
-return -- never add A3+B2). That outlet circuit feeds **Sungold UTI / A/C INPUT**
-**and** a **cargo-trailer vent fan** (siblings). Do **not** set A3 equal to SPH A/C in.
+return -- never add A3+B2). That outlet circuit feeds a **cargo-trailer vent fan**
+(sibling load). **Sungold UTI / A/C INPUT** is **not** drawn in this lane — it lives
+in the **Sungold cart lane** below (cord from the same trailer outlet). Do **not** set
+A3 equal to SPH A/C in only.
 
 ```
 KU Renogy --> breaker panel (A3) --> B3 --> trailer outlet
-  --> Sungold UTI (SPH A/C INPUT) --> SPH --> A/C out --> Pi4 (always-on) + sim dump column
-  --> cargo-trailer vent fan
+  |-- cargo-trailer vent fan (KU A/C lane)
+  |
+  +-- (cross-lane) --> Sungold UTI (Sungold cart lane) --> SPH --> A/C out --> Pi4 + sim dump column
 ```
 
+**Downstream A3 watts (17 Sep):** when \|A3\| ≥ 0.5 W, paint the same magnitude on
+`path-ku-renogy-panel`, `path-panel-b3`, and the trailer-outlet segment until the split.
+After the split: UTI branch uses `utiHopW` (passthrough rule below); vent branch uses
+`vent_fan_W`. Do not leave upstream hops at **0 W** while A3 shows load.
+
 Pi4 is plugged into SPH **A/C OUTPUT**, not the trailer KU outlet. It is not a sim dump
-plug. No HA watt entity -- unmetered node. Nodes are **illustrated components** (PV grid,
+plug. No HA watt entity on Pi4 — tile shows **~5 W** from SPH load active power when
+that is the only A/C-out load. Nodes are **illustrated components** (PV grid,
 battery pack, fan, Pi board), not Victron GX clones.
 
 Do **not** hang A3 as a fake load on the sim-plug AC riser. Do **not** branch sim dump loads
@@ -287,13 +325,30 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 | **KU MPPT 1 suitcases (2 in series)** | **No entity.** Equal-share **est.** W on the panel tile (same 1/3 as each charger) | Left column, same visual language as T2 suitcases (`#art-pv`). Feeds **KU MPPT 1** charger tile to its right. |
 | **KU MPPT 2 suitcases (2 in series)** | **No entity.** Equal-share **est.** on panel tile | Feeds **KU MPPT 2** charger. Six KU suitcase panels total (2+2+2). |
 | **KU PWM suitcases (2 in series)** | **No entity.** Equal-share **est.** on panel tile | Feeds **KU PWM** (Voyager) charger tile. PWM likely less than each MPPT ([PWM vs MPPT](https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf)); no site derate. |
-| **KU Victron MPPT 1** | **No entity.** Equal-share **est.** of combined KU PV, subtitle **est.** | Charger tile **right of** its panel pair (T2 column alignment). Combined KU_PV = batt2 − jumper + load. Do not print 2x T2 as live. |
-| **KU Victron MPPT 2** | **No entity.** Equal-share **est.**, subtitle **est.** | Same 1/3 as MPPT 1 when sun is equal. |
-| **KU Renogy PWM** | **No entity** (Voyager 20A). Dashed charger tile, equal-share **est.** | Right of PWM panel pair; wire reaches Battery 2 (not a stub). |
-| **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Policy canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when solar W is numeric and > 0 (demo or live). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
-| **KU Victron** (MPPT 1 and 2) | **No entity.** Dashed charger tiles, equal-share **est.** W (and A if batt2 V known) | Silent Instant Readout. Do **not** display 2x T2 watts as live. |
+| **KU Victron MPPT 1** | **No entity.** Equal-share **est.** of combined KU PV; **est.** subtitle | Solid tile like T2: `#art-mppt`, V/A rows when batt2 V known, charge-state row optional. Combined KU_PV = batt2 − jumper + load. Do not print 2× T2 as live. |
+| **KU Victron MPPT 2** | **No entity.** Equal-share **est.**, subtitle **est.** | Same 1/3 as MPPT 1 when sun is equal; same card chrome as MPPT 1. |
+| **KU Renogy PWM** | **No entity** (Voyager 20A). Equal-share **est.**; PWM label distinct | Same card chrome as MPPT (`#art-mppt` or dedicated `#art-pwm` symbol); wire reaches Battery 2 (not a stub). |
+| **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Policy canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when solar W is numeric and > 0 (demo or live). **No decorative sun inside this tile** — weather strip is separate ([Weather strip](#weather-strip-outside-equipment-17-sep)). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
+| **KU Victron** (MPPT 1 and 2) | **No entity.** Equal-share **est.** W (and A if batt2 V known) | Same solid card language as T2 MPPT; subtitle **est.** Do **not** display 2× T2 watts as live. Do **not** use dashed empty charger bricks. |
 
-**KU 24 V D/C visual order (matches T2):** left to right **suitcase panels → MPPT/PWM charger → Battery 2**. Three stacked rows (MPPT 1, MPPT 2, PWM); each row is panel \| charger \| bus to Battery 2. Panel and charger hops use the same equal-share **est.** W (`kuEqualShareW`). SVG [`use`](https://www.w3.org/TR/SVG11/struct.html#UseElement) + [`text`](https://www.w3.org/TR/SVG11/text.html) follow T2 panel brick layout.
+**KU 24 V D/C visual order (matches T2):** left to right **suitcase panels → MPPT/PWM charger → Battery 2**. Three stacked rows (MPPT 1, MPPT 2, PWM); each row is panel \| charger \| bus to Battery 2. Panel and charger hops use the same equal-share **est.** W (`kuEqualShareW`). SVG [`use`](https://www.w3.org/TR/SVG11/struct.html#UseElement) + [`text`](https://www.w3.org/TR/SVG11/text.html) follow T2 panel brick layout — **solid** `#node-bg` tiles, not dashed unmetered placeholders.
+
+### Weather strip (outside equipment, 17 Sep)
+
+One **weather-channel-style** sky above the flow diagram (outside all `#node-*` equipment
+boxes). Driven by Home Assistant weather and/or Ecobee climate already on `.105`
+([REST `GET /api/states`](https://developers.home-assistant.io/docs/api/rest/)).
+Map `state` / `condition` / attributes to icons: **clear**, **partly cloudy**,
+**cloudy**, **storm**, etc. This replaces the decorative `#sun-icon` inside `#node-solar`.
+
+| Role | Entity id | Status |
+|------|-----------|--------|
+| Weather condition / forecast | **TODO entity:** search `weather.*` on `.105` registry | Not in this repo clone — confirm via `GET /api/states` or Ask ALFa `ha_get_states` on host `105` |
+| Ecobee / climate (optional secondary) | **TODO entity:** search `climate.*` (Ecobee HomeKit Device per [DEVICES.md](DEVICES.md)) | Same |
+
+Implementation ids for other agents: `#node-weather-sky` (group), `#val-weather-condition`
+(text), `#pip-weather-sky` (optional). Proxy may add `weather_entity_id` to snapshot when
+wired. Do **not** invent entity ids in production view.
 
 ### Storage (centre)
 
@@ -329,28 +384,50 @@ substitute. Pips and wires follow numeric V/A/W and switch ON only.
 | **KU Renogy 2 kW** | **No inverter entity.** Tile **0 W** (unmetered). Do **not** paint EM16 A3 onto this node. | Feeds the **cargo-trailer breaker panel** (ATS / manual TS). |
 | **Breaker panel (Refoss)** | A3 on the incoming hot leg: `sensor.em16_a3_power` (+ V/A). Meter strip for A1-C6. | Physical home of the EM16 in the cargo-trailer panel. Label **Cargo trailer panel**. [EM16](https://www.home-assistant.io/integrations/refoss/). |
 | **B3 breaker** | `sensor.em16_b3_power` (+ V/A) when present; hop falls back to \|A3\| while Sungold is the only outlet load | Breaker that feeds the outlet Sungold is plugged into. Highlight on the diagram and in the meter bank. |
-| **Trailer outlet** | Unmetered split node. | Fed by B3. **Operator 17 Sep:** Sungold **and** cargo-trailer vent fan. |
-| **Trailer vent fan** | Residual `max(0, trailer_outlet_W − SPH A/C INPUT V×A)` when both metered; else unmetered | Sibling of Sungold on the KU outlet. Not on SPH A/C out. |
-| **Sungold UTI** | `sensor.sungold_sph302480a_grid_voltage` / `_grid_current` / `_grid_frequency`; hop W from SPH A/C INPUT V×A, **not** A3 | LCD **AC INPUT** / UTI ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). |
+| **Trailer outlet** | Unmetered split node. Hop W = \|B3\| if numeric else \|A3\| (same as upstream when A3 loads). | Fed by B3. Splits to vent fan (KU A/C lane) and UTI (Sungold cart lane). |
+| **Trailer vent fan** | Residual `max(0, trailer_outlet_W − utiHopW)` when both metered; else unmetered | **4 speeds**; live is speed **1** (lowest). Animate `#art-fan` when running. HA entity **TODO** (see below). Sibling of Sungold on the KU outlet. **Load**, not a loss. |
+| **Sungold UTI** | `sensor.sungold_sph302480a_grid_voltage` / `_grid_current` / `_grid_frequency`; hop W = **`utiHopW`** (see passthrough) | **Sungold cart lane only** — not in KU A/C / breaker lane. LCD **AC INPUT** / UTI ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). |
 | **Sim A/C plugs 1-6** | `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power` | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md). **Not** trailer outlets. **Not** Pi4. Column title **Sim dump loads**. |
-| **Pi4** | No watt entity. Tile **unmetered** | Always-on on SPH **A/C OUTPUT**. Victron BLE radio. |
+| **Pi4** | No dedicated watt entity. Tile **~5 W** from `sensor.sungold_sph302480a_load_active_power` when Pi4 is the A/C-out load | Always-on on SPH **A/C OUTPUT**. Victron BLE radio. |
+
+**Vent fan HA entity (17 Sep):**
+
+| Role | Entity id | Status |
+|------|-----------|--------|
+| Cargo-trailer vent fan (4 speeds) | **TODO entity:** search `fan.*` on `.105` registry | Not in this repo — confirm speed **1** = lowest via [REST states](https://developers.home-assistant.io/docs/api/rest/) |
+
+Implementation ids: `#node-vent-fan`, `#val-vent-fan-w`, `#pip-vent-fan`, `#path-outlet-vent-fan`,
+`#hop-path-outlet-vent-fan`, `#art-fan` (animate when fan `state` on / speed ≥ 1).
+
+**`utiHopW` passthrough (17 Sep):** primary = SPH grid V × A when both numeric. If grid V×A
+is ~0 but `sensor.sungold_sph302480a_load_active_power` ≥ 0.5 W (Pi4 / A/C-out load),
+UTI hop W = **max(grid V×A, load_active_power + small conversion allowance)** so UTI never
+shows **0 W** while A/C out is feeding ~5 W. Do **not** substitute \|A3\| for UTI hop W.
+Cart battery **0.1 A** standby in UTI/grid mode is **inverter tare**, not pack discharge
+toward Pi4 — do not paint cart batt W as supplying Pi4 when output mode is UTI/mains.
 | **Other EM16 channels** | `sensor.em16_{a1-c6}_{power,voltage,current,...}` | Meter bank on the panel. **Never add A3+B2.** B2 = return of A3. C1-C6 unused CTs (~0 W). |
 
-### Sungold cart (AC from KU Renogy outlet; DC separate)
+### Sungold cart lane (AC from KU trailer outlet; DC separate)
 
 SPH302480A LCD names: [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md),
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf).
-**DC** of the cart (2x 100 Ah) is **not** paralleled onto T2/KU. **AC INPUT** is
+**DC** of the cart (2x 100 Ah) is **not** paralleled onto T2/KU. **AC INPUT (UTI)** is
 mains-side on the hybrid ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
-and on this site is the **KU Renogy outlet**, not a utility meter.
+and on this site is fed from the **KU Renogy trailer outlet** via a cross-lane conductor
+from `#node-trailer-outlet` — **not** as the next horizontal tile in the KU A/C lane.
 
-Put Sungold **on the same Overview as the trailer A/C path**. Do not hide it below the
-fold as an unrelated island. **Layout:** four **separate SVG lanes** (filled bands, 16px
-vertical gutter) so T2 D/C, KU D/C, KU A/C, and the Sungold cart never share a row.
-Hop watt labels sit in **gutters** between tiles (not on top of nodes). Sim dump loads
-are a **fifth lane** on the right (`Sim dump loads` banner) fed from **Sungold A/C out**
+**Lane contents (left → right):** `#node-sg-uti` (A/C INPUT) → `#node-sg-panels` / `#node-sg-pv`
+→ `#node-sg-batt` → `#node-sg-inv` (SPH) → `#node-sg-acout` → `#node-pi4`. Sim dump loads
+stay in the **fifth lane** (`Sim dump loads` banner) fed from `#node-sg-acout` only.
+
+Put Sungold **on the same Overview** as the trailer A/C path. **Layout:** five **separate
+SVG lanes** (filled bands, 16px vertical gutter) so T2 D/C, KU D/C, KU A/C, Sungold cart,
+and sim dump loads never share a row. **Hop watt labels sit on the conductor** they
+annotate (midpoint of the `<path>` or adjacent offset along the wire), **not** in the
+lane-title gutter between bands. Sim dump loads are the **fifth lane** on the right
+(`Sim dump loads` banner) fed from **Sungold A/C out**
 (`node-sg-acout`, `sensor.sungold_sph302480a_load_active_power`); they do **not** share
-the A3/B3/UTI conductors and do **not** branch from KU Renogy
+the A3/B3 conductors and do **not** branch from KU Renogy
 ([CSS `gap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/gap);
 [grid `minmax`](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Grid_layout/Basic_concepts);
 GX Overview three regions). SVG `text` uses **`fill`**, not CSS `color`
@@ -388,10 +465,12 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | Element | Role |
 |---------|------|
 | `node-panel` | Cargo-trailer breaker panel (Refoss EM16 home) |
-| `node-b3` | B3 breaker feeding Sungold outlet (highlighted) |
-| `node-trailer-outlet` | KU Renogy trailer outlet (Sungold A/C in + cargo vent fan; A3 = outlet total) |
-| `node-sg-uti` | Sungold UTI / A/C INPUT (grid V/A/Hz) |
-| `plugs-column` | Sim dump load plugs 1-6 (dump lane x ~1096, not on A3/B3 wire) |
+| `node-b3` | B3 breaker feeding trailer outlet (highlighted) |
+| `node-trailer-outlet` | KU Renogy trailer outlet split (vent fan + cross-lane to UTI) |
+| `node-vent-fan` | Cargo-trailer vent fan (KU A/C lane) |
+| `node-sg-uti` | Sungold UTI / A/C INPUT — **Sungold cart lane only** |
+| `node-weather-sky` | Weather-channel strip (outside equipment boxes) |
+| `plugs-column` | Sim dump load plugs 1-6 (dump lane x 1148, not on A3/B3 wire) |
 
 **Lanes** (SVG user units):
 
@@ -401,7 +480,7 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | KU 24 V D/C | 16 | 352 | 1116 | 448 |
 | KU A/C path | 16 | 816 | 1116 | 252 |
 | Sungold cart | 16 | 1084 | 1116 | 316 |
-| Sim dump loads | 1148 | 12 | 396 | 1044 |
+| Sim dump loads | 1148 | 12 | 380 | 708 |
 
 **Tile bounding boxes** (from live `index.html` `rect` / path `d`; no `transform` on these nodes):
 
@@ -410,7 +489,9 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | `node-panel` | 36 | 856 | 190 | 148 |
 | `node-b3` | 250 | 856 | 160 | 118 |
 | `node-trailer-outlet` | 434 | 856 | 170 | 118 |
-| `node-sg-uti` | 628 | 856 | 228 | 118 |
+| `node-vent-fan` | 434 | 990 | 170 | 58 |
+| `node-sg-uti` | **Sungold cart lane** (relocate from KU A/C lane) | | | |
+| `node-weather-sky` | 1148 | 12 | 380 | 88 (weather strip atop dump lane) |
 | `path-sim-acbus` | 1086-1140 | 1212 | | |
 | plug tiles 1-6 | 1176 | 48-548 | 340 | 76 |
 
@@ -418,10 +499,13 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 
 | Path id | Connects | Hop watts |
 |---------|----------|-----------|
-| `path-ku-renogy-panel` | KU Renogy right edge to panel | \|A3\| (`sensor.em16_a3_power`) |
-| `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| if numeric, else \|A3\| (trailer outlet total incl. vent fan) |
-| `path-b3-outlet-sg-uti` | B3 to trailer outlet to Sungold UTI | `utiHopW`: SPH grid V x A first, else \|B3\| when >= 0.5 W (not A3) |
-| `path-sg-uti-sph` | Sungold UTI down to SPH302480A | same AC-in watts |
+| `path-ku-renogy-panel` | KU Renogy right edge to panel | \|A3\| when A3 ≥ 0.5 W (`sensor.em16_a3_power`) |
+| `path-panel-b3` | Panel hot leg to B3 breaker | same \|A3\| magnitude while downstream (do not drop to 0) |
+| `path-b3-outlet` | B3 to `#node-trailer-outlet` | \|B3\| if numeric, else \|A3\| |
+| `path-outlet-vent-fan` | Trailer outlet to vent fan | `vent_fan_W` (load) |
+| `path-outlet-uti` | Trailer outlet cross-lane to `#node-sg-uti` | `utiHopW` (passthrough rule) |
+| `path-sg-uti-sph` | Sungold UTI to SPH302480A (cart lane) | same `utiHopW` |
+| `path-sg-acout-pi4` | Sungold A/C out to Pi4 | share of `load_active_power` (~5 W live) |
 | `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
 | `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
 | `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W on the plug tile (duplicate hop labels hidden) |
@@ -458,7 +542,7 @@ Lovelace Solar tiles to GX fields (live REST ids):
 | Remaining battery | Cart remain % | `..._battery_soc` |
 | INPUT BATT V/A + charge state | Cart battery | `..._battery_voltage`, `_battery_current`, `_charging_power`, `_charge_state` |
 | Load active power + AC out V/A/Hz | Sungold AC out | `..._load_active_power`, `_ac_output_voltage`, `_load_current`, `_ac_output_frequency` |
-| AC INPUT V/A/Hz (+ W hop) | Sungold UTI | Tile V/A/Hz: `..._grid_*`. Hop W (`utiHopW` in `app.js`): SPH grid V x A first; else \|B3\| when >= 0.5 W. Do **not** use A3 as UTI hop W. Click history prefers `sensor.em16_a3_power` (allowlisted). |
+| AC INPUT V/A/Hz (+ W hop) | Sungold UTI (cart lane) | Tile V/A/Hz: `..._grid_*`. Hop W: **`utiHopW`** (passthrough; not A3). Click history prefers `sensor.em16_a3_power` (allowlisted) for outlet total only. |
 | Output mode / fault | SPH tile | `..._inverter_state`, `_fail_code`, `binary_sensor.sungold_sph302480a_fault_active` |
 | Refoss A1-C6 | Meter bank | `sensor.em16_*` |
 
@@ -473,23 +557,26 @@ KU MPPT1 panels (2) --> KU MPPT 1 --est.--> Battery 2
 KU MPPT2 panels (2) --> KU MPPT 2 --est.--> Battery 2
 KU PWM panels (2) --> KU PWM --est.--> Battery 2
 Battery 2 --> KU Renogy 2 kW --> breaker panel (A3 hot leg) --> B3 --> trailer outlet
-   |-- Sungold UTI (AC INPUT) --> SPH302480A
-   |       |-- cart 2x 100 Ah (DC, not T2/KU)
-   |       |-- Sungold PV panels --> SPH
-   |       +-- Sungold AC OUTPUT --> sim dump load column (plugs 1-6; NOT trailer outlets)
+   |-- vent fan (KU A/C lane)
+   +-- cross-lane --> Sungold UTI (cart lane) --> SPH302480A
+           |-- cart 2x 100 Ah (DC, not T2/KU)
+           |-- Sungold PV panels --> SPH
+           +-- Sungold AC OUTPUT --> Pi4 (~5 W) + sim dump load column (plugs 1-6)
 ```
 
-Hop watt labels sit in gutters on each conductor (live numeric W, or **0 W** if
-unmetered/missing). The T2-KU jumper hop is an **estimate** (not a clamp).
+Hop watt labels sit **on each conductor** (midpoint along the `<path>`, class
+`hop-watt` / id `hop-path-*`). The T2-KU jumper hop is an **estimate** (not a clamp).
+
+**A3 downstream rule:** when \|A3\| shows load, `path-ku-renogy-panel`, `path-panel-b3`,
+and `path-b3-outlet` (or equivalent) carry that magnitude until the outlet split.
 
 **Sim dump load hops** (`path-sim-acbus`, `path-sim-riser`, `path-sim-plug-*`): sum of **sim
 dump load plug** watts when any plug reports W; otherwise **0 W**. **Do not** drive
 these from EM16 A3 or B3.
 
-**Sungold UTI hops** (`path-ku-renogy-panel`, `path-panel-b3`, `path-b3-outlet-sg-uti`,
-`path-sg-uti-sph`): panel leg uses \|A3\| (trailer outlet total incl. cargo vent fan);
-B3 leg uses \|B3\| when numeric else \|A3\|; UTI hop and `path-sg-uti-sph` use
-`utiHopW` (SPH grid V x A first, else \|B3\| when >= 0.5 W; not A3).
+**Sungold / trailer hops:** panel leg uses \|A3\| on KU Renogy → panel; B3/outlet legs
+use \|B3\| or \|A3\| fallback; vent uses `vent_fan_W`; UTI uses **`utiHopW`** (passthrough,
+not A3); `path-sg-uti-sph` matches UTI hop.
 
 | Path id | Connects | Hop watts |
 |---------|----------|-----------|
@@ -504,10 +591,13 @@ B3 leg uses \|B3\| when numeric else \|A3\|; UTI hop and `path-sg-uti-sph` use
 | `path-ku-pwm-panels` | KU PWM suitcase pair to PWM charger | equal-share **est.** |
 | `path-ku-pwm-batt2` | KU PWM to Battery 2 | equal-share **est.** |
 | `path-ku-batt2-inverter` | Battery 2 to KU Renogy | **A3/trailer A/C est** (same W as Battery 2 **load** line). Not Battery 2 shunt. DC in >= AC out; no inverter efficiency invented. |
-| `path-ku-renogy-panel` | KU Renogy to breaker panel | \|A3\| |
-| `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| or \|A3\| fallback |
-| `path-b3-outlet-sg-uti` | B3 to outlet to Sungold UTI | `utiHopW` (SPH grid V x A first, else \|B3\|) |
-| `path-sg-uti-sph` | Sungold UTI to SPH | same `utiHopW` as UTI hop |
+| `path-ku-renogy-panel` | KU Renogy to breaker panel | \|A3\| when load present |
+| `path-panel-b3` | Panel hot leg to B3 breaker | same \|A3\| magnitude (downstream propagation) |
+| `path-b3-outlet` | B3 to trailer outlet | \|B3\| or \|A3\| fallback |
+| `path-outlet-vent-fan` | Outlet to vent fan | `vent_fan_W` (load) |
+| `path-outlet-uti` | Outlet cross-lane to UTI | `utiHopW` (passthrough) |
+| `path-sg-uti-sph` | Sungold UTI to SPH (cart lane) | same `utiHopW` |
+| `path-sg-acout-pi4` | Sungold A/C out to Pi4 | ~5 W from load active power when Pi4-only |
 | `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
 | `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
 | `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W on the plug tile (duplicate hop labels hidden) |
@@ -581,8 +671,8 @@ If recorder is on but HA returns another HTTP error, the aside shows a generic
 |--------|---------|
 | **Green LED / cyan flow line** | Switch ON, or **numeric** W/A flow on that hop |
 | **Grey LED / grey conductor** | Switch OFF, `unavailable` / `unknown`, or idle connected wire |
-| **Dashed KU 2-3 / PWM conductors** | Physical KU Victron pair and Voyager PWM exist; **no** live W. Never animated. Do **not** print 2x T2 watts. |
-| **Spinning fan** (plugs 1, 4, 5) | `switch.sim_ac_plug_*` state `on` |
+| **KU MPPT/PWM est. tiles** | Solid cards like T2 (`#art-mppt`); subtitle **est.** — **not** dashed empty bricks. Equal-thirds W only; never animated as live Victron. Do **not** print 2× T2 watts. |
+| **Spinning fan** (`#art-fan` on `#node-vent-fan`; plugs 1, 4, 5) | Vent fan when HA fan on / speed ≥ 1; sim plugs when `switch.sim_ac_plug_*` state `on` |
 | **`prefers-reduced-motion: reduce`** | Disable line animation and fan spin; keep numeric updates |
 | **DEMO watermark** | Large red word, full page, only when snapshot `mode` is `demo` (Demo view or no-token production). Live production (`mode: live`) never shows it, even when `sim_dump_demo: true`. |
 | **Mode badge** | Tiny header word only: `live` (HA plant) or `demo` (Demo view / no token). Same green badge styling. |
@@ -700,7 +790,7 @@ After a real sync, set `ha_soc_unsynced=false` so the 85% SoC gate returns.
 |------------|---------|
 | **Thinking** | Human-readable lines: solar W, load W, sim plug W, surplus, SoC, charge stage, skip reason |
 | **Surplus** | `surplus_w` and **Surplus after path losses** (`surplus_after_path_losses_w` = surplus − path losses). Not inside Losses. |
-| **Losses** | W line items only: **Conversion losses** + **Vdrop loss** = **Total path losses** (`combined_path_losses_w`). Nested **Vdrop D/C** and **Vdrop A/C** are volts (supporting readings); never summed into the W total. Loads (vent fan, KU Renogy A/C, dump plugs, etc.) are **not** losses. |
+| **Losses** | W line items only: **Conversion losses** + **Vdrop loss** = **Total path losses** (`combined_path_losses_w`). Nested **Vdrop D/C** and **Vdrop A/C** are volts (supporting readings); never summed into the W total. Loads (vent fan, KU Renogy A/C est., dump plugs, Pi4, UTI passthrough) are **not** losses. |
 | **Loads** | Vent fan, KU Renogy A/C est., plant load, sim dump loads, effective load — red **load** class, magnitude-only W. |
 | **Energy** | Panel in, solar, KU PV est., KU charger est., shunts, SoC — not losses. |
 | **Planned** | Per-allowlist plug: `on`, `off`, or `skip` with reason |
@@ -723,6 +813,45 @@ Sungold tiles use the live MQTT ids in the table above (`tests/test_ha_label_sun
 | Production bind `0.0.0.0:8765` + ufw | Same dual-address pattern as HA `:8123`; not a public surface |
 | Read-only loads | Dump-load **actuation** stays on alfa-ai `.111` with audit (`solar_dump_actuated`) |
 | Victron BLE / Sungold publishers unchanged | Sensor-only; no MQTT publish back to hardware |
+
+---
+
+## Implementation ids (for UI / proxy agents)
+
+Do not edit ids in this doc unless the operator changes topology. New ids **17 Sep**:
+
+| Id | Purpose |
+|----|---------|
+| `#node-weather-sky` | Weather-channel strip outside equipment |
+| `#val-weather-condition` | Text label from HA weather state |
+| `#path-b3-outlet` | B3 → trailer outlet (split A3 downstream) |
+| `#path-outlet-uti` | Cross-lane trailer outlet → `#node-sg-uti` |
+| `#hop-path-b3-outlet` | Hop W on `path-b3-outlet` |
+| `#hop-path-outlet-uti` | Hop W on `path-outlet-uti` |
+| `#art-pwm` | Optional PWM-specific symbol (else `#art-mppt` + PWM label) |
+
+**Relocate (not in KU A/C lane):** `#node-sg-uti`, `#path-sg-uti-sph`, `#val-sg-uti-w`,
+`#val-sg-uti-va`, `#val-sg-uti-hz`, `#pip-sg-uti`, `#hop-path-sg-uti-sph`.
+
+**Remove / replace:** `#path-b3-outlet-sg-uti`, `#hop-path-b3-outlet-sg-uti` (horizontal UTI
+in KU A/C lane); `#sun-icon` inside `#node-solar`.
+
+**Keep:** `#node-ku-mppt-1`, `#node-ku-mppt-2`, `#node-ku-pwm`, `#node-ku-panel-mppt1`,
+`#node-ku-panel-mppt2`, `#node-ku-panel-pwm`, `#node-vent-fan`, `#path-outlet-vent-fan`,
+`#hop-path-outlet-vent-fan`, `#node-sg-pv`, `#node-sg-batt`, `#node-sg-inv`,
+`#node-sg-acout`, `#node-pi4`, `#path-sg-pv-panels`, `#path-sg-pv-batt`, `#path-sg-batt-inv`,
+`#path-sg-inv-acout`, `#path-sg-acout-pi4`, `#hop-path-sg-*`.
+
+**JS helpers (names only):** `kuEqualShareW`, `utiHopW`, `ventFanEstimateW`, downstream
+`panelA3W` propagation on KU A/C hops.
+
+**Entity TODOs (confirm on `.105` via [REST states](https://developers.home-assistant.io/docs/api/rest/)):**
+
+| TODO | Search |
+|------|--------|
+| Weather / sky condition | `weather.*` |
+| Ecobee climate (optional) | `climate.*` |
+| Cargo-trailer vent fan (4 speeds) | `fan.*` |
 
 ---
 
