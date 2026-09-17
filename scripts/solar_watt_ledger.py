@@ -447,7 +447,7 @@ def apply_ledger_to_meta(
     states: dict[str, dict[str, Any]],
     surplus: float | None,
 ) -> float | None:
-    """Copy hop ledger onto dump-tick meta. Returns surplus minus combined conversion losses."""
+    """Copy hop ledger onto dump-tick meta. Returns surplus minus combined path losses (conversion + vdrop)."""
     ledger = build_watt_ledger(states)
     meta["watt_hops"] = ledger["watt_hops"]
     meta["combined_losses_w"] = ledger["combined_losses_w"]

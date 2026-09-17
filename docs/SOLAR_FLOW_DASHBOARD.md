@@ -389,7 +389,7 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 |---------|------|
 | `node-panel` | Cargo-trailer breaker panel (Refoss EM16 home) |
 | `node-b3` | B3 breaker feeding Sungold outlet (highlighted) |
-| `node-trailer-outlet` | Trailer outlet (only Sungold plugged in) |
+| `node-trailer-outlet` | KU Renogy trailer outlet (Sungold A/C in + cargo vent fan; A3 = outlet total) |
 | `node-sg-uti` | Sungold UTI / A/C INPUT (grid V/A/Hz) |
 | `plugs-column` | Sim dump load plugs 1-6 (dump lane x ~1096, not on A3/B3 wire) |
 
@@ -397,30 +397,30 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 
 | Lane | x | y | width | height |
 |------|---|---|-------|--------|
-| T2 24 V D/C | 16 | 12 | 1036 | 280 |
-| KU 24 V D/C | 16 | 308 | 1036 | 260 |
-| KU A/C path | 16 | 584 | 1036 | 240 |
-| Sungold cart | 16 | 840 | 1036 | 248 |
-| Sim dump loads | 1068 | 12 | 396 | 812 |
+| T2 24 V D/C | 16 | 12 | 1116 | 280 |
+| KU 24 V D/C | 16 | 352 | 1116 | 448 |
+| KU A/C path | 16 | 816 | 1116 | 252 |
+| Sungold cart | 16 | 1084 | 1116 | 316 |
+| Sim dump loads | 1148 | 12 | 396 | 1044 |
 
-**Tile bounding boxes** (horizontal gap = next `x` minus prior `x + width`, min 24):
+**Tile bounding boxes** (from live `index.html` `rect` / path `d`; no `transform` on these nodes):
 
 | Element | x | y | width | height |
 |---------|---|---|-------|--------|
-| `node-panel` | 36 | 628 | 190 | 160 |
-| `node-b3` | 250 | 648 | 160 | 120 |
-| `node-trailer-outlet` | 434 | 660 | 170 | 100 |
-| `node-sg-uti` | 628 | 628 | 240 | 168 |
-| `path-sim-acbus` | 996-1078 | 940 | | |
-| plug tiles 1-6 | 1096 | 48-548 | 340 | 76 |
+| `node-panel` | 36 | 856 | 190 | 148 |
+| `node-b3` | 250 | 856 | 160 | 118 |
+| `node-trailer-outlet` | 434 | 856 | 170 | 118 |
+| `node-sg-uti` | 628 | 856 | 228 | 118 |
+| `path-sim-acbus` | 1086-1140 | 1212 | | |
+| plug tiles 1-6 | 1176 | 48-548 | 340 | 76 |
 
 **Conductors (snap to node edges; hop ids in `app.js`):**
 
 | Path id | Connects | Hop watts |
 |---------|----------|-----------|
 | `path-ku-renogy-panel` | KU Renogy right edge to panel | \|A3\| (`sensor.em16_a3_power`) |
-| `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| if numeric, else \|A3\| while Sungold is the only outlet load |
-| `path-b3-outlet-sg-uti` | B3 to trailer outlet to Sungold UTI | same as B3 hop (or grid V x A fallback on UTI tile) |
+| `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| if numeric, else \|A3\| (trailer outlet total incl. vent fan) |
+| `path-b3-outlet-sg-uti` | B3 to trailer outlet to Sungold UTI | `utiHopW`: SPH grid V x A first, else \|B3\| when >= 0.5 W (not A3) |
 | `path-sg-uti-sph` | Sungold UTI down to SPH302480A | same AC-in watts |
 | `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
 | `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
@@ -458,7 +458,7 @@ Lovelace Solar tiles to GX fields (live REST ids):
 | Remaining battery | Cart remain % | `..._battery_soc` |
 | INPUT BATT V/A + charge state | Cart battery | `..._battery_voltage`, `_battery_current`, `_charging_power`, `_charge_state` |
 | Load active power + AC out V/A/Hz | Sungold AC out | `..._load_active_power`, `_ac_output_voltage`, `_load_current`, `_ac_output_frequency` |
-| AC INPUT V/A/Hz (+ W hop) | Sungold UTI | Tile V/A/Hz: `..._grid_*`. Hop W: `sensor.em16_b3_power` when present, else `sensor.em16_a3_power`; fallback display W is grid V x A. Click history prefers `sensor.em16_a3_power` (allowlisted). |
+| AC INPUT V/A/Hz (+ W hop) | Sungold UTI | Tile V/A/Hz: `..._grid_*`. Hop W (`utiHopW` in `app.js`): SPH grid V x A first; else \|B3\| when >= 0.5 W. Do **not** use A3 as UTI hop W. Click history prefers `sensor.em16_a3_power` (allowlisted). |
 | Output mode / fault | SPH tile | `..._inverter_state`, `_fail_code`, `binary_sensor.sungold_sph302480a_fault_active` |
 | Refoss A1-C6 | Meter bank | `sensor.em16_*` |
 
@@ -487,9 +487,9 @@ dump load plug** watts when any plug reports W; otherwise **0 W**. **Do not** dr
 these from EM16 A3 or B3.
 
 **Sungold UTI hops** (`path-ku-renogy-panel`, `path-panel-b3`, `path-b3-outlet-sg-uti`,
-`path-sg-uti-sph`): panel leg uses \|A3\|; B3 leg uses \|B3\| when numeric else \|A3\|
-while Sungold is the only outlet load; UTI tile also shows Sungold `grid_*` and falls
-back to grid V x A when both clamps are missing.
+`path-sg-uti-sph`): panel leg uses \|A3\| (trailer outlet total incl. cargo vent fan);
+B3 leg uses \|B3\| when numeric else \|A3\|; UTI hop and `path-sg-uti-sph` use
+`utiHopW` (SPH grid V x A first, else \|B3\| when >= 0.5 W; not A3).
 
 | Path id | Connects | Hop watts |
 |---------|----------|-----------|
@@ -506,8 +506,8 @@ back to grid V x A when both clamps are missing.
 | `path-ku-batt2-inverter` | Battery 2 to KU Renogy | **A3/trailer A/C est** (same W as Battery 2 **load** line). Not Battery 2 shunt. DC in >= AC out; no inverter efficiency invented. |
 | `path-ku-renogy-panel` | KU Renogy to breaker panel | \|A3\| |
 | `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| or \|A3\| fallback |
-| `path-b3-outlet-sg-uti` | B3 to outlet to Sungold UTI | B3 hop W |
-| `path-sg-uti-sph` | Sungold UTI to SPH | B3 hop W |
+| `path-b3-outlet-sg-uti` | B3 to outlet to Sungold UTI | `utiHopW` (SPH grid V x A first, else \|B3\|) |
+| `path-sg-uti-sph` | Sungold UTI to SPH | same `utiHopW` as UTI hop |
 | `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
 | `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
 | `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W on the plug tile (duplicate hop labels hidden) |
@@ -617,7 +617,7 @@ Read-only mirror of alfa-ai `decide_dump()` -- same defaults as
 | Setting key | Default entity | Role |
 |-------------|----------------|------|
 | `ha_solar_entity` | `sensor.solar_controller_solar_power` | T2 PV W. Live Lovelace is `sensor.solar_controller_solar` -- proxy copies that onto the canonical id. |
-| `ha_load_entity` | `sensor.sim_dump_load_power` | Plant AC load W for surplus math (sim-plug aggregate; `0` when all OFF). **16 Sep topology:** EM16 A3 is Sungold SPH AC-in on the KU Renogy trailer outlet, **not** KU trailer house load -- do **not** point dump load at `sensor.em16_a3_power` while A3 is Sungold AC-in. When a real KU house clamp exists, set `ha_load_entity` to that sensor; see [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). |
+| `ha_load_entity` | `sensor.sim_dump_load_power` | Plant AC load W for surplus math (sim-plug aggregate; `0` when all OFF). EM16 A3 is the **KU trailer outlet total** (Sungold A/C in + cargo vent). Do **not** use A3 as `ha_load_entity`. When a real KU house clamp exists, set `ha_load_entity` to that sensor; see [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). |
 | `ha_soc_entity` | `sensor.battery_1_soc` | Display only while unsynced. Live MQTT is `sensor.battery_1_state_of_charge`. |
 | `ha_shunt_voltage_entity` | `sensor.battery_1_voltage` | Thinking text (LiTime 28.4-29.2 V nameplate). Not a SoC substitute. |
 | `ha_shunt_current_entity` | `sensor.battery_1_current` | Thinking text; +charge / -discharge. |
@@ -631,7 +631,9 @@ Read-only mirror of alfa-ai `decide_dump()` -- same defaults as
 ```
 surplus_w = solar_W - effective_load_w
 combined_losses_w = T2_MPPT_loss + SG_loss   # metered conversion hops only
-surplus_after_path_losses_w = surplus_w - combined_losses_w
+combined_vdrop_loss_w = sum |ΔV × I| on metered hops
+combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
+surplus_after_path_losses_w = surplus_w - combined_path_losses_w
 ```
 
 Dump ON/OFF uses **`surplus_after_path_losses_w`**. Battery charge is storage, not loss.

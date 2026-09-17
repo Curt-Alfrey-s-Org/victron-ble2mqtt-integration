@@ -215,7 +215,8 @@ Follow watts **in** and **out** of each hop starting at panel current/power (`P 
 
 ```
 combined_losses_w = T2_MPPT_loss + SG_loss     # skip a hop when either end is missing
-surplus_after_path_losses_w = surplus_w - combined_losses_w
+combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
+surplus_after_path_losses_w = surplus_w - combined_path_losses_w
 ```
 
 - **T2 MPPT:** `solar_W - charging_power - load_power` when charging_power is present. If charging_power is 0/missing while the T2-KU jumper estimate is flowing, skip MPPT conversion loss (the bus is carrying watts the charge sensor did not report).
@@ -275,6 +276,12 @@ combined_vdrop_loss_w = sum |ΔV × I| when I is metered
 combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
 ```
 
+**Dashboard sidebar (Losses block):** only the **W** rows in that block sum to **Total path losses**.
+Conversion + vdrop loss = path losses (example: 3 W + 3 W = 6 W). **Vdrop D/C** and
+**Vdrop A/C** are nested volt readings under vdrop; do not add 0.1 V + 1.8 V into the W
+total. Vent fan, KU Renogy A/C, dump plugs, and surplus lines live outside Losses
+([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
+
 ### Inbound amps per battery (display-only)
 
 Each SmartShunt reports **net** pack current (+charge / −discharge per
@@ -299,12 +306,6 @@ I_in = |P_in| / V_shunt     when P_in > 0 and V_shunt > 0
 **Total in A** = sum of listed inbound branch amps (one source → total equals that
 branch). Idle or discharge-only → **0 A** inbound (do not treat negative shunt A
 as inbound). Shunt line stays **“… shunt net”**; **Total in** is separate.
-
-**Dashboard sidebar (Losses block):** only the **W** rows above sum to **Total path losses**.
-Conversion + vdrop loss = path losses (example: 3 W + 3 W = 6 W). **Vdrop D/C** and
-**Vdrop A/C** are displayed as nested volt readings under vdrop; do not add 0.1 V + 1.8 V
-into the W total. Vent fan, KU Renogy A/C, dump plugs, and surplus lines live outside
-Losses ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
 
 Do not add A3+B2 or A2+A3. PWM is **not** inside `PV_victron`. 10-11 Sep snapshot tables still use `PV x3` for the three Victron strings and A3 as trailer AC.
 

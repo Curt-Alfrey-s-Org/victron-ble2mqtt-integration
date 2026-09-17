@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from solar_watt_ledger import (  # noqa: E402
+    _CONVERSION_HOP_IDS,
     apply_ledger_to_meta,
     build_watt_ledger,
     ku_equal_share_w,
@@ -73,3 +74,23 @@ def test_ku_renogy_ac_est_is_batt2_load_not_shunt() -> None:
     assert isclose(ledger["ku_charger_equal_share_w"], share, rel_tol=1e-6)
     assert isclose(ku_equal_share_w(376.0), share, rel_tol=1e-6)
     assert not isclose(ledger["ku_charger_equal_share_w"], naive, rel_tol=1e-6)
+
+
+def test_combined_path_losses_and_vent_fan_not_conversion() -> None:
+    states = {
+        "sensor.solar_controller_solar_power": _row(
+            "sensor.solar_controller_solar_power", "150"
+        ),
+        "sensor.battery_1_power": _row("sensor.battery_1_power", "225"),
+        "sensor.battery_2_power": _row("sensor.battery_2_power", "276"),
+        "sensor.em16_a3_power": _row("sensor.em16_a3_power", "25"),
+    }
+    ledger = build_watt_ledger(states)
+    conv = float(ledger["combined_losses_w"])
+    vdrop = float(ledger["combined_vdrop_loss_w"])
+    path = float(ledger["combined_path_losses_w"])
+    assert isclose(path, conv + vdrop, rel_tol=1e-6)
+    assert "vent_fan" not in _CONVERSION_HOP_IDS
+    hops = {h["id"]: h for h in ledger["watt_hops"]}
+    assert hops["vent_fan"]["id"] == "vent_fan"
+    assert hops["vent_fan"].get("loss_w") is None
