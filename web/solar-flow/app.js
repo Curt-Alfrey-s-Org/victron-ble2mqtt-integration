@@ -1397,7 +1397,13 @@
         proxyOnline = true;
         updateProxyBanner(true);
         lastSnapshot = data;
-        applySnapshot(data);
+        try {
+          applySnapshot(data);
+        } catch (err) {
+          if (typeof console !== 'undefined' && console.error) {
+            console.error(err);
+          }
+        }
       })
       .catch(function () {
         proxyOnline = false;
@@ -1406,7 +1412,13 @@
           updateModeBadge(null);
           setText('ai-thinking', 'waiting for proxy');
         } else {
-          applySnapshot(lastSnapshot);
+          try {
+            applySnapshot(lastSnapshot);
+          } catch (err) {
+            if (typeof console !== 'undefined' && console.error) {
+              console.error(err);
+            }
+          }
         }
       });
   }
@@ -1451,7 +1463,12 @@
   function setWeatherClass(condition, label, temp) {
     var sky = $('node-weather-sky');
     if (!sky) return;
-    sky.className = 'weather-sky ' + mapWeatherClass(condition);
+    var wxNames = ['wx-clear', 'wx-partly', 'wx-cloudy', 'wx-rain', 'wx-storm'];
+    var i;
+    for (i = 0; i < wxNames.length; i++) {
+      sky.classList.remove(wxNames[i]);
+    }
+    sky.classList.add('weather-sky', mapWeatherClass(condition));
     var lbl = $('val-weather-condition');
     if (lbl) lbl.textContent = label || condition || '--';
     var tempEl = $('val-weather-temp');

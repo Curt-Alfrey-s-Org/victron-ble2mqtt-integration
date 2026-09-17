@@ -347,7 +347,11 @@ Map `state` / `condition` / attributes to icons: **clear**, **partly cloudy**,
 | Ecobee / climate (optional secondary) | **TODO entity:** search `climate.*` (Ecobee HomeKit Device per [DEVICES.md](DEVICES.md)) | Same |
 
 Implementation ids for other agents: `#node-weather-sky` (group), `#val-weather-condition`
-(text), `#pip-weather-sky` (optional). Proxy may add `weather_entity_id` to snapshot when
+(text), `#pip-weather-sky` (optional). `setWeatherClass` uses [`Element.classList`](https://developer.mozilla.org/en-US/docs/Web/API/Element/classList)
+because SVG `className` is a **readonly** [`SVGAnimatedString`](https://www.w3.org/TR/SVG2/types.html#InterfaceSVGAnimatedString)
+([SVGElement.className](https://developer.mozilla.org/en-US/docs/Web/API/SVGElement/className)).
+Assigning `sky.className = '...'` throws and aborts the rest of the paint (KU hops stay 0 W, false `proxy offline`).
+Proxy may add `weather_entity_id` to snapshot when
 wired. Do **not** invent entity ids in production view.
 
 ### Storage (centre)
