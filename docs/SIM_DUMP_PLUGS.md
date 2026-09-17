@@ -1,8 +1,8 @@
-# Simulated A/C soak plugs (FAKE loads for alfa-ai)
+# Simulated A/C dump-load plugs (FAKE loads for alfa-ai)
 
-**Status (2026-09-15):** Six **simulated** Shelly-like switches in Home Assistant. No
-physical smart plugs. Used to exercise alfa-ai solar soak decisions and manual
-`switch.turn_on` / `turn_off` before wiring real loads on the trailer/KU circuit.
+**Status (2026-09-17):** Six **simulated** Shelly-like switches in Home Assistant. No
+physical smart plugs. Used to exercise alfa-ai solar dump-load decisions and manual
+`switch.turn_on` / `turn_off` before wiring real dump loads on **Sungold AC out**.
 
 **Hosts:** Home Assistant Container on **`.105:8123`**. alfa-ai brain on **`.111`**
 controls plugs via the official HA REST API ([REST API](https://developers.home-assistant.io/docs/api/rest/)).
@@ -10,11 +10,14 @@ Do **not** use `POST /api/states` to control loads -- always service calls.
 
 Official HA manuals (RULE #1):
 
-- [Template integration](https://www.home-assistant.io/integrations/template/)
+- [Template integration](https://www.home-assistant.io/integrations/template/) (`unique_id`, `default_entity_id`)
 - [Input boolean](https://www.home-assistant.io/integrations/input_boolean/)
 - [Switch domain](https://www.home-assistant.io/integrations/switch/)
 - [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/) (split YAML into `packages/`)
 - [Home Assistant Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container) (`docker restart homeassistant` after package changes)
+- [Customizing entities](https://www.home-assistant.io/docs/configuration/customizing-devices/) (entity_id changes in UI; no documented in-place `unique_id` rename API)
+
+Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf).
 
 ---
 
@@ -31,7 +34,7 @@ Load control policy (allowlist, auto-actuate, kill switches) lives in alfa-ai:
 [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
 (sibling: `../alfa-ai/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md`).
 
-Put soak plugs on the **intended AC bus** (trailer/KU vs house utility):
+Dump loads are fed from **Sungold AC out** (SPH INV OUTPUT), not KU Renogy:
 [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
 ---
@@ -56,10 +59,15 @@ Power sensors (template):
 | entity_id | When ON | When OFF |
 |-----------|---------|----------|
 | `sensor.sim_ac_plug_1_power` ... `sensor.sim_ac_plug_6_power` | Rated W (number) | none / unknown |
-| `sensor.sim_soak_load_power` | Sum of ON plug watts | `0` when all OFF |
+| `sensor.sim_dump_load_power` | Sum of ON plug watts | `0` when all OFF |
 
 Each switch has pinned `unique_id` + `default_entity_id` so slugs stay `sim_ac_plug_1`
-through `_6` (no `_2` suffix drift).
+through `_6` (no `_2` suffix drift). The aggregate sensor `unique_id` is
+`sim_dump_load_power` (was `sim_soak_load_power`). Changing `unique_id` registers a
+**new** entity ([template unique_id](https://www.home-assistant.io/integrations/template/));
+HA has no documented in-place unique_id rename. After reinstall, remove leftover
+`sensor.sim_soak_load_power` in **Settings > Entities** if it remains. alfa-ai
+`solar_dump.py` still reads the leftover entity_id until that cleanup.
 
 ---
 
@@ -73,12 +81,13 @@ through `_6` (no `_2` suffix drift).
 ```bash
 cd /home/ansible/victron-ble2mqtt-integration
 git pull --ff-only origin main
-bash scripts/install_sim_soak_plugs_ha.sh
+bash scripts/install_sim_dump_plugs_ha.sh
 ```
 
 The script:
 
-- Copies `config/packages/sim_soak_plugs.yaml` to `/opt/homeassistant/packages/`
+- Copies `config/packages/sim_dump_plugs.yaml` to `/opt/homeassistant/packages/`
+- Removes leftover `/opt/homeassistant/packages/sim_soak_plugs.yaml` if present
 - Ensures `configuration.yaml` includes `packages: !include_dir_named packages`
   ([packages doc](https://www.home-assistant.io/docs/configuration/packages/))
 - Runs `docker restart homeassistant` ([HA Container restart](https://www.home-assistant.io/installation/linux#install-home-assistant-container))
@@ -95,12 +104,12 @@ curl -fsS -H "Authorization: Bearer <token>" http://127.0.0.1:8123/api/states/sw
 switch.sim_ac_plug_1,switch.sim_ac_plug_2,switch.sim_ac_plug_3,switch.sim_ac_plug_4,switch.sim_ac_plug_5,switch.sim_ac_plug_6
 ```
 
-Keep `ha_solar_soak_auto_actuate=false` until you want the soak ticker to toggle sim loads
+Keep `ha_solar_dump_auto_actuate=false` until you want the dump-load ticker to toggle sim loads
 (allowlist still required). When HA is enabled on the brain (`ALFA_AI_HOME_ASSISTANT_ENABLED=1`
 + token file), Ask ALFa `ha_switch_on` / `ha_switch_off` auto-actuate without Approve; see
 alfa-ai [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md).
 
-**Disable / remove:** delete `/opt/homeassistant/packages/sim_soak_plugs.yaml`, restart HA,
+**Disable / remove:** delete `/opt/homeassistant/packages/sim_dump_plugs.yaml`, restart HA,
 remove entities from the registry if needed.
 
 Default: package is **not** on `/opt/homeassistant` until the operator runs the install script.
@@ -133,22 +142,33 @@ update from the same internal state. See [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_
 
 | File | Role |
 |------|------|
-| `config/packages/sim_soak_plugs.yaml` | Tracked HA package (source of truth) |
-| `scripts/install_sim_soak_plugs_ha.sh` | Copy + packages include + container restart |
-| `tests/test_sim_soak_plugs.py` | Entity id / watt table validation |
+| `config/packages/sim_dump_plugs.yaml` | Tracked HA package (source of truth) |
+| `scripts/install_sim_dump_plugs_ha.sh` | Copy + packages include + container restart |
+| `tests/test_sim_dump_plugs.py` | Entity id / watt table validation |
 
 ---
 
 ## Tests
 
 ```bash
-python -m pytest tests/test_sim_soak_plugs.py -q
+python -m pytest tests/test_sim_dump_plugs.py -q
 ```
+
+---
+
+## Solar flow dashboard
+
+When the HA package is installed, **production** view on the solar-flow page reads sim
+plug states from HA REST (same entity ids as this doc). Until install, the proxy fills
+missing sim-dump ids from `web/solar-flow/demo-snapshot.json` and sets `sim_dump_demo:
+true`. Use header **Demo** for the full illustrative snapshot. See
+[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
 
 ---
 
 ## Related
 
+- [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- production vs demo view
 - [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md)
 - [ALFA_CLUSTER_INTEGRATION.md](ALFA_CLUSTER_INTEGRATION.md)
 - alfa-ai [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)

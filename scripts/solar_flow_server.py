@@ -41,15 +41,23 @@ _SIM_PLUG_WATTS = (
     "switch.sim_ac_plug_4=130,switch.sim_ac_plug_5=130,switch.sim_ac_plug_6=300"
 )
 # HA template aggregate; 0 plant AC load until a real KU house EM16 channel is configured.
-_SIM_SOAK_LOAD_ENTITY = "sensor.sim_soak_load_power"
+_SIM_DUMP_LOAD_ENTITY = "sensor.sim_dump_load_power"
+_LEGACY_SIM_DUMP_LOAD_ENTITY = "sensor.sim_soak_load_power"
+# Sim dump load entity prefixes (HA package or demo-file fallback for missing ids).
+_SIM_DUMP_ENTITY_PREFIXES: tuple[str, ...] = (
+    "switch.sim_ac_plug_",
+    "sensor.sim_ac_plug_",
+    "sensor.sim_dump_",
+    "sensor.sim_soak_",
+)
 
 DEFAULT_SETTINGS: dict[str, str] = {
-    "ha_solar_soak_enabled": "true",
+    "ha_solar_dump_enabled": "true",
     "ha_switch_allowlist": _SIM_PLUG_ALLOWLIST,
     "ha_switch_watts": _SIM_PLUG_WATTS,
     "ha_never_auto": "",
     "ha_solar_entity": "sensor.solar_controller_solar_power",
-    "ha_load_entity": _SIM_SOAK_LOAD_ENTITY,
+    "ha_load_entity": _SIM_DUMP_LOAD_ENTITY,
     "ha_soc_entity": "sensor.battery_1_soc",
     "ha_shunt_voltage_entity": "sensor.battery_1_voltage",
     "ha_shunt_current_entity": "sensor.battery_1_current",
@@ -64,7 +72,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "ha_min_off_seconds": "300",
 }
 
-# Lovelace / MQTT names that differ from soak canonical ids.
+# Lovelace / MQTT names that differ from dump-load canonical ids.
 # Live Solar dashboard uses sensor.solar_controller_solar (tests/test_ha_label_victron_refoss.py).
 # MQTT discovery names: Solar power, Battery state, State of charge
 # (override/victron_ble2mqtt/mqtt.py SolarChargerHandler / BatteryMonitorHandler).
@@ -81,6 +89,7 @@ ENTITY_ALIASES: dict[str, tuple[str, ...]] = {
     "sensor.sungold_sph302480a_load_power": (
         "sensor.sungold_sph302480a_load_active_power",
     ),
+    "sensor.sim_dump_load_power": ("sensor.sim_soak_load_power",),
 }
 
 # Snapshot includes every HA row under these prefixes (not only REQUIRED).
@@ -93,6 +102,7 @@ SNAPSHOT_PREFIXES: tuple[str, ...] = (
     "sensor.sungold_sph302480a_",
     "binary_sensor.sungold_sph302480a_",
     "sensor.sim_ac_plug_",
+    "sensor.sim_dump_",
     "sensor.sim_soak_",
     "switch.sim_ac_plug_",
 )
@@ -147,11 +157,11 @@ REQUIRED_ENTITY_IDS: frozenset[str] = frozenset(
         "sensor.sim_ac_plug_4_power",
         "sensor.sim_ac_plug_5_power",
         "sensor.sim_ac_plug_6_power",
-        "sensor.sim_soak_load_power",
+        "sensor.sim_dump_load_power",
     ]
 )
 
-SoakDecision = tuple[str, Literal["on", "off", "skip"], str]
+DumpDecision = tuple[str, Literal["on", "off", "skip"], str]
 
 logger = logging.getLogger("solar_flow_server")
 
@@ -231,10 +241,10 @@ def _effective_load_watts(
     states: dict[str, dict[str, Any]],
     watts_map: dict[str, int],
     *,
-    load_entity: str = _SIM_SOAK_LOAD_ENTITY,
+    load_entity: str = _SIM_DUMP_LOAD_ENTITY,
 ) -> float | None:
     sim_w = _sim_on_watts(states, watts_map)
-    if load_entity == _SIM_SOAK_LOAD_ENTITY:
+    if load_entity in (_SIM_DUMP_LOAD_ENTITY, _LEGACY_SIM_DUMP_LOAD_ENTITY):
         if load_w is not None:
             return load_w
         if watts_map:
@@ -262,16 +272,20 @@ def _state_row(states: dict[str, dict[str, Any]], entity_id: str) -> dict[str, A
     return None
 
 
-def decide_soak(
+def decide_dump(
     *,
     states: dict[str, dict[str, Any]],
     settings: dict[str, str],
     now: float,
     last_toggle: dict[str, tuple[str, float]] | None = None,
-) -> tuple[list[SoakDecision], dict[str, Any]]:
-    """Pure soak decision (mirrors alfa-ai src/ops/solar_soak.decide_soak)."""
+) -> tuple[list[DumpDecision], dict[str, Any]]:
+    """Pure dump-load decision (mirrors alfa-ai src/ops/solar_dump.decide_dump)."""
     toggles = last_toggle if last_toggle is not None else {}
-    enabled = _setting_on(settings.get("ha_solar_soak_enabled", "false"))
+    enabled = _setting_on(
+        settings.get("ha_solar_dump_enabled")
+        or settings.get("ha_solar_soak_enabled")
+        or "false"
+    )
     allowlist = _parse_entity_list(settings.get("ha_switch_allowlist", ""))
     never_auto = _parse_entity_list(settings.get("ha_never_auto", ""))
     charge_ok_states = frozenset(
@@ -325,7 +339,7 @@ def decide_soak(
     }
 
     if not enabled:
-        return [], {**meta, "skipped": "ha_solar_soak_enabled=false"}
+        return [], {**meta, "skipped": "ha_solar_dump_enabled=false"}
 
     if not allowlist:
         return [], {**meta, "skipped": "empty ha_switch_allowlist"}
@@ -353,7 +367,7 @@ def decide_soak(
     eligible = [e for e in sorted(allowlist) if e not in never_auto]
     concurrent_on = sum(1 for e in eligible if _entity_is_on(states.get(e)))
 
-    decisions: list[SoakDecision] = []
+    decisions: list[DumpDecision] = []
     for entity_id in eligible:
         current_on = _entity_is_on(states.get(entity_id))
         target: Literal["on", "off", "skip"] = "skip"
@@ -427,7 +441,7 @@ def _build_thinking(meta: dict[str, Any]) -> str:
         solar_w = meta.get("solar_w")
         soc = meta.get("soc")
         surplus = meta.get("surplus_w")
-        bits = [f"Soak skipped: {skipped}."]
+        bits = [f"Dump load skipped: {skipped}."]
         if surplus is not None:
             bits.append(f"Surplus would be {surplus:.0f}W.")
         elif solar_w is not None and meta.get("effective_load_w") is not None:
@@ -443,7 +457,7 @@ def _build_thinking(meta: dict[str, Any]) -> str:
 
     surplus = meta.get("surplus_w")
     if surplus is None:
-        return "Insufficient sensor data for soak evaluation."
+        return "Insufficient sensor data for dump load evaluation."
     bits = [f"Surplus {surplus:.0f}W with charge state {charge}."]
     if meta.get("soc_unsynced"):
         bits.append("SoC gate skipped: unsynced; using V/A + charge state only.")
@@ -454,12 +468,12 @@ def _build_thinking(meta: dict[str, Any]) -> str:
         bits.append(f"SoC {meta['soc']:.0f}%.")
     bits.extend(shunt_bits)
     bits.append(
-        "Decisions follow soak thresholds (min surplus 200W, off at 50W)."
+        "Decisions follow dump load thresholds (min surplus 200W, off at 50W)."
     )
     return " ".join(bits)
 
 
-def decide_soak_view(
+def decide_dump_view(
     *,
     states: dict[str, dict[str, Any]],
     settings: dict[str, str] | None = None,
@@ -471,7 +485,7 @@ def decide_soak_view(
     if settings:
         settings_map.update({k: str(v) for k, v in settings.items()})
     tick = time.time() if now is None else now
-    decisions, meta = decide_soak(
+    decisions, meta = decide_dump(
         states=states,
         settings=settings_map,
         now=tick,
@@ -581,7 +595,7 @@ def _prefix_match(entity_id: str) -> bool:
 
 
 def apply_entity_aliases(entities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Keep soak canonical ids and Lovelace live ids in sync.
+    """Keep dump-load canonical ids and Lovelace live ids in sync.
 
     Live registry ids win when both exist so GX tiles match Lovelace
     (HA REST GET /api/states). If only the canonical exists, copy it onto
@@ -645,7 +659,7 @@ def filter_entities(
     return apply_entity_aliases(out)
 
 
-def entities_to_soak_states(entities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def entities_to_dump_states(entities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {
         eid: {"entity_id": eid, "state": row.get("state"), "attributes": row.get("attributes") or {}}
         for eid, row in entities.items()
@@ -759,40 +773,152 @@ def load_demo_entities() -> dict[str, dict[str, Any]]:
     return apply_entity_aliases(entities)
 
 
-def build_demo_snapshot(now: float | None = None) -> dict[str, Any]:
-    entities = load_demo_entities()
-    soak_states = entities_to_soak_states(entities)
-    fetched_at = datetime.now(timezone.utc).isoformat()
+def is_sim_dump_entity(entity_id: str) -> bool:
+    return any(entity_id.startswith(prefix) for prefix in _SIM_DUMP_ENTITY_PREFIXES)
+
+
+def load_demo_sim_entities() -> dict[str, dict[str, Any]]:
     return {
+        eid: dict(row)
+        for eid, row in load_demo_entities().items()
+        if is_sim_dump_entity(eid)
+    }
+
+
+def sim_dump_required_entity_ids() -> frozenset[str]:
+    """Sim dump ids the live snapshot expects from HA or demo-file fallback."""
+    return frozenset(eid for eid in REQUIRED_ENTITY_IDS if is_sim_dump_entity(eid))
+
+
+def fill_missing_sim_dump_entities(
+    entities: dict[str, dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Keep HA sim dump rows; overlay demo file only for missing sim dump ids.
+
+    Returns (merged entities, sim_dump_demo) where sim_dump_demo is True when any
+    required sim dump id was filled from demo-snapshot.json.
+    """
+    merged = dict(entities)
+    demo_sim = load_demo_sim_entities()
+    filled_from_demo = False
+    for eid in sim_dump_required_entity_ids():
+        if eid in merged:
+            continue
+        demo_row = demo_sim.get(eid)
+        if demo_row is not None:
+            merged[eid] = dict(demo_row)
+            filled_from_demo = True
+    return apply_entity_aliases(merged), filled_from_demo
+
+
+def overlay_sim_dump_demo(entities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Backward-compatible: fill all missing sim dump ids from demo file."""
+    merged, _ = fill_missing_sim_dump_entities(entities)
+    return merged
+
+
+def _snapshot_ai(entities: dict[str, dict[str, Any]], now: float | None) -> dict[str, Any]:
+    return decide_dump_view(states=entities_to_dump_states(entities), now=now)
+
+
+_PRODUCTION_TOKEN_LABEL = (
+    "Production requires a gitignored HA token on the proxy (HA_TOKEN_FILE)."
+)
+
+
+def build_offline_snapshot(
+    now: float | None = None,
+    *,
+    view: str = "production",
+    label: str | None = None,
+) -> dict[str, Any]:
+    """No HA token: sim dump loads from demo file; plant tiles stay missing (no fake MPPT W)."""
+    entities, sim_dump_demo = fill_missing_sim_dump_entities({})
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    missing = sorted(eid for eid in REQUIRED_ENTITY_IDS if eid not in entities)
+    resolved_label = label
+    if resolved_label is None and view == "production":
+        resolved_label = _PRODUCTION_TOKEN_LABEL
+    payload: dict[str, Any] = {
         "mode": "demo",
-        "label": "DEMO illustrative numbers - not a live Home Assistant observation",
+        "view": view,
+        "sim_dump_demo": sim_dump_demo,
         "fetched_at": fetched_at,
         "entities": entities,
-        "ai": decide_soak_view(states=soak_states, now=now),
+        "missing_entity_ids": missing,
+        "ai": _snapshot_ai(entities, now),
+    }
+    if resolved_label:
+        payload["label"] = resolved_label
+    return payload
+
+
+def build_demo_snapshot(now: float | None = None) -> dict[str, Any]:
+    """Backward-compatible alias for offline snapshot (sim-only plant)."""
+    return build_offline_snapshot(now=now)
+
+
+def build_illustrative_demo_snapshot(now: float | None = None) -> dict[str, Any]:
+    """Full illustrative demo-snapshot.json (operator Demo toggle)."""
+    raw = json.loads(DEMO_SNAPSHOT.read_text(encoding="utf-8"))
+    entities = load_demo_entities()
+    fetched_at = datetime.now(timezone.utc).isoformat()
+    label = raw.get("label") if isinstance(raw.get("label"), str) else None
+    if not label:
+        label = "DEMO illustrative numbers - not a live Home Assistant observation"
+    return {
+        "mode": "demo",
+        "view": "demo",
+        "sim_dump_demo": False,
+        "label": label,
+        "fetched_at": fetched_at,
+        "entities": entities,
+        "missing_entity_ids": [],
+        "ai": _snapshot_ai(entities, now),
     }
 
 
 def build_live_snapshot(token: str, now: float | None = None) -> dict[str, Any]:
     base = ha_base_url()
     rows = fetch_ha_states(base, token)
-    entities = filter_entities(rows)
-    soak_states = entities_to_soak_states(entities)
+    entities, sim_dump_demo = fill_missing_sim_dump_entities(filter_entities(rows))
     fetched_at = datetime.now(timezone.utc).isoformat()
     missing = sorted(eid for eid in REQUIRED_ENTITY_IDS if eid not in entities)
     return {
         "mode": "live",
+        "view": "production",
+        "sim_dump_demo": sim_dump_demo,
         "fetched_at": fetched_at,
         "entities": entities,
         "missing_entity_ids": missing,
-        "ai": decide_soak_view(states=soak_states, now=now),
+        "ai": _snapshot_ai(entities, now),
     }
 
 
-def build_snapshot(token: str | None = None, now: float | None = None) -> dict[str, Any]:
+def parse_snapshot_view(query: str) -> str | None:
+    """Return production, demo, or None (default). Raises ValueError for unknown view."""
+    params = parse_qs(query)
+    raw = (params.get("view") or [None])[0]
+    if raw is None or not str(raw).strip():
+        return None
+    view = str(raw).strip().lower()
+    if view in ("production", "demo"):
+        return view
+    raise ValueError(f"unknown view: {raw}")
+
+
+def build_snapshot(
+    token: str | None = None,
+    now: float | None = None,
+    *,
+    view: str | None = None,
+) -> dict[str, Any]:
     resolved = token if token is not None else resolve_ha_token()
+    if view == "demo":
+        return build_illustrative_demo_snapshot(now=now)
     if resolved:
         return build_live_snapshot(resolved, now=now)
-    return build_demo_snapshot(now=now)
+    return build_offline_snapshot(now=now, view=view or "production")
 
 
 class SolarFlowHandler(BaseHTTPRequestHandler):
@@ -828,7 +954,7 @@ class SolarFlowHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/snapshot":
-            self._handle_snapshot()
+            self._handle_snapshot(parsed.query)
             return
         if path == "/api/history":
             self._handle_history(parsed.query)
@@ -888,13 +1014,15 @@ class SolarFlowHandler(BaseHTTPRequestHandler):
             logger.warning("history fetch failed for %s: %s", entity_id, safe)
             self._send_json({"error": "history fetch failed"}, HTTPStatus.BAD_GATEWAY)
 
-    def _handle_snapshot(self) -> None:
+    def _handle_snapshot(self, query: str = "") -> None:
         token = resolve_ha_token()
         try:
-            if token:
-                payload = build_live_snapshot(token)
-            else:
-                payload = build_demo_snapshot()
+            view = parse_snapshot_view(query)
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        try:
+            payload = build_snapshot(token=token, view=view)
             self._send_json(payload)
         except (HTTPError, URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
             safe = redact_secrets(str(exc), token)

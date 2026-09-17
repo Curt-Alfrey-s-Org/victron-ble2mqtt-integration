@@ -1,4 +1,4 @@
-"""Validate sim soak plug HA package (entity contract + watt table)."""
+"""Validate sim dump-load plug HA package (entity contract + watt table)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-PACKAGE = ROOT / "config" / "packages" / "sim_soak_plugs.yaml"
+PACKAGE = ROOT / "config" / "packages" / "sim_dump_plugs.yaml"
 
 EXPECTED_SWITCHES = {
     "switch.sim_ac_plug_1": ("sim_ac_plug_1", 180, "input_boolean.sim_ac_plug_1_internal"),
@@ -88,6 +88,7 @@ def test_total_load_sensor_present():
     for block in blocks:
         if "sensor" in block:
             sensors.extend(block["sensor"])
-    total = next(s for s in sensors if s.get("default_entity_id") == "sensor.sim_soak_load_power")
+    total = next(s for s in sensors if s.get("default_entity_id") == "sensor.sim_dump_load_power")
+    assert total["unique_id"] == "sim_dump_load_power"
     assert total["device_class"] == "power"
     assert "180" in total["state"] and "1200" in total["state"]

@@ -1,8 +1,9 @@
-# Simulated A/C soak plugs (FAKE) -- opt-in package for Home Assistant on .105
+# Simulated A/C dump-load plugs (FAKE) -- opt-in package for Home Assistant on .105
 # alfa-ai allowlist uses switch.sim_ac_plug_* (template), not input_boolean.*
 # Official: https://www.home-assistant.io/integrations/template/
 #           https://www.home-assistant.io/integrations/input_boolean/
 #           https://www.home-assistant.io/docs/configuration/packages/
+# unique_id + default_entity_id: https://www.home-assistant.io/integrations/template/
 
 input_boolean:
   sim_ac_plug_1_internal:
@@ -165,9 +166,9 @@ template:
           {% else %}
             {{ none }}
           {% endif %}
-      - name: Sim soak load power
-        unique_id: sim_soak_load_power
-        default_entity_id: sensor.sim_soak_load_power
+      - name: Sim dump load power
+        unique_id: sim_dump_load_power
+        default_entity_id: sensor.sim_dump_load_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement

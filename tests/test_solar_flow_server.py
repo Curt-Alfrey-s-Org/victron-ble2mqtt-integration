@@ -1,4 +1,4 @@
-"""Tests for scripts/solar_flow_server.py (demo snapshot + soak view)."""
+"""Tests for scripts/solar_flow_server.py (demo snapshot + dump-load view)."""
 
 from __future__ import annotations
 
@@ -35,8 +35,8 @@ def _demo_states(
 ) -> dict[str, dict]:
     return {
         "sensor.solar_controller_solar_power": {"entity_id": "sensor.solar_controller_solar_power", "state": solar},
-        "sensor.sim_soak_load_power": {
-            "entity_id": "sensor.sim_soak_load_power",
+        "sensor.sim_dump_load_power": {
+            "entity_id": "sensor.sim_dump_load_power",
             "state": load,
         },
         "sensor.em16_a3_power": {"entity_id": "sensor.em16_a3_power", "state": "100"},
@@ -60,14 +60,15 @@ def test_build_snapshot_demo_without_token(monkeypatch: pytest.MonkeyPatch) -> N
     _clear_ha_token(monkeypatch)
     snap = sfs.build_snapshot(now=1000.0)
     assert snap["mode"] == "demo"
-    assert "DEMO" in snap.get("label", "")
-    assert snap["entities"]["sensor.solar_controller_solar_power"]["state"] == "400"
-    assert snap["ai"]["meta"]["surplus_w"] == 120.0
+    assert snap.get("sim_dump_demo") is True
+    assert "sensor.solar_controller_solar_power" not in snap["entities"]
+    assert snap["entities"]["switch.sim_ac_plug_1"]["state"] == "on"
+    assert snap["ai"]["meta"]["solar_w"] is None
     assert all(d["action"] == "skip" for d in snap["ai"]["decisions"])
 
 
-def test_decide_soak_view_surplus_math() -> None:
-    view = sfs.decide_soak_view(states=_demo_states(), now=1000.0)
+def test_decide_dump_view_surplus_math() -> None:
+    view = sfs.decide_dump_view(states=_demo_states(), now=1000.0)
     meta = view["meta"]
     assert meta["effective_load_w"] == 280.0
     assert meta["sim_plug_w"] == 180
@@ -76,9 +77,9 @@ def test_decide_soak_view_surplus_math() -> None:
     assert len(view["decisions"]) == 6
 
 
-def test_decide_soak_view_turns_on_above_threshold() -> None:
+def test_decide_dump_view_turns_on_above_threshold() -> None:
     states = _demo_states(solar="800", load="100", plug_1="off")
-    view = sfs.decide_soak_view(states=states, now=1000.0)
+    view = sfs.decide_dump_view(states=states, now=1000.0)
     assert view["meta"]["surplus_w"] == 700.0
     on_actions = [d for d in view["decisions"] if d["action"] == "on"]
     assert on_actions
@@ -152,8 +153,8 @@ def test_filter_prefers_live_over_canonical() -> None:
     )
 
 
-def test_filter_live_registry_ids_populate_gx_and_soak() -> None:
-    """HA .105 registry ids (Lovelace Solar ~13:09 ET 16 Sep 2026), not soak canonicals."""
+def test_filter_live_registry_ids_populate_gx_and_dump() -> None:
+    """HA .105 registry ids (Lovelace Solar ~13:09 ET 16 Sep 2026), not dump canonicals."""
     rows = [
         {"entity_id": "sensor.solar_controller_solar", "state": "302.0", "attributes": {}},
         {"entity_id": "sensor.solar_controller_charge_state", "state": "bulk", "attributes": {}},
@@ -277,7 +278,8 @@ def test_http_demo_snapshot_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/snapshot", timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["mode"] == "demo"
-        assert payload["ai"]["meta"]["surplus_w"] == 120.0
+        assert payload.get("sim_dump_demo") is True
+        assert "sensor.solar_controller_solar_power" not in payload["entities"]
     finally:
         httpd.shutdown()
         thread.join(timeout=2)
@@ -320,8 +322,8 @@ def test_resolve_bind_host_default_localhost(monkeypatch: pytest.MonkeyPatch) ->
     assert sfs.resolve_bind_host(args) == "127.0.0.1"
 
 
-def test_default_settings_ha_load_entity_is_sim_soak_not_em16_a3() -> None:
-    assert sfs.DEFAULT_SETTINGS["ha_load_entity"] == "sensor.sim_soak_load_power"
+def test_default_settings_ha_load_entity_is_sim_dump_not_em16_a3() -> None:
+    assert sfs.DEFAULT_SETTINGS["ha_load_entity"] == "sensor.sim_dump_load_power"
     assert sfs.DEFAULT_SETTINGS["ha_load_entity"] != "sensor.em16_a3_power"
 
 
@@ -329,7 +331,7 @@ def test_required_entity_ids_include_battery_2_and_plug_power() -> None:
     assert "sensor.battery_2_soc" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.battery_2_power" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.sim_ac_plug_1_power" in sfs.REQUIRED_ENTITY_IDS
-    assert "sensor.sim_soak_load_power" in sfs.REQUIRED_ENTITY_IDS
+    assert "sensor.sim_dump_load_power" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.sungold_sph302480a_pv_power" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.sungold_sph302480a_battery_soc" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.solar_controller_yield_today" in sfs.REQUIRED_ENTITY_IDS
@@ -375,8 +377,43 @@ def test_demo_snapshot_includes_sungold_and_em16_meters() -> None:
     entities = sfs.load_demo_entities()
     assert entities["sensor.sungold_sph302480a_charging_power"]["state"] == "1042"
     assert entities["sensor.em16_b2_power"]["state"] == "-100"
+    assert entities["sensor.em16_b3_power"]["state"] == "100"
+    assert entities["sensor.em16_a3_power"]["state"] == "100"
     snap = sfs.build_demo_snapshot(now=1000.0)
-    assert snap["ai"]["meta"]["surplus_w"] == 120.0
+    assert snap.get("sim_dump_demo") is True
+    assert "sensor.sungold_sph302480a_charging_power" not in snap["entities"]
+    assert snap["entities"]["sensor.sim_dump_load_power"]["state"] == "280"
+
+
+def test_live_snapshot_overlays_sim_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+
+    def _fake_states(_base: str, _token: str) -> list[dict]:
+        return [
+            {
+                "entity_id": "sensor.solar_controller_solar",
+                "state": "302.0",
+                "attributes": {"unit_of_measurement": "W"},
+            },
+            {
+                "entity_id": "switch.sim_ac_plug_1",
+                "state": "off",
+                "attributes": {},
+            },
+            {
+                "entity_id": "sensor.sim_ac_plug_1_power",
+                "state": "0",
+                "attributes": {"unit_of_measurement": "W"},
+            },
+        ]
+
+    monkeypatch.setattr(sfs, "fetch_ha_states", _fake_states)
+    snap = sfs.build_live_snapshot("unit-test-token", now=1000.0)
+    assert snap["mode"] == "live"
+    assert snap.get("sim_dump_demo") is True
+    assert snap["entities"]["sensor.solar_controller_solar"]["state"] == "302.0"
+    assert snap["entities"]["switch.sim_ac_plug_1"]["state"] == "on"
+    assert snap["entities"]["sensor.sim_ac_plug_1_power"]["state"] == "180"
 
 
 def test_live_missing_lists_sungold_when_absent() -> None:
@@ -390,8 +427,8 @@ def test_live_missing_lists_sungold_when_absent() -> None:
     assert "sensor.solar_controller_solar_power" not in missing
 
 
-def test_decide_soak_view_decisions_have_current_and_target() -> None:
-    view = sfs.decide_soak_view(states=_demo_states())
+def test_decide_dump_view_decisions_have_current_and_target() -> None:
+    view = sfs.decide_dump_view(states=_demo_states())
     assert view["decisions"]
     row = view["decisions"][0]
     assert row["current"] in ("on", "off")
@@ -401,7 +438,7 @@ def test_decide_soak_view_decisions_have_current_and_target() -> None:
 
 def test_unsynced_soc_zero_still_decides() -> None:
     states = _demo_states(solar="800", load="100", soc="0", plug_1="off")
-    view = sfs.decide_soak_view(states=states, now=1000.0)
+    view = sfs.decide_dump_view(states=states, now=1000.0)
     assert view["soc_unsynced"] is True
     assert view["soc_gate"] == "skipped_unsynced"
     assert view["shunt_v"] == 28.6
@@ -413,7 +450,7 @@ def test_unsynced_soc_zero_still_decides() -> None:
 
 
 def test_synced_soc_zero_skips_min_percent() -> None:
-    view = sfs.decide_soak_view(
+    view = sfs.decide_dump_view(
         states=_demo_states(solar="800", load="100", soc="0"),
         settings={"ha_soc_unsynced": "false"},
         now=1000.0,

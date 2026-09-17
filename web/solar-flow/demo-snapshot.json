@@ -7,21 +7,21 @@
       "state": "400",
       "attributes": {
         "unit_of_measurement": "W",
-        "friendly_name": "[DEMO] T2 PV solar power"
+        "friendly_name": "T2 PV solar power"
       }
     },
     "sensor.em16_a3_power": {
       "state": "100",
       "attributes": {
         "unit_of_measurement": "W",
-        "friendly_name": "[DEMO] EM16 A3"
+        "friendly_name": "EM16 A3"
       }
     },
     "sensor.battery_1_soc": {
       "state": "92",
       "attributes": {
         "unit_of_measurement": "%",
-        "friendly_name": "[DEMO] Battery 1 T2 SoC"
+        "friendly_name": "Battery 1 T2 SoC"
       }
     },
     "sensor.battery_1_voltage": {
@@ -40,7 +40,7 @@
       "state": "88",
       "attributes": {
         "unit_of_measurement": "%",
-        "friendly_name": "[DEMO] Battery 2 KU SoC"
+        "friendly_name": "Battery 2 KU SoC"
       }
     },
     "sensor.battery_2_voltage": {
@@ -57,31 +57,31 @@
     },
     "sensor.solar_controller_battery_state": {
       "state": "absorption",
-      "attributes": { "friendly_name": "[DEMO] Charge stage" }
+      "attributes": { "friendly_name": "Charge stage" }
     },
     "switch.sim_ac_plug_1": {
       "state": "on",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 1 fan (180W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 1 fan (180W rated)" }
     },
     "switch.sim_ac_plug_2": {
       "state": "off",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 2 dehumidifier (300W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 2 dehumidifier (300W rated)" }
     },
     "switch.sim_ac_plug_3": {
       "state": "off",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 3 water heater (1200W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 3 water heater (1200W rated)" }
     },
     "switch.sim_ac_plug_4": {
       "state": "on",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 4 fan (130W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 4 fan (130W rated)" }
     },
     "switch.sim_ac_plug_5": {
       "state": "off",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 5 fan (130W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 5 fan (130W rated)" }
     },
     "switch.sim_ac_plug_6": {
       "state": "off",
-      "attributes": { "friendly_name": "[DEMO] Sim A/C plug 6 gaming PC (300W rated)" }
+      "attributes": { "friendly_name": "Sim A/C plug 6 gaming PC (300W rated)" }
     },
     "sensor.sim_ac_plug_1_power": {
       "state": "180",
@@ -107,7 +107,7 @@
       "state": "0",
       "attributes": { "unit_of_measurement": "W" }
     },
-    "sensor.sim_soak_load_power": {
+    "sensor.sim_dump_load_power": {
       "state": "280",
       "attributes": { "unit_of_measurement": "W" }
     },
@@ -191,13 +191,28 @@
       "state": "0.8",
       "attributes": { "unit_of_measurement": "A" }
     },
+    "sensor.em16_b3_power": {
+      "state": "100",
+      "attributes": {
+        "unit_of_measurement": "W",
+        "friendly_name": "EM16 B3 Sungold outlet breaker"
+      }
+    },
+    "sensor.em16_b3_voltage": {
+      "state": "118.2",
+      "attributes": { "unit_of_measurement": "V" }
+    },
+    "sensor.em16_b3_current": {
+      "state": "0.8",
+      "attributes": { "unit_of_measurement": "A" }
+    },
     "sensor.em16_a3_power_factor": {
       "state": "-1.0",
       "attributes": {}
     },
     "sensor.em16_a2_power": {
       "state": "73",
-      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] EM16 A2 candidate T2 Renogy idle" }
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "EM16 A2 candidate T2 Renogy idle" }
     },
     "sensor.em16_a2_voltage": {
       "state": "118.4",
@@ -209,7 +224,7 @@
     },
     "sensor.em16_b2_power": {
       "state": "-100",
-      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] EM16 B2 return of A3" }
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "EM16 B2 return of A3" }
     },
     "sensor.em16_b2_voltage": {
       "state": "118.6",
@@ -229,7 +244,7 @@
     },
     "sensor.sungold_sph302480a_pv_power": {
       "state": "0",
-      "attributes": { "unit_of_measurement": "W", "friendly_name": "[DEMO] Sungold PV output power" }
+      "attributes": { "unit_of_measurement": "W", "friendly_name": "Sungold PV output power" }
     },
     "sensor.sungold_sph302480a_pv_voltage": {
       "state": "0",
@@ -279,7 +294,7 @@
       "state": "10",
       "attributes": {
         "unit_of_measurement": "W",
-        "friendly_name": "[DEMO] Sungold load active power (not live 441 W)"
+        "friendly_name": "Sungold load active power (not live 441 W)"
       }
     },
     "sensor.sungold_sph302480a_load_current": {

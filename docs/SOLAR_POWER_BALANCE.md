@@ -39,9 +39,15 @@ off T2/KU battery negatives. **AC:** operator 16 Sep -- Sungold **AC INPUT** is 
 into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold AC-in). PWM and Renogy
 inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
 Do not merge Sungold DC into T2/KU. Do not print 2x T2 watts as live KU Victron.
-Dashboard hop policy (16 Sep): KU Renogy tile stays **-- W**; EM16 A3 watts paint
-`path-ku-outlet-sg-acin` / Sungold AC-in only, not `path-inverter-acbus` or
-`path-ac-riser` (those are sim-plug sum or unmetered). See
+Dashboard hop policy (16 Sep evening, updated): KU Renogy tile stays **-- W** (no HA
+inverter entity). **A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). **B3** =
+breaker feeding the Sungold outlet (`path-panel-b3`, \|B3\| or A3 fallback while Sungold
+is the only outlet load). **UTI hop** (`path-b3-outlet-sg-uti`, `path-sg-uti-sph`) uses
+B3/A3 or Sungold `grid_*`. **Dump loads** (operator): fed from **Sungold AC out** (SPH
+INV OUTPUT / `node-sg-acout`, `sensor.sungold_sph302480a_load_active_power` per
+[reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
+from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or unmetered) -- branch
+starts at Sungold AC out, never A3/B3/UTI. Do **not** add A3+B2. See
 [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
@@ -57,8 +63,9 @@ Eight suitcase panels total: **6** on the three Victron chargers, **2** on the P
 | Batt jumper T2-KU | both | Operator: on because the T2 **30A RV is not connected**. Intended to dump T2 charge into KU. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages match under load. |
 | Renogy 2 kW (T2) | T2 | 30A RV outlet. Idle if no RV. |
 | Renogy 2 kW (KU) | KU | Cargo trailer + optional RV, via ATS then manual TS. **This is the path for fan, dehumidifier, and alfa-ai hosts** in the 10-11 Sep EM16 shots. |
-| EM16 A3 | **15 Sep:** Sungold AC input | Same 10.40 A as Sungold `AC INPUT`. Magnitude ~1190 W. **Do not add B2.** 10-11 Sep shots used A3 as KU trailer AC -- do not mix those tables with 15 Sep. |
-| EM16 B2 | same feed as A3 (opposite sign) | **15 Sep:** -1189.9 W vs A3 1190.2 W. Branch/return on that leg, not a second load. |
+| EM16 A3 | **Panel hot leg** (16 Sep evening) | Feeds cargo-trailer outlets through the panel. **15 Sep:** same 10.40 A as Sungold `AC INPUT` (~1190 W). **Do not add B2** (B2 is the return of A3). 10-11 Sep shots used A3 as KU trailer AC -- do not mix those tables with 15 Sep. |
+| EM16 B3 | **Sungold-outlet breaker** (16 Sep evening) | Breaker the Sungold cord is plugged into. Hop W on `path-panel-b3` when numeric; else fall back to \|A3\| while Sungold is the only outlet load. |
+| EM16 B2 | return of A3 (opposite sign) | **15 Sep:** -1189.9 W vs A3 1190.2 W. Branch/return on that leg, not a second load. |
 | EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53; **0.0 W** at 16:11 and **15 Sep 15:53**. Candidate: **T2 Renogy idle** (no RV). Do not add to A3. |
 | EM16 C1-C6 | unused CTs | **15 Sep:** ~2.0 V / 0 A / 0 W. Empty channels, not loads. |
 | Sungold SPH302480A | cart | Emergency dolly. **2x 24 V 100 Ah LiTime in parallel.** USB sidecar on ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)). Not on T2/KU DC. **15 Sep** AC-in vs battery-in vs AC-out is the loss close. |
@@ -110,7 +117,7 @@ Charger-to-inverter watts: **MPPT solar** (T2 = reporter; KU Victron = 2x report
 
 Charge-state **bulk** on the reporter means it is still pushing current. **Absorption** means it has reached the absorb voltage and current is tapering. LiTime 24 V 230 Ah charge is **28.8 V +/- 0.4 V** (recommended **28.4-29.2 V**) -- T2 **29.1 V** then **28.5 V** matches that. KU **SoC 0%** at ~27-29 V was unsynced. 14:53 **91.7% / -15.4 Ah** and 16:11 **85.4% / -33.7 Ah** fit **230 Ah**. T2 **28.5 V** vs KU **26.6 V** at 14:53 is the jumper not equalizing under HVAC+cluster. At 16:11 (cluster only) T2 **27.2 V** vs KU **27.0 V**.
 
-**16 Sep 2026 -- SoC still unsynced:** do not use HA `state_of_charge` for soak or
+**16 Sep 2026 -- SoC still unsynced:** do not use HA `state_of_charge` for dump-load or
 dashboard control. Prefer shunt **V / A / W** and MPPT charge state. Victron
 does not publish a voltage-to-SoC formula; unsynchronised SoC is `---` until
 the monitor is synchronised when the battery is full

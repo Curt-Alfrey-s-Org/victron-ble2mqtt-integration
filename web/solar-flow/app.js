@@ -2,6 +2,8 @@
   'use strict';
 
   var POLL_MS = 2000;
+  var VIEW_STORAGE_KEY = 'solar-flow-view';
+  var currentView = 'production';
   // Browser may request hours=24; proxy clamps to 10 (see solar_flow_server.py).
   var HISTORY_HOURS = 24;
   var HISTORY_TABLE_ROWS = 40;
@@ -34,10 +36,13 @@
     batt2Ah: 'sensor.battery_2_consumed_ah',
     batt2Rem: 'sensor.battery_2_remaining_minutes',
     batt2Rssi: 'sensor.battery_2_rssi',
-    em16: 'sensor.em16_a3_power',
-    em16V: 'sensor.em16_a3_voltage',
-    em16A: 'sensor.em16_a3_current',
-    soakTotal: 'sensor.sim_soak_load_power',
+    panelA3W: 'sensor.em16_a3_power',
+    panelA3V: 'sensor.em16_a3_voltage',
+    panelA3A: 'sensor.em16_a3_current',
+    b3W: 'sensor.em16_b3_power',
+    b3V: 'sensor.em16_b3_voltage',
+    b3A: 'sensor.em16_b3_current',
+    dumpTotal: 'sensor.sim_dump_load_power',
     sgPvW: 'sensor.sungold_sph302480a_pv_power',
     sgPvV: 'sensor.sungold_sph302480a_pv_voltage',
     sgPvA: 'sensor.sungold_sph302480a_pv_current',
@@ -126,14 +131,17 @@
     return state === 'on';
   }
 
-  function isDemo() {
-    return !!(lastSnapshot && lastSnapshot.mode === 'demo');
+  function isPlantLive() {
+    return !!(lastSnapshot && lastSnapshot.mode === 'live');
   }
 
-  function demoText(text) {
-    if (!isDemo()) return text;
-    if (String(text).indexOf('DEMO ') === 0) return text;
-    return 'DEMO ' + text;
+  function showDemoWatermark(snapshot) {
+    if (!snapshot) return false;
+    return snapshot.mode === 'demo';
+  }
+
+  function updateDemoWatermark(snapshot) {
+    document.body.classList.toggle('demo-mode', showDemoWatermark(snapshot));
   }
 
   function setText(id, text) {
@@ -142,7 +150,7 @@
   }
 
   function setValue(id, text) {
-    setText(id, demoText(text));
+    setText(id, text);
   }
 
   function setPip(id, active) {
@@ -174,12 +182,25 @@
       return;
     }
     el.classList.remove('unmetered');
-    el.textContent = demoText(formatW(watts));
+    el.textContent = formatW(watts);
   }
 
-  function outletHopW(entities, em16W, sgGridV, sgGridA) {
-    if (em16W !== null) {
-      return Math.abs(em16W);
+  function panelHopW(entities) {
+    var a3W = getPowerW(entities, ENTITY_IDS.panelA3W);
+    return a3W !== null ? Math.abs(a3W) : null;
+  }
+
+  function b3HopW(entities, panelW) {
+    var b3W = getPowerW(entities, ENTITY_IDS.b3W);
+    if (b3W !== null) {
+      return Math.abs(b3W);
+    }
+    return panelW;
+  }
+
+  function utiHopW(entities, b3W, sgGridV, sgGridA) {
+    if (b3W !== null) {
+      return b3W;
     }
     if (sgGridV !== null && sgGridA !== null && Math.abs(sgGridA) > 0.01) {
       return Math.abs(sgGridV * sgGridA);
@@ -209,19 +230,20 @@
     setHopLabel('path-ku-pwm-panels', null, true);
     setHopLabel('path-ku-pwm-batt2', null, true);
     setHopLabel('path-ku-batt2-inverter', opts.batt2W !== null ? Math.abs(opts.batt2W) : null, false);
-    var acW = opts.acBusW;
-    var acBusUnmetered = acW === null;
-    setHopLabel('path-inverter-acbus', acW, acBusUnmetered);
-    setHopLabel('path-ac-riser', acW, acBusUnmetered);
-    setHopLabel('path-ac-em16', opts.em16W !== null ? Math.abs(opts.em16W) : null, false);
+    setHopLabel('path-ku-renogy-panel', opts.panelW, false);
+    setHopLabel('path-panel-b3', opts.b3W, false);
+    setHopLabel('path-b3-outlet-sg-uti', opts.utiW, false);
+    setHopLabel('path-sg-uti-sph', opts.utiW, false);
+    var simW = opts.simBusW;
+    var simUnmetered = simW === null;
+    setHopLabel('path-sim-acbus', simW, simUnmetered);
+    setHopLabel('path-sim-riser', simW, simUnmetered);
     for (var p = 1; p <= PLUG_COUNT; p++) {
-      setHopLabel('path-ac-plug-' + p, opts.plugWs[p], false);
+      setHopLabel('path-sim-plug-' + p, opts.plugWs[p], false);
     }
-    setHopLabel('path-ku-outlet-sg-acin', opts.outletW, false);
     setHopLabel('path-sg-pv-panels', opts.sgPvW, false);
     setHopLabel('path-sg-pv-batt', opts.sgPvW, false);
     setHopLabel('path-sg-batt-inv', opts.sgBattW !== null ? Math.abs(opts.sgBattW) : null, false);
-    setHopLabel('path-sg-acin-inv', opts.outletW, false);
     setHopLabel('path-sg-inv-acout', opts.sgLoadW, false);
   }
 
@@ -246,13 +268,10 @@
   function updateModeBadge(mode) {
     var badge = $('mode-badge');
     if (!badge) return;
-    badge.classList.remove('mode-live', 'mode-demo', 'mode-waiting');
-    if (mode === 'live') {
-      badge.textContent = 'live';
+    badge.classList.remove('mode-live', 'mode-waiting');
+    if (mode === 'live' || mode === 'demo') {
+      badge.textContent = mode;
       badge.classList.add('mode-live');
-    } else if (mode === 'demo') {
-      badge.textContent = 'DEMO not live';
-      badge.classList.add('mode-demo');
     } else {
       badge.textContent = 'waiting';
       badge.classList.add('mode-waiting');
@@ -309,7 +328,7 @@
       { label: 'Surplus', key: 'surplus_w', signed: true },
       { label: 'Solar', key: 'solar_w' },
       { label: 'Load', key: 'load_w' },
-      { label: 'Sim plugs', key: 'sim_plug_w' },
+      { label: 'Sim dump loads', key: 'sim_plug_w' },
       { label: 'Eff. load', key: 'effective_load_w' },
       { label: 'Shunt V', key: 'shunt_v', suffix: ' V' },
       { label: 'Shunt A', key: 'shunt_a', signedA: true },
@@ -338,7 +357,7 @@
       }
       html += '<div class="metric-item' + (f.dim ? ' unsynced' : '') +
         '"><span class="metric-label">' + f.label +
-        '</span><span class="metric-value">' + escapeHtml(demoText(display)) + '</span></div>';
+        '</span><span class="metric-value">' + escapeHtml(display) + '</span></div>';
     }
     if (ai.charge_state) {
       html += '<div class="metric-item"><span class="metric-label">Charge</span>' +
@@ -387,7 +406,8 @@
   }
 
   function channelNote(ch) {
-    if (ch === 'a3') return 'Sungold AC-in clamp';
+    if (ch === 'a3') return 'panel hot leg';
+    if (ch === 'b3') return 'Sungold outlet breaker';
     if (ch === 'b2') return 'return of A3; do not add';
     if (ch === 'a2' || ch === 'b4') return 'candidate T2 Renogy idle';
     if (ch.charAt(0) === 'c') return 'unused CT';
@@ -407,14 +427,15 @@
       var live = w !== null && Math.abs(w) >= 1;
       var cls = 'meter-card';
       if (ch === 'b2') cls += ' return';
+      if (ch === 'a3' || ch === 'b3') cls += ' highlight';
       cls += live ? ' live' : ' idle';
       var note = channelNote(ch);
       html += '<div class="' + cls + '">' +
         '<div class="meter-ch">' + ch.toUpperCase() +
         (note ? ' <span class="meter-va">' + escapeHtml(note) + '</span>' : '') +
         '</div>' +
-        '<div class="meter-w">' + escapeHtml(demoText(formatSignedW(w))) + '</div>' +
-        '<div class="meter-va">' + escapeHtml(demoText(formatVA(v, a))) + '</div>' +
+        '<div class="meter-w">' + escapeHtml(formatSignedW(w)) + '</div>' +
+        '<div class="meter-va">' + escapeHtml(formatVA(v, a)) + '</div>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -429,13 +450,8 @@
     if (!snapshot) return;
     lastSnapshot = snapshot;
     var entities = snapshot.entities || {};
-    var demo = snapshot.mode === 'demo';
-    document.body.classList.toggle('demo-mode', demo);
-    var watermark = $('demo-watermark');
-    if (watermark) watermark.hidden = !demo;
-    var demoBanner = $('demo-banner');
-    if (demoBanner) demoBanner.hidden = !demo;
 
+    updateDemoWatermark(snapshot);
     updateModeBadge(snapshot.mode);
     setFetchedAt(snapshot.fetched_at, snapshot.mode);
 
@@ -443,10 +459,18 @@
     if (labelEl) {
       var label = snapshot.label || '';
       var missing = snapshot.missing_entity_ids;
-      if (snapshot.mode === 'live' && missing && missing.length) {
-        var extra = 'Missing HA ids: ' + missing.slice(0, 8).join(', ');
-        if (missing.length > 8) extra += ' (+' + (missing.length - 8) + ')';
-        label = label ? (label + ' -- ' + extra) : extra;
+      if (missing && missing.length) {
+        var plantMissing = [];
+        for (var mi = 0; mi < missing.length; mi++) {
+          if (missing[mi].indexOf('sim_ac_plug') === -1 && missing[mi].indexOf('sim_dump') === -1 && missing[mi].indexOf('sim_soak') === -1) {
+            plantMissing.push(missing[mi]);
+          }
+        }
+        if (plantMissing.length) {
+          var extra = 'Missing HA ids: ' + plantMissing.slice(0, 8).join(', ');
+          if (plantMissing.length > 8) extra += ' (+' + (plantMissing.length - 8) + ')';
+          label = label ? (label + ' -- ' + extra) : extra;
+        }
       }
       labelEl.textContent = label;
       labelEl.hidden = !label;
@@ -457,7 +481,7 @@
     setValue('val-t2-panels-w', formatW(solarW));
     setValue('val-ku-victron-panels-w', '-- W');
     setValue('val-ku-pwm-panels-w', '-- W');
-    setPip('pip-solar', !demo && solarW !== null && solarW > 0);
+    setPip('pip-solar', solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
     setValue('val-batt-state', battState || '--');
@@ -494,7 +518,7 @@
       formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rem))) +
         ' ' + formatRssi(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Rssi)))
     );
-    setPip('pip-batt1', !demo && batt1W !== null && Math.abs(batt1W) > 0);
+    setPip('pip-batt1', batt1W !== null && Math.abs(batt1W) > 0);
 
     var batt2Soc = parseFloatSafe(getState(entities, ENTITY_IDS.batt2Soc));
     var batt2V = parseFloatSafe(getState(entities, ENTITY_IDS.batt2V));
@@ -509,21 +533,30 @@
       formatRem(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rem))) +
         ' ' + formatRssi(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Rssi)))
     );
-    setPip('pip-batt2', !demo && batt2W !== null && Math.abs(batt2W) > 0);
+    setPip('pip-batt2', batt2W !== null && Math.abs(batt2W) > 0);
 
-    var em16W = getPowerW(entities, ENTITY_IDS.em16);
-    var em16V = parseFloatSafe(getState(entities, ENTITY_IDS.em16V));
-    var em16A = parseFloatSafe(getState(entities, ENTITY_IDS.em16A));
-    setValue('val-em16-w', formatW(em16W));
-    setValue('val-em16-va', formatVA(em16V, em16A));
-    setPip('pip-em16', !demo && em16W !== null && Math.abs(em16W) > 0);
+    var panelA3W = getPowerW(entities, ENTITY_IDS.panelA3W);
+    var panelA3V = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3V));
+    var panelA3A = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3A));
+    var panelW = panelHopW(entities);
+    setValue('val-panel-a3-w', formatW(panelA3W));
+    setValue('val-panel-a3-va', 'A3 ' + formatVA(panelA3V, panelA3A));
+    setPip('pip-panel', panelW !== null && panelW > 0);
+
+    var b3RawW = getPowerW(entities, ENTITY_IDS.b3W);
+    var b3V = parseFloatSafe(getState(entities, ENTITY_IDS.b3V));
+    var b3A = parseFloatSafe(getState(entities, ENTITY_IDS.b3A));
+    var b3W = b3HopW(entities, panelW);
+    setValue('val-b3-w', formatW(b3RawW !== null ? b3RawW : panelA3W));
+    setValue('val-b3-va', formatVA(b3V, b3A));
+    setPip('pip-b3', b3W !== null && b3W > 0);
 
     setValue('val-t2-renogy-w', '-- W');
     setPip('pip-t2-renogy', false);
     setValue('val-ku-renogy-w', '-- W');
 
-    var totalSoak = 0;
-    var hasSoak = false;
+    var totalDump = 0;
+    var hasDump = false;
     var anyPlugOn = false;
     var plugWs = {};
     for (var p = 1; p <= PLUG_COUNT; p++) {
@@ -531,18 +564,21 @@
       var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
       plugWs[p] = plugW;
       setValue('val-plug-' + p + '-w', formatW(plugW));
-      setPip('pip-plug-' + p, !demo && (plugOn || (plugW !== null && plugW > 0)));
+      setPip('pip-plug-' + p, plugOn || (plugW !== null && plugW > 0));
       setPlugOn(p, plugOn);
-      setFlow('path-ac-plug-' + p, !demo && (plugOn || (plugW !== null && plugW > 0)), false);
+      setFlow('path-sim-plug-' + p, plugOn || (plugW !== null && plugW > 0), false);
       if (plugOn) anyPlugOn = true;
       if (plugW !== null) {
-        totalSoak += plugW;
-        hasSoak = true;
+        totalDump += plugW;
+        hasDump = true;
       }
     }
 
-    var soakSensor = getPowerW(entities, ENTITY_IDS.soakTotal);
-    setValue('val-soak-w', formatW(soakSensor !== null ? soakSensor : (hasSoak ? totalSoak : null)));
+    var dumpSensor = getPowerW(entities, ENTITY_IDS.dumpTotal);
+    if (dumpSensor === null) {
+      dumpSensor = getPowerW(entities, 'sensor.sim_soak_load_power');
+    }
+    setValue('val-dump-w', formatW(dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null)));
 
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
     var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
@@ -550,7 +586,7 @@
     setValue('val-sg-panels-w', formatW(sgPvW));
     setValue('val-sg-pv-w', formatW(sgPvW));
     setValue('val-sg-pv-va', formatVA(sgPvV, sgPvA));
-    setPip('pip-sg-pv', !demo && sgPvW !== null && sgPvW > 0);
+    setPip('pip-sg-pv', sgPvW !== null && sgPvW > 0);
 
     var sgSoc = parseFloatSafe(getState(entities, ENTITY_IDS.sgSoc));
     var sgBattV = parseFloatSafe(getState(entities, ENTITY_IDS.sgBattV));
@@ -561,16 +597,16 @@
     setValue('val-sg-batt-va', formatVA(sgBattV, sgBattA));
     setValue('val-sg-batt-w', formatSignedW(sgBattW));
     setValue('val-sg-charge', sgCharge || '--');
-    setPip('pip-sg-batt', !demo && sgBattW !== null && Math.abs(sgBattW) > 0);
+    setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
 
     var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
     var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
     var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
-    var outletW = outletHopW(entities, em16W, sgGridV, sgGridA);
-    setValue('val-sg-acin-w', formatW(outletW));
-    setValue('val-sg-acin-va', formatVA(sgGridV, sgGridA));
-    setValue('val-sg-acin-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
-    setPip('pip-sg-acin', !demo && outletW !== null && outletW > 0);
+    var utiW = utiHopW(entities, b3W, sgGridV, sgGridA);
+    setValue('val-sg-uti-w', formatW(utiW));
+    setValue('val-sg-uti-va', formatVA(sgGridV, sgGridA));
+    setValue('val-sg-uti-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
+    setPip('pip-sg-uti', utiW !== null && utiW > 0);
 
     var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
@@ -579,7 +615,7 @@
     setValue('val-sg-load-w', formatW(sgLoadW));
     setValue('val-sg-load-va', formatVA(sgOutV, sgLoadA));
     setValue('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
-    setPip('pip-sg-acout', !demo && sgLoadW !== null && Math.abs(sgLoadW) > 0);
+    setPip('pip-sg-acout', sgLoadW !== null && Math.abs(sgLoadW) > 0);
 
     var sgMode = getState(entities, ENTITY_IDS.sgMode);
     var sgFail = getState(entities, ENTITY_IDS.sgFail);
@@ -587,27 +623,26 @@
     setValue('val-sg-mode', sgMode ? 'mode ' + sgMode : 'mode --');
     var faultOn = sgFault === 'on' || sgFault === 'true';
     setValue('val-sg-fault', faultOn ? 'fault on' : (sgFail && sgFail !== '0' ? 'fail ' + sgFail : 'fault off'));
-    setPip('pip-sg-inv', !demo && ((sgBattW !== null && Math.abs(sgBattW) > 0) || (sgLoadW !== null && sgLoadW > 0) || faultOn));
+    setPip('pip-sg-inv', (sgBattW !== null && Math.abs(sgBattW) > 0) || (sgLoadW !== null && sgLoadW > 0) || faultOn);
 
     renderEm16Meters(entities);
 
     var ai = snapshot.ai || {};
-    var thinking = ai.thinking;
-    if (demo && thinking) thinking = 'DEMO snapshot: ' + thinking;
-    setText('ai-thinking', thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
+    setText('ai-thinking', ai.thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
     renderMetrics(ai);
     renderDecisions(ai.decisions);
 
-    var acBusW = hasSoak && totalSoak > 0 ? totalSoak : null;
+    var simBusW = hasDump && totalDump > 0 ? totalDump : null;
     var mpptBattHopW = mpptToBattHopW(entities, solarW);
     updateHopLabels({
       solarW: solarW,
       mpptBattHopW: mpptBattHopW,
       batt2W: batt2W,
-      em16W: em16W,
-      acBusW: acBusW,
+      panelW: panelW,
+      b3W: b3W,
+      utiW: utiW,
+      simBusW: simBusW,
       plugWs: plugWs,
-      outletW: outletW,
       sgPvW: sgPvW,
       sgBattW: sgBattW,
       sgLoadW: sgLoadW
@@ -616,31 +651,24 @@
       solarW: solarW,
       batt1W: batt1W,
       batt2W: batt2W,
-      em16W: em16W,
-      plugTotal: totalSoak,
+      panelW: panelW,
+      b3W: b3W,
+      utiW: utiW,
+      plugTotal: totalDump,
       anyPlugOn: anyPlugOn,
       sgPvW: sgPvW,
       sgBattW: sgBattW,
-      sgGridA: sgGridA,
-      sgGridV: sgGridV,
-      outletW: outletW,
       sgLoadW: sgLoadW
     });
     setPip(
       'pip-inverter',
-      !demo && (totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0) || (outletW !== null && outletW > 0))
+      (batt2W !== null && batt2W < 0) || (utiW !== null && utiW > 0)
     );
   }
 
   function setFetchedAt(iso, mode) {
     var el = $('fetched-at');
     if (!el) return;
-    if (mode === 'demo') {
-      el.textContent = 'DEMO not HA';
-      if (iso) el.setAttribute('datetime', iso);
-      else el.removeAttribute('datetime');
-      return;
-    }
     if (!iso) {
       el.textContent = 'no fetch';
       el.removeAttribute('datetime');
@@ -656,29 +684,6 @@
   }
 
   function updateFlows(opts) {
-    if (isDemo()) {
-      setFlow('path-t2-panels-mppt', false, false);
-      setFlow('path-t2-mppt-batt1', false, false);
-      setFlow('path-t2-batt1-renogy', false, false);
-      setFlow('path-ku-panels-chargers', false, false);
-      setFlow('path-ku-chargers-batt2', false, false);
-      setFlow('path-ku-pwm-panels', false, false);
-      setFlow('path-ku-pwm-batt2', false, false);
-      setFlow('path-ku-batt2-inverter', false, false);
-      setFlow('path-inverter-acbus', false, false);
-      setFlow('path-ac-riser', false, false);
-      setFlow('path-ac-em16', false, false);
-      for (var dp = 1; dp <= PLUG_COUNT; dp++) {
-        setFlow('path-ac-plug-' + dp, false, false);
-      }
-      setFlow('path-ku-outlet-sg-acin', false, false);
-      setFlow('path-sg-pv-panels', false, false);
-      setFlow('path-sg-pv-batt', false, false);
-      setFlow('path-sg-batt-inv', false, false);
-      setFlow('path-sg-acin-inv', false, false);
-      setFlow('path-sg-inv-acout', false, false);
-      return;
-    }
     var solarFlow = opts.solarW !== null && opts.solarW > 0;
     var batt1Charge = opts.batt1W !== null && opts.batt1W > 0;
     var batt1Discharge = opts.batt1W !== null && opts.batt1W < 0;
@@ -687,19 +692,25 @@
     setFlow('path-t2-batt1-renogy', false, false);
 
     var batt2Discharge = opts.batt2W !== null && opts.batt2W < 0;
-    var em16Flow = opts.em16W !== null && Math.abs(opts.em16W) > 0;
+    var panelFlow = opts.panelW !== null && opts.panelW > 0;
+    var b3Flow = opts.b3W !== null && opts.b3W > 0;
+    var utiFlow = opts.utiW !== null && opts.utiW > 0;
     var plugLoad = (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
-    var outletFlow = opts.outletW !== null && opts.outletW > 0;
-    setFlow('path-ku-batt2-inverter', batt2Discharge || plugLoad || outletFlow, false);
-    setFlow('path-inverter-acbus', plugLoad, false);
-    setFlow('path-ac-riser', plugLoad, false);
-    setFlow('path-ac-em16', em16Flow, false);
-    setFlow('path-ku-outlet-sg-acin', outletFlow, false);
+    setFlow('path-ku-batt2-inverter', batt2Discharge || utiFlow, false);
+    setFlow('path-ku-renogy-panel', panelFlow || b3Flow || utiFlow, false);
+    setFlow('path-panel-b3', b3Flow || utiFlow, false);
+    setFlow('path-b3-outlet-sg-uti', utiFlow, false);
+    setFlow('path-sg-uti-sph', utiFlow, false);
+    setFlow('path-sim-acbus', plugLoad, false);
+    setFlow('path-sim-riser', plugLoad, false);
     setFlow('path-sg-pv-panels', opts.sgPvW !== null && opts.sgPvW > 0, false);
     setFlow('path-sg-pv-batt', opts.sgPvW !== null && opts.sgPvW > 0, false);
     setFlow('path-sg-batt-inv', opts.sgBattW !== null && Math.abs(opts.sgBattW) > 0, false);
-    setFlow('path-sg-acin-inv', outletFlow, false);
-    setFlow('path-sg-inv-acout', opts.sgLoadW !== null && opts.sgLoadW > 0, false);
+    setFlow(
+      'path-sg-inv-acout',
+      (opts.sgLoadW !== null && opts.sgLoadW > 0) || plugLoad,
+      false
+    );
   }
 
   function formatHistoryTime(iso) {
@@ -818,9 +829,9 @@
         is_current: true
       };
     }
-    if (isDemo()) {
+    if (!isPlantLive()) {
       if ($('history-status')) {
-        $('history-status').textContent = 'history unavailable in demo mode';
+        $('history-status').textContent = 'history unavailable without HA token';
       }
       renderSparkline([]);
       renderHistoryTable([], currentRow);
@@ -873,8 +884,69 @@
     }
   }
 
+  function readStoredView() {
+    try {
+      var stored = localStorage.getItem(VIEW_STORAGE_KEY);
+      if (stored === 'production' || stored === 'demo') {
+        return stored;
+      }
+    } catch (err) {
+      /* SecurityError or file: URL */
+    }
+    return 'production';
+  }
+
+  function storeView(view) {
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, view);
+    } catch (err) {
+      /* SecurityError or file: URL */
+    }
+  }
+
+  function setViewToggle(view) {
+    var prodBtn = $('view-production');
+    var demoBtn = $('view-demo');
+    if (prodBtn) {
+      prodBtn.setAttribute('aria-pressed', view === 'production' ? 'true' : 'false');
+    }
+    if (demoBtn) {
+      demoBtn.setAttribute('aria-pressed', view === 'demo' ? 'true' : 'false');
+    }
+  }
+
+  function switchView(view) {
+    if (view !== 'production' && view !== 'demo') {
+      return;
+    }
+    if (view === currentView) {
+      return;
+    }
+    currentView = view;
+    storeView(view);
+    setViewToggle(view);
+    poll();
+  }
+
+  function initViewToggle() {
+    currentView = readStoredView();
+    setViewToggle(currentView);
+    var prodBtn = $('view-production');
+    var demoBtn = $('view-demo');
+    if (prodBtn) {
+      prodBtn.addEventListener('click', function () {
+        switchView('production');
+      });
+    }
+    if (demoBtn) {
+      demoBtn.addEventListener('click', function () {
+        switchView('demo');
+      });
+    }
+  }
+
   function fetchSnapshot() {
-    return fetch('/api/snapshot', {
+    return fetch('/api/snapshot?view=' + encodeURIComponent(currentView), {
       method: 'GET',
       headers: { Accept: 'application/json' },
       cache: 'no-store'
@@ -907,6 +979,7 @@
   function init() {
     updateClock();
     setInterval(updateClock, 1000);
+    initViewToggle();
     initHistoryClicks();
     poll();
     setInterval(poll, POLL_MS);
