@@ -197,6 +197,34 @@ _env_file_get() {
   return 1
 }
 
+_TOKEN_ENV_KEYS=(
+  HA_TOKEN
+  HA_LONG_LIVED_TOKEN
+  HOMEASSISTANT_TOKEN
+  HASS_TOKEN
+  LONG_LIVED_ACCESS_TOKEN
+  HA_LONG_LIVED_ACCESS_TOKEN
+)
+_TOKEN_FILE_ENV_KEYS=(
+  HA_TOKEN_FILE
+  HA_LONG_LIVED_TOKEN_FILE
+  HOMEASSISTANT_TOKEN_FILE
+  HASS_TOKEN_FILE
+)
+
+_list_env_key_names() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local keys
+  keys="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$file" 2>/dev/null | cut -d= -f1 | sort -u | tr '\n' ' ')"
+  keys="${keys%"${keys##*[![:space:]]}"}"
+  if [[ -n "$keys" ]]; then
+    _v "env-file ${file} key names (values redacted): ${keys}"
+  else
+    _v "env-file ${file}: no KEY= lines"
+  fi
+}
+
 _try_env_file() {
   local file="$1"
   if [[ ! -f "$file" ]]; then
@@ -204,24 +232,27 @@ _try_env_file() {
     return 1
   fi
   _v "check env-file: ${file}"
-  local path_ref token
-  path_ref="$(_env_file_get "$file" "HA_TOKEN_FILE" || true)"
-  if [[ -z "${path_ref:-}" ]]; then
-    path_ref="$(_env_file_get "$file" "HA_LONG_LIVED_TOKEN_FILE" || true)"
-  fi
-  if [[ -n "${path_ref:-}" ]]; then
-    _v "env-file ${file}: HA_*TOKEN*_FILE → ${path_ref}"
-    if _try_token_file "$path_ref"; then
-      return 0
+  _list_env_key_names "$file"
+  local path_ref token key
+  for key in "${_TOKEN_FILE_ENV_KEYS[@]}"; do
+    path_ref="$(_env_file_get "$file" "$key" || true)"
+    if [[ -n "${path_ref:-}" ]]; then
+      _v "env-file ${file}: ${key} → ${path_ref}"
+      if _try_token_file "$path_ref"; then
+        return 0
+      fi
     fi
-  fi
-  token="$(_env_file_get "$file" "HA_TOKEN" || true)"
-  if [[ -n "${token:-}" ]]; then
-    _v "hit env-file key HA_TOKEN: ${file}"
-    _install_token_text "$token" "${file}:HA_TOKEN"
-    return 0
-  fi
-  _v "no HA_TOKEN keys in: ${file}"
+  done
+  for key in "${_TOKEN_ENV_KEYS[@]}"; do
+    token="$(_env_file_get "$file" "$key" || true)"
+    if [[ -n "${token:-}" ]]; then
+      _v "hit env-file key ${key}: ${file}"
+      if _install_token_text "$token" "${file}:${key}"; then
+        return 0
+      fi
+    fi
+  done
+  _v "no usable HA token keys in: ${file}"
   return 1
 }
 
@@ -371,7 +402,7 @@ for e in \
   /root/.config/ha.env
 do
   [[ -f "$e" ]] || continue
-  if grep -Eq '^[[:space:]]*(HA_TOKEN_FILE|HA_LONG_LIVED_TOKEN_FILE|HA_TOKEN)=' "$e" 2>/dev/null; then
+  if grep -Eq '^[[:space:]]*(HA_TOKEN_FILE|HA_LONG_LIVED_TOKEN_FILE|HA_TOKEN|HA_LONG_LIVED_TOKEN|HOMEASSISTANT_TOKEN|HASS_TOKEN|LONG_LIVED_ACCESS_TOKEN|HA_LONG_LIVED_ACCESS_TOKEN)=' "$e" 2>/dev/null; then
     printf 'ENV|%s\n' "$e"
     exit 0
   fi
@@ -404,26 +435,12 @@ REMOTE
         _v "failed to fetch remote env: ${remote_path}"
         return 1
       fi
-      path_ref="$(_env_file_get "$tmp_env" "HA_TOKEN_FILE" || true)"
-      if [[ -z "${path_ref:-}" ]]; then
-        path_ref="$(_env_file_get "$tmp_env" "HA_LONG_LIVED_TOKEN_FILE" || true)"
-      fi
-      if [[ -n "${path_ref:-}" ]]; then
-        _v "remote env ${remote_path}: HA_*TOKEN*_FILE → ${path_ref}"
-        remote_body="$(_normalize_token "$(_remote_cat "$target" "$path_ref" || true)")"
-        if [[ -n "$remote_body" ]]; then
-          rm -f "$tmp_env"
-          _install_token_text "$remote_body" "${target}:${path_ref}"
-          return 0
-        fi
-        _v "remote HA_*TOKEN*_FILE unreadable/empty: ${path_ref}"
-      fi
-      tok="$(_env_file_get "$tmp_env" "HA_TOKEN" || true)"
-      rm -f "$tmp_env"
-      if [[ -n "${tok:-}" ]]; then
-        _install_token_text "$tok" "${target}:${remote_path}:HA_TOKEN"
+      if _try_env_file "$tmp_env"; then
+        # _try_env_file writes DEST with label like file:KEY — rewrite message is fine
+        rm -f "$tmp_env"
         return 0
       fi
+      rm -f "$tmp_env"
       _v "remote env had no usable token: ${remote_path}"
       return 1
       ;;
@@ -587,17 +604,18 @@ if _try_remote_ha_token_host "$HA_TOKEN_HOST" "$HA_TOKEN_SSH_USER"; then
 fi
 
 echo "WARN: no existing HA long-lived token found for ${DEST}" >&2
-echo "WARN: searched local env/files under /opt/homeassistant /home/ansible /opt/stacks /run/secrets," >&2
-echo "WARN:   host105-ai.env, alfa-ai .env, systemd EnvironmentFile, then ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST}" >&2
-echo "WARN: token is NOT in the victron git clone — it lives on .105 disk secrets (host105-ai.env /" >&2
-echo "WARN:   /opt/homeassistant/secrets / alfa-ai secrets). On web-sites, ensure BatchMode ssh works:" >&2
-echo "WARN:   ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST} true" >&2
-echo "WARN: or run the linker on .105 and scp the dest file here." >&2
-echo "WARN: locate candidates on .105 (paths only):" >&2
-echo "  ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST} \"sudo grep -RIl --exclude-dir=.git --exclude-dir=.storage 'HA_TOKEN\\|long.lived' /home/ansible /opt/homeassistant 2>/dev/null | head\"" >&2
-echo "WARN: last resort — create once in HA (Profile → Long-lived access tokens), then:" >&2
+if _host_is_local "$HA_TOKEN_HOST"; then
+  echo "WARN: this machine IS ${HA_TOKEN_HOST} (web-sites / .105) — there is no remote host to copy from." >&2
+  echo "WARN: host105-ai.env / alfa-ai .env exist but have no HA_TOKEN* keys; no *.token secret file on disk." >&2
+  echo "WARN: create ONE long-lived token in HA (Profile → Security → Long-lived access tokens), then:" >&2
+else
+  echo "WARN: searched local paths, then ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST}" >&2
+  echo "WARN: ensure BatchMode ssh: ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST} true" >&2
+  echo "WARN: or create a token in HA and write it here:" >&2
+fi
 echo "  sudo mkdir -p $(dirname "$DEST")" >&2
 echo "  sudo tee $DEST >/dev/null   # paste one line, Ctrl-D" >&2
 echo "  sudo chmod 600 $DEST" >&2
-echo "WARN: then re-run: sudo bash scripts/solar_flow_link_ha_token.sh -v" >&2
+echo "  sudo systemctl restart solar-flow.service" >&2
+echo "WARN: confirm live: curl -fsS http://127.0.0.1:8765/api/snapshot | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"mode\"])'" >&2
 exit 1
