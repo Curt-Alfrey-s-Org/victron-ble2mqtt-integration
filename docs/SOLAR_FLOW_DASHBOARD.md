@@ -67,9 +67,33 @@ The Python proxy holds the long-lived token server-side only
 
 **Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN (or
 `127.0.0.1:8123` when the diagram runs on the same host as HA). Token file on disk
-(gitignored) — create per alfa-ai
+(gitignored) at `/opt/homeassistant/secrets/ha_long_lived.token`.
+
+**Do not hunt in the HA UI first.** On `web-sites` / `.105`, link an existing site
+token (alfa-ai / `host105-ai.env` / other `*.token` files) into the path solar-flow
+expects:
+
+```bash
+cd /path/to/victron-ble2mqtt-integration
+sudo bash scripts/solar_flow_link_ha_token.sh
+# or full Tailscale enable (calls link automatically):
+sudo bash scripts/solar_flow_enable_tailscale.sh
+```
+
+**Search order** (`scripts/solar_flow_link_ha_token.sh`):
+
+1. Dest already present: `/opt/homeassistant/secrets/ha_long_lived.token`
+2. `HA_TOKEN_FILE` / `HA_LONG_LIVED_TOKEN_FILE` env (readable file)
+3. `HA_TOKEN` env (written to dest)
+4. Known files under `/opt/homeassistant/secrets/`, `/home/ansible/secrets/`, `/home/ansible/alfa-ai/secrets/`
+5. Env files: `/home/ansible/.config/host105-ai.env`, `/home/ansible/alfa-ai/.env` (and similar) for `HA_TOKEN=` / `HA_TOKEN_FILE=`
+6. Shallow `find` of `*.token` under `/opt/homeassistant` and `/home/ansible`
+
+The script prints only `copied N chars from PATH → DEST` (never the token). Mode `600`.
+
+If no source exists yet, create one per alfa-ai
 [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
-(HA UI → Profile → Long-lived access token).
+(HA UI → Profile → Long-lived access token), then re-run the link script.
 
 **Step 1 — From the host running the dashboard** (e.g. `.105` / `web-sites`):
 
@@ -80,14 +104,11 @@ export HA_TOKEN_FILE=/opt/homeassistant/secrets/ha_long_lived.token
 python scripts/solar_flow_server.py
 ```
 
-If the token file is missing, the server starts in **DEMO** mode (static Battery 1
-**29.0 V**, etc.). Create the token file, then restart:
+If the token file is still missing, the server starts in **DEMO** mode (static Battery 1
+**29.0 V**, etc.). After a successful link (or manual paste), restart and verify:
 
 ```bash
-sudo mkdir -p /opt/homeassistant/secrets
-# HA UI → Profile → Long-lived access tokens → Create; paste one line:
-sudo tee /opt/homeassistant/secrets/ha_long_lived.token >/dev/null
-sudo chmod 600 /opt/homeassistant/secrets/ha_long_lived.token
+sudo bash scripts/solar_flow_link_ha_token.sh
 sudo systemctl restart solar-flow.service   # when using the systemd unit
 curl -fsS http://127.0.0.1:8765/api/snapshot | python3 -c \
   'import json,sys; d=json.load(sys.stdin); print(d["mode"], d["entities"]["sensor.battery_1_voltage"]["state"])'

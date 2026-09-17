@@ -7,16 +7,16 @@
 #      MagicDNS HTTPS URL (tailnet only — not Funnel / public internet).
 #   3. Prints the exact URL(s) to open on phone or laptop with Tailscale on.
 #
-# Prerequisites on .105:
+# Prerequisites on .105 / web-sites:
 #   - Tailscale installed and `tailscale status` online
-#   - HA long-lived token at HA_TOKEN_FILE (or HA_LONG_LIVED_TOKEN_FILE)
+#   - HA long-lived token somewhere on the host (auto-linked into HA_TOKEN_FILE)
 #   - This repo checked out (REPO_ROOT)
 #
 # Official:
 #   https://tailscale.com/docs/features/tailscale-serve
 #   https://tailscale.com/docs/reference/tailscale-cli/serve
 #
-# Usage (on .105):
+# Usage (on .105 / web-sites):
 #   sudo bash scripts/solar_flow_enable_tailscale.sh
 #   # then open the printed https://....ts.net/ URL on the phone
 
@@ -28,6 +28,7 @@ UNIT_SRC="$ROOT_DIR/systemd/solar-flow.service"
 UNIT_DST="/etc/systemd/system/solar-flow.service"
 TOKEN_FILE="${HA_TOKEN_FILE:-${HA_LONG_LIVED_TOKEN_FILE:-/opt/homeassistant/secrets/ha_long_lived.token}}"
 HA_BASE_URL="${HA_BASE_URL:-http://127.0.0.1:8123}"
+LINK_TOKEN_SCRIPT="$ROOT_DIR/scripts/solar_flow_link_ha_token.sh"
 
 die() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -43,9 +44,21 @@ if ! tailscale status >/dev/null 2>&1; then
   die "tailscale is not up — run: sudo tailscale up"
 fi
 
-if [[ ! -f "$TOKEN_FILE" ]]; then
-  echo "WARN: token file missing ($TOKEN_FILE). Server will start in DEMO mode until you create it." >&2
+# Auto-discover an existing site token and copy into the solar-flow path (no HA UI hunt).
+if [[ -x "$LINK_TOKEN_SCRIPT" || -f "$LINK_TOKEN_SCRIPT" ]]; then
+  echo "[solar-flow] Linking HA long-lived token (auto-discover) ..."
+  # Prefer the canonical dest; allow link script to find sources even when TOKEN_FILE unset.
+  if SOLAR_FLOW_HA_TOKEN_DEST="$TOKEN_FILE" bash "$LINK_TOKEN_SCRIPT"; then
+    :
+  else
+    echo "WARN: could not auto-link token → $TOKEN_FILE (diagram may start in DEMO)." >&2
+  fi
+fi
+
+if [[ ! -f "$TOKEN_FILE" ]] || [[ ! -s "$TOKEN_FILE" ]]; then
+  echo "WARN: token file missing ($TOKEN_FILE). Server will start in DEMO mode until a source is found." >&2
   echo "WARN: DEMO Battery 1 voltage (~29.0 V) is a placeholder — not live HA." >&2
+  echo "WARN: re-run: sudo bash $LINK_TOKEN_SCRIPT" >&2
 fi
 
 if [[ ! -f "$UNIT_SRC" ]]; then
@@ -85,10 +98,12 @@ if [[ "$snap_mode" == "live" ]]; then
 elif [[ "$snap_mode" == "demo" ]]; then
   echo >&2
   echo "=== DEMO MODE — Battery 1 ~29.0 V is a placeholder, not live HA ===" >&2
-  echo "Create a long-lived token in HA (Profile → Long-lived access tokens), then:" >&2
+  echo "Auto-link failed (or no source on this host). Prefer:" >&2
+  echo "  sudo bash ${LINK_TOKEN_SCRIPT}" >&2
+  echo "That copies from host105-ai.env / alfa-ai secrets / known *.token paths." >&2
+  echo "Only if nothing exists yet — HA Profile → Long-lived access tokens, then:" >&2
   echo "  sudo mkdir -p $(dirname "$TOKEN_FILE")" >&2
-  echo "  # paste the token as a single line (no quotes):" >&2
-  echo "  sudo tee $TOKEN_FILE >/dev/null" >&2
+  echo "  sudo tee $TOKEN_FILE >/dev/null   # paste one line, Ctrl-D" >&2
   echo "  sudo chmod 600 $TOKEN_FILE" >&2
   echo "  sudo systemctl restart solar-flow.service" >&2
   echo "  curl -fsS http://127.0.0.1:${PORT}/api/snapshot | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[\"mode\"], d[\"entities\"].get(\"sensor.battery_1_voltage\",{}).get(\"state\"))'" >&2
