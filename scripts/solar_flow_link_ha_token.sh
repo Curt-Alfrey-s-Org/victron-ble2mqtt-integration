@@ -601,25 +601,49 @@ for root in "${roots[@]}"; do
     \) -type f ! -path '*/.git/*' ! -path '*/scripts/*' ! -path '*/tests/*' -print0 2>/dev/null || true)
 done
 
-# --- 8. Remote .105 (or HA_TOKEN_HOST) when diagram host ≠ HA host ---
-_v "local search empty — trying remote HA_TOKEN_HOST=${HA_TOKEN_HOST} user=${HA_TOKEN_SSH_USER}"
-if _try_remote_ha_token_host "$HA_TOKEN_HOST" "$HA_TOKEN_SSH_USER"; then
-  exit 0
-fi
+# --- 8. Remote hosts when local search is empty (.105 HA box, then .93 / extras) ---
+_v "local search empty — trying remote hosts"
+remote_tried=0
+remote_hosts=()
+[[ -n "${HA_TOKEN_HOST}" ]] && remote_hosts+=("${HA_TOKEN_HOST}")
+IFS=':' read -r -a _extra_hosts <<<"${HA_TOKEN_EXTRA_HOSTS}"
+for h in "${_extra_hosts[@]}"; do
+  [[ -n "$h" ]] || continue
+  remote_hosts+=("$h")
+done
+# de-dupe
+seen_h=""
+for h in "${remote_hosts[@]}"; do
+  case " $seen_h " in
+    *" $h "*) continue ;;
+  esac
+  seen_h+=" $h"
+  user="$HA_TOKEN_SSH_USER"
+  if [[ "$h" == "192.168.0.93" || "$h" == *.93 ]]; then
+    user="${HA_TOKEN_SSH_USER_93}"
+  fi
+  _v "try remote host ${user}@${h}"
+  remote_tried=1
+  if _try_remote_ha_token_host "$h" "$user"; then
+    exit 0
+  fi
+done
+[[ "$remote_tried" == "1" ]] || _v "no remote hosts configured"
 
 echo "WARN: no existing HA long-lived token found for ${DEST}" >&2
 if _host_is_local "$HA_TOKEN_HOST"; then
-  echo "WARN: this machine IS ${HA_TOKEN_HOST} (web-sites / .105) — there is no remote host to copy from." >&2
-  echo "WARN: host105-ai.env / alfa-ai .env exist but have no HA_TOKEN* keys; no *.token secret file on disk." >&2
+  echo "WARN: this machine IS ${HA_TOKEN_HOST} (web-sites / .105) — local disk has no HA_TOKEN* yet." >&2
+  echo "WARN: also checked extra hosts: ${HA_TOKEN_EXTRA_HOSTS:-none} (BatchMode ssh)." >&2
   echo "WARN: create ONE long-lived token in HA (Profile → Security → Long-lived access tokens), then:" >&2
 else
-  echo "WARN: searched local paths, then ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST}" >&2
-  echo "WARN: ensure BatchMode ssh: ssh ${HA_TOKEN_SSH_USER}@${HA_TOKEN_HOST} true" >&2
-  echo "WARN: or create a token in HA and write it here:" >&2
+  echo "WARN: searched local paths, then ssh to ${HA_TOKEN_HOST} and ${HA_TOKEN_EXTRA_HOSTS}" >&2
+  echo "WARN: ensure BatchMode ssh works, or create a token in HA and write it here:" >&2
 fi
 echo "  sudo mkdir -p $(dirname "$DEST")" >&2
 echo "  sudo tee $DEST >/dev/null   # paste one line, Ctrl-D" >&2
 echo "  sudo chmod 600 $DEST" >&2
 echo "  sudo systemctl restart solar-flow.service" >&2
+echo "WARN: probe .93 key names only (no values):" >&2
+echo "  ssh ${HA_TOKEN_SSH_USER_93}@192.168.0.93 \"grep -E '^[A-Za-z_][A-Za-z0-9_]*=' /home/ansible/.config/host105-ai.env /home/*/alfa-ai/.env 2>/dev/null | cut -d= -f1 | sort -u\"" >&2
 echo "WARN: confirm live: curl -fsS http://127.0.0.1:8765/api/snapshot | python3 -c 'import json,sys; print(json.load(sys.stdin)[\"mode\"])'" >&2
 exit 1
