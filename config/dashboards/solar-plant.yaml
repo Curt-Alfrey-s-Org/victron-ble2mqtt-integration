@@ -224,7 +224,7 @@ views:
 
       - type: history-graph
         title: Watts
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.solar_controller_solar
             name: T2 MPPT
@@ -245,7 +245,7 @@ views:
 
       - type: history-graph
         title: Watts (chargers)
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.ku_unmetered_pv_est_power
             name: KU PV est.
@@ -258,7 +258,7 @@ views:
 
       - type: history-graph
         title: Volts
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.battery_1_voltage
             name: Battery 1
@@ -277,7 +277,7 @@ views:
 
       - type: history-graph
         title: Amps
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.battery_1_current
             name: Battery 1
@@ -296,7 +296,7 @@ views:
 
       - type: history-graph
         title: SoC / %
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.battery_1_state_of_charge
             name: Battery 1 SoC
@@ -313,7 +313,7 @@ views:
 
       - type: history-graph
         title: Temperature
-        hours_to_show: 12
+        hours_to_show: 72
         entities:
           - entity: sensor.417373300314_temperature
             name: Trailer temp
@@ -329,7 +329,7 @@ views:
       - type: statistics-graph
         title: kWh
         chart_type: line
-        days_to_show: 1
+        days_to_show: 7
         period: hour
         entities:
           - entity: sensor.t2_mppt_energy_kwh

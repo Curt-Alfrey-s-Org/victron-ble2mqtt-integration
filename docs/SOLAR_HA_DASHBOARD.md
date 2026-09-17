@@ -200,7 +200,27 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 | Temperature | `sensor.417373300314_temperature`, hygrometer tempc, Sungold batt/heatsink temps |
 | kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + trailer + Sungold load + sim dump energy helpers |
 
-`hours_to_show: 12` on history-graph. After YAML copy, dashboard three-dots **Refresh**.
+`hours_to_show: 72` on history-graph ([history graph](https://www.home-assistant.io/dashboards/history-graph/); minimum 1 hour).
+`days_to_show: 7` on the kWh statistics-graph ([statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/); minimum 1 day).
+After YAML copy, dashboard three-dots **Refresh** (not only the browser reload).
+
+This HA has no `default_config:`. Recorder/history started when `recorder:` / `history:` were appended
+([Recorder](https://www.home-assistant.io/integrations/recorder/) `purge_keep_days` default **10** if unset).
+States history cannot pre-date that. Long-term statistics (hourly) are kept for sensors with
+`state_class` `measurement`, `total`, or `total_increasing` and are never purged
+([History](https://www.home-assistant.io/integrations/history/)).
+
+**History sidebar (longer range than the card):** left sidebar **History** (built-in History dashboard),
+pick the MPPT entities, then set the time frame
+([History panel](https://www.home-assistant.io/integrations/history/#exporting-data-from-the-history-panel),
+[History dashboard](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard)).
+
+Do **not** treat `sensor.solar_controller_yield_today` as multi-day kWh. It is Victron Instant Readout
+**yield today** (Wh, resets each day; `state_class: total_increasing` is valid for a daily meter)
+([BlueSolar monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html)).
+Multi-day energy in HA is `sensor.t2_mppt_energy_kwh` (Riemann integral, `state_class: total`).
+Days before recorder existed are not in HA; VictronConnect **History** on the charger still holds
+the last 30 daily yield bars.
 
 ---
 
