@@ -44,7 +44,8 @@ def test_package_has_riemann_integrals() -> None:
     sources = {row["source"] for row in platforms}
     assert "sensor.solar_controller_solar" in sources
     assert "sensor.battery_1_charge_power" in sources
-    assert "sensor.em16_a3_power" in sources
+    assert "sensor.trailer_outlet_power" in sources
+    assert "sensor.em16_a3_power" not in sources
     assert "sensor.sim_dump_load_power" in sources
     for row in platforms:
         assert row["platform"] == "integration"

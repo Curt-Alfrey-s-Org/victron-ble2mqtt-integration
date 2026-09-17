@@ -111,12 +111,18 @@ appear:
 | Solar | `sensor.solar_controller_solar` | `sensor.t2_mppt_energy_kwh` |
 | Battery T2 | charge `sensor.battery_1_charge_power`, discharge `sensor.battery_1_discharge_power` | matching `*_energy_kwh` |
 | Battery KU | charge/discharge `sensor.battery_2_*` | matching `*_energy_kwh` |
-| Device: trailer A/C | `sensor.em16_a3_power` (magnitude / load) | `sensor.em16_a3_energy_kwh` |
+| Device: trailer A/C | `sensor.trailer_outlet_power` (always >= 0 W) | `sensor.em16_a3_energy_kwh` |
 | Device: sim dump | `sensor.sim_dump_load_power` | `sensor.sim_dump_energy_kwh` |
 | Device: Sungold A/C out | `sensor.sungold_sph302480a_load_active_power` | `sensor.sungold_load_energy_kwh` |
 
 Do **not** configure EM16 A3 as the electricity **grid**. This site is not on
 utility import. Do **not** add KU equal-share as a second solar source (double-count).
+
+`sensor.em16_a3_power` is a signed CT. Integrating it made `sensor.em16_a3_energy_kwh`
+negative (`-0.02` kWh) and Energy warned that individual devices need a positive
+state. The integral source is `sensor.trailer_outlet_power` (absolute watts). If
+the warning remains, adjust that entity in
+[Settings > Tools > Statistics](https://www.home-assistant.io/docs/energy/faq/#why-is-my-energy-dashboard-showing-inflated-totals).
 
 Integral sensors use Riemann **left** + `max_sub_interval` 5 minutes per the
 [Integral energy example](https://www.home-assistant.io/integrations/integration/#energy).

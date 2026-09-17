@@ -133,8 +133,11 @@ sensor:
     method: left
     max_sub_interval:
       minutes: 5
+  # Trailer A/C kWh: trailer_outlet_power is abs(W). Do not integrate signed
+  # sensor.em16_a3_power -- Energy individual devices require a nonnegative state
+  # https://www.home-assistant.io/integrations/integration/#energy
   - platform: integration
-    source: sensor.em16_a3_power
+    source: sensor.trailer_outlet_power
     name: EM16 A3 energy kWh
     unique_id: em16_a3_energy_kwh
     unit_prefix: k
