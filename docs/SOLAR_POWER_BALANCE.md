@@ -34,20 +34,21 @@ Sungold cart (not on T2 or KU)
 
 **Solar-flow Overview (operator 16 Sep 2026):** the local GX-style page
 ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) now shows **data tiles** for
-Sungold, KU PWM, and both Renogy inverters. Physics is unchanged on **DC**: Sungold stays
-off T2/KU battery negatives. **AC:** operator 16 Sep -- Sungold **AC INPUT** is plugged
-into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold AC-in). PWM and Renogy
+Sungold, KU PWM, and both Renogy inverters. Physics is unchanged on **D/C**: Sungold stays
+off T2/KU battery negatives. **A/C:** operator 16 Sep -- Sungold **A/C INPUT** is plugged
+into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold A/C-in). PWM and Renogy
 inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
-Do not merge Sungold DC into T2/KU. Do not print 2x T2 watts as live KU Victron.
-Dashboard hop policy (16 Sep evening, updated): KU Renogy tile stays **-- W** (no HA
-inverter entity). **A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). **B3** =
+Do not merge Sungold D/C into T2/KU. Do not print 2x T2 watts as live KU Victron.
+Dashboard hop policy: KU Renogy tile shows **0 W** (no HA inverter entity; never `-- W`).
+**A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). **B3** =
 breaker feeding the Sungold outlet (`path-panel-b3`, \|B3\| or A3 fallback while Sungold
 is the only outlet load). **UTI hop** (`path-b3-outlet-sg-uti`, `path-sg-uti-sph`) uses
-B3/A3 or Sungold `grid_*`. **Dump loads** (operator): fed from **Sungold AC out** (SPH
-INV OUTPUT / `node-sg-acout`, `sensor.sungold_sph302480a_load_active_power` per
+B3/A3 or Sungold `grid_*`. **Dump loads** (Morningstar diversion; not "soak"): fed from
+**Sungold A/C out** (SPH INV OUTPUT / `node-sg-acout`,
+`sensor.sungold_sph302480a_load_active_power` per
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
-from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or unmetered) -- branch
-starts at Sungold AC out, never A3/B3/UTI. Do **not** add A3+B2. See
+from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or **0 W**) -- branch
+starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. See
 [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.

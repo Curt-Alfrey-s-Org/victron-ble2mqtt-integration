@@ -66,14 +66,20 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 
 **MagicDNS:** In the Tailscale admin console, enable MagicDNS if you want the name form instead of remembering the `100.x` address.
 
-## 4. Home Wi‑Fi vs away
+## 4. Home Wi-Fi vs away
 
-| Where you are | How to open HA |
-|---------------|----------------|
-| Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) |
-| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** |
+| Where you are | How to open HA | How to open solar flow |
+|---------------|----------------|------------------------|
+| Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) | `http://YOUR-LAN-IP:8765` |
+| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** | `http://YOUR-TAILSCALE-NAME:8765` (same name, port **8765**) |
 
-Both talk to the **same** Home Assistant. You are not duplicating the stack.
+Both HA URLs talk to the **same** Home Assistant. Both solar-flow URLs talk to the **same**
+`solar-flow.service` on `.105` ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)). You are
+not duplicating either stack. `127.0.0.1` is not a Tailscale address.
+
+Optional: [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) may proxy
+HTTPS `/` on `.105` to `http://127.0.0.1:8765`. That is the same solar-flow process. Do not
+enable Funnel. Do not commit the Serve FQDN.
 
 ## Troubleshooting
 

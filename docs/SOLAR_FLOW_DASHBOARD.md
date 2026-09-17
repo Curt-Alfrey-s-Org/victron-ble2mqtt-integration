@@ -1,8 +1,9 @@
 # Solar flow dashboard (Victron GX-style)
 
-**Status:** Operator doc for a **local** live energy-flow page served from this repo.
-Implementation: `scripts/solar_flow_server.py` + static assets (sibling work). No Lovelace
-scrape. No HA token in the browser or git.
+**Status:** Operator doc for the GX-style energy-flow page. **Production** runs on
+**`.105`** next to Home Assistant: one process, one LAN URL, one Tailscale URL
+(same port), same data. Implementation: `scripts/solar_flow_server.py` + static
+assets. No Lovelace scrape. No HA token in the browser or git.
 
 **Official references (RULE #1):**
 
@@ -29,8 +30,8 @@ A **Victron GX Overview**-style single-page view of this site's 24 V plant:
 |-----------|-----------|
 | **Left — sources** | T2 MPPT (live HA reporter, all BlueSolar datapoints). KU Victron chargers 2-3: **grey unmetered** (no live W; do not print 2x T2 as a reading). KU Renogy PWM: **grey unmetered** (not in HA). |
 | **Centre — storage** | Two LiTime 24 V packs: T2 (`HQ2239CQYT2`) and KU (`HQ2239JTRKU`). Jumper is not a numbered bus. |
-| **Right — loads** | KU Renogy AC path (**-- W**, no HA inverter) through **cargo-trailer breaker panel** (Refoss EM16): **A3 hot leg**, **B3 Sungold-outlet breaker**, trailer outlet, **Sungold UTI / AC INPUT**, then SPH, then **Sungold AC out** ([reprint §4.1 INV OUTPUT LOAD](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). **Sim dump load** plugs 1-6 sit in a **separate column** fed from Sungold AC out (not trailer outlets; not a branch from KU Renogy). T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
-| **Sungold cart (AC from KU outlet)** | SPH302480A + 2x 100 Ah. **DC stays off T2/KU.** Operator (16 Sep): **AC input is plugged into a KU Renogy trailer outlet.** Draw that AC hop on the Overview (not a disconnected island). Live MQTT when the sidecar is up. |
+| **Right — loads** | KU Renogy **A/C** path (**0 W** when no inverter entity) through **cargo-trailer breaker panel** (Refoss EM16): **A3 hot leg**, **B3 Sungold-outlet breaker**, trailer outlet, **Sungold UTI / A/C INPUT**, then SPH, then **Sungold A/C out** ([reprint §4.1 INV OUTPUT LOAD](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). **Sim dump load** plugs 1-6 sit in a **separate column** fed from Sungold A/C out (not trailer outlets; not a branch from KU Renogy). T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
+| **Sungold cart (A/C from KU outlet)** | SPH302480A + 2x 100 Ah. **D/C stays off T2/KU.** Operator (16 Sep): **A/C input is plugged into a KU Renogy trailer outlet.** Draw that A/C hop on the Overview (not a disconnected island). Live MQTT when the sidecar is up. |
 | **Meters — Refoss** | All EM16 A1-C6 numeric channels as **meters**, not extra loads. **Do not add A3+B2.** |
 
 Dark theme by default (matches GX). Numbers on every node: **W**, **V**, **A**, **SoC %**, MPPT
@@ -49,15 +50,32 @@ stays on alfa-ai; this page is read-only for loads.
 
 ## Topology
 
+Same dual-address pattern as Home Assistant on this host
+([TAILSCALE.md](TAILSCALE.md); HA Linux frontend + ufw:
+[installation/linux](https://www.home-assistant.io/installation/linux/);
+MagicDNS: [Tailscale MagicDNS](https://tailscale.com/docs/features/magicdns);
+connect by name:port:
+[Connect to devices](https://tailscale.com/docs/how-to/connect-to-devices)).
+Do **not** commit the live MagicDNS or `100.x` address.
+
+| Where | Home Assistant | Solar flow (this page) |
+|-------|----------------|------------------------|
+| Home LAN | `http://192.168.0.105:8123` | `http://192.168.0.105:8765` |
+| Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` | `http://YOUR-TAILSCALE-NAME:8765` |
+
+Both solar-flow URLs hit **one** `solar-flow.service` on `.105`. They are not two sites.
+
+`127.0.0.1` is IPv4 loopback on **whichever machine** is running the proxy. It is **not** a Tailscale address. On `.105` it is the local socket Tailscale Serve may proxy; on a laptop it is only that laptop.
+
 ```
-Browser  http://127.0.0.1:8765/
+Browser  LAN :8765  or  Tailscale MagicDNS :8765  (same process)
     |
     v
-scripts/solar_flow_server.py   (this repo clone — any LAN host with Python 3)
-    |  Authorization: Bearer <token from file>
-    |  GET http://192.168.0.105:8123/api/states
+systemd solar-flow.service on .105  (--lan = 0.0.0.0:8765)
+    |  Authorization: Bearer <token from file on .105>
+    |  GET http://127.0.0.1:8123/api/states
     v
-Home Assistant Container (.105:8123)
+Home Assistant Container (.105:8123, host net)
     ^ MQTT / Refoss / Modbus
 Pi4 Victron BLE, optional Sungold, Pi5 Theengs, EM16
 ```
@@ -70,12 +88,47 @@ The Python proxy holds the long-lived token server-side only
 
 ## Operator (one path)
 
-**Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN. Token file
-on disk (gitignored) — create per alfa-ai
-[HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
-(HA UI → Profile → Long-lived access token).
+**Production** is systemd on **`.105`** (`systemd/solar-flow.service`):
+[systemd.service](https://manpages.debian.org/bookworm/systemd/systemd.service.5.html)
+`Type=simple`. Bind is `--lan` (`0.0.0.0:8765`) per Python
+[http.server](https://docs.python.org/3/library/http.server.html). Firewall matches HA:
+LAN subnet + `ufw allow in on tailscale0` ([ufw](https://manpages.ubuntu.com/manpages/noble/man8/ufw.8.html)).
+Do **not** `ufw allow 8765/tcp` from the public internet. Do **not** enable Tailscale Funnel.
 
-**Step 1 — From the host running the dashboard** (e.g. `.93` dev box or `.105`):
+**Prerequisites:** victron clone on `.105`. HA up on `127.0.0.1:8123`. Gitignored token at
+`/home/ansible/alfa-ai/deploy/secrets/home-assistant/long-lived.token` (unit `HA_TOKEN_FILE`;
+never in git, chat, or the unit file body). Token creation: alfa-ai
+[HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md).
+
+**Install / refresh the unit** (after `git pull` on `.105`):
+
+```bash
+sudo cp /home/ansible/victron-ble2mqtt-integration/systemd/solar-flow.service /etc/systemd/system/solar-flow.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now solar-flow.service
+```
+
+**ufw** (once; same shape as HA `:8123` on this host):
+
+```bash
+sudo ufw allow from 192.168.0.0/24 to any port 8765 proto tcp comment 'solar-flow LAN'
+sudo ufw allow in on tailscale0 to any port 8765 proto tcp comment 'solar-flow Tailscale'
+```
+
+**Open the page** (placeholders only):
+
+```text
+http://192.168.0.105:8765/
+http://YOUR-TAILSCALE-NAME:8765/
+```
+
+Optional HTTPS on the tailnet: this host may already run
+[Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) proxying `/` to
+`http://127.0.0.1:8765` (Serve only supports that loopback target). That URL is the **same**
+dashboard, not a second copy. Leave Serve as-is unless the operator removes it. Never Funnel.
+
+**Ad-hoc / laptop** (not production): Python 3.11+ in this clone; token on disk; bind stays
+localhost unless you pass `--lan`:
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
@@ -84,14 +137,7 @@ export HA_TOKEN_FILE=/path/to/long-lived.token
 python scripts/solar_flow_server.py
 ```
 
-**Step 2 —** Open in a local browser:
-
-```text
-http://127.0.0.1:8765/
-```
-
-Default bind is **localhost only** (`127.0.0.1:8765`). Do not expose the server to the public
-internet without an explicit operator change.
+Then `http://127.0.0.1:8765/` on **that** machine only.
 
 The browser polls `GET /api/snapshot?view=production` or `?view=demo` every **2 s** with
 `cache: 'no-store'`. The proxy sends `Cache-Control: no-store`
@@ -258,8 +304,8 @@ substitute. Pips and wires follow numeric V/A/W and switch ON only.
 
 | Node | Live HA / display | Notes |
 |------|-------------------|-------|
-| **T2 Renogy 2 kW** | **No inverter entity.** Grey `--` W. EM16 A2/B4 are **candidate** idle watts on the meter bank, not confirmed inverter W | 30A RV outlet. Idle if no RV. Do not treat A2 as a second site load. |
-| **KU Renogy 2 kW** | **No inverter entity.** Tile stays **-- W** (unmetered). Do **not** paint EM16 A3 onto this node. | Feeds the **cargo-trailer breaker panel** (ATS / manual TS). |
+| **T2 Renogy 2 kW** | **No inverter entity.** Tile **0 W**. EM16 A2/B4 are **candidate** idle watts on the meter bank, not confirmed inverter W | 30A RV outlet. Idle if no RV. Do not treat A2 as a second site load. |
+| **KU Renogy 2 kW** | **No inverter entity.** Tile **0 W** (unmetered). Do **not** paint EM16 A3 onto this node. | Feeds the **cargo-trailer breaker panel** (ATS / manual TS). |
 | **Breaker panel (Refoss)** | A3 on the incoming hot leg: `sensor.em16_a3_power` (+ V/A). Meter strip for A1-C6. | Physical home of the EM16 in the cargo-trailer panel. Label **Cargo trailer panel**. [EM16](https://www.home-assistant.io/integrations/refoss/). |
 | **B3 breaker** | `sensor.em16_b3_power` (+ V/A) when present; hop falls back to \|A3\| while Sungold is the only outlet load | Breaker that feeds the outlet Sungold is plugged into. Highlight on the diagram and in the meter bank. |
 | **Trailer outlet** | Unmetered node. | Fed by B3. **Operator 16 Sep evening:** only Sungold plugged in. |
@@ -275,13 +321,13 @@ SPH302480A LCD names: [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md),
 mains-side on the hybrid ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
 and on this site is the **KU Renogy outlet**, not a utility meter.
 
-Put Sungold **on the same Overview as the trailer AC path**. Do not hide it below the
-fold as an unrelated island. **Layout (16 Sep evening, readability pass):** one left-to-right AC chain after KU
-Renogy -- **panel (A3 hot leg), B3 breaker, trailer outlet, Sungold UTI** -- with hop
-watt labels in **gutters** between tiles (not on top of nodes). Sim dump loads are a **separate
-column** (`Sim dump loads` banner) fed from **Sungold AC out** (`node-sg-acout`,
-`sensor.sungold_sph302480a_load_active_power`); it does **not** share the A3/B3/UTI conductors
-and does **not** branch from KU Renogy
+Put Sungold **on the same Overview as the trailer A/C path**. Do not hide it below the
+fold as an unrelated island. **Layout:** four **separate SVG lanes** (filled bands, 16px
+vertical gutter) so T2 D/C, KU D/C, KU A/C, and the Sungold cart never share a row.
+Hop watt labels sit in **gutters** between tiles (not on top of nodes). Sim dump loads
+are a **fifth lane** on the right (`Sim dump loads` banner) fed from **Sungold A/C out**
+(`node-sg-acout`, `sensor.sungold_sph302480a_load_active_power`); they do **not** share
+the A3/B3/UTI conductors and do **not** branch from KU Renogy
 ([CSS `gap`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/gap);
 [grid `minmax`](https://developer.mozilla.org/en-US/docs/Web/CSS/Guides/Grid_layout/Basic_concepts);
 GX Overview three regions). SVG `text` uses **`fill`**, not CSS `color`
@@ -289,7 +335,13 @@ GX Overview three regions). SVG `text` uses **`fill`**, not CSS `color`
 Normal-size labels meet [WCAG 2.2 1.4.3 Contrast (Minimum)](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
 (4.5:1 on `#0d1117`). Do **not** copy Victron logos.
 
-`viewBox` **0 0 1480 1020**, `max-width` 1480px. Minimum tile gap **24px**. Primary
+**Watts:** missing or unmetered hop/node watts print **`0 W`**, never `-- W`. Missing
+voltage/current may still print `-- V / -- A`. UI copy is **A/C** and **D/C** plus
+**dump load** / **diversion load** (Morningstar). Do not print draft names such as
+"soak".
+
+`viewBox` **0 0 1480 1116**. CSS `.flow-svg` uses `min-width: 1240px` so the diagram
+scrolls instead of shrinking into overlapping tiles. Minimum tile gap **24px**. Primary
 watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secondary text
 **`#c9d1d9`** on `--bg-deep` (not `#6e7681`).
 
@@ -298,19 +350,29 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | `node-panel` | Cargo-trailer breaker panel (Refoss EM16 home) |
 | `node-b3` | B3 breaker feeding Sungold outlet (highlighted) |
 | `node-trailer-outlet` | Trailer outlet (only Sungold plugged in) |
-| `node-sg-uti` | Sungold UTI / AC INPUT (grid V/A/Hz) |
-| `plugs-column` | Sim dump load plugs 1-6 (x ~1210+, not on A3/B3 wire) |
+| `node-sg-uti` | Sungold UTI / A/C INPUT (grid V/A/Hz) |
+| `plugs-column` | Sim dump load plugs 1-6 (dump lane x ~1096, not on A3/B3 wire) |
 
-**Tile bounding boxes** (SVG user units; horizontal gap = next `x` minus prior `x + width`):
+**Lanes** (SVG user units):
 
-| Element | x | y | width | height | Gap to next |
-|---------|---|---|-------|--------|-------------|
-| `node-panel` | 565 | 310 | 115 | 90 | 30px to B3 |
-| `node-b3` | 710 | 328 | 88 | 64 | 24px to trailer |
-| `node-trailer-outlet` | 822 | 342 | 78 | 40 | 24px to UTI |
-| `node-sg-uti` | 924 | 308 | 148 | 98 | (end of AC chain) |
-| `path-sim-acbus` | 700-1180 | **640** | -- | -- | from `node-sg-acout` right edge to sim riser |
-| plug tiles 1-6 | 1210 | 175-435 | 170 | 44 | column; icons at x=1222 (+12 inset); 30px gap from riser |
+| Lane | x | y | width | height |
+|------|---|---|-------|--------|
+| T2 24 V D/C | 16 | 12 | 1036 | 280 |
+| KU 24 V D/C | 16 | 308 | 1036 | 260 |
+| KU A/C path | 16 | 584 | 1036 | 240 |
+| Sungold cart | 16 | 840 | 1036 | 248 |
+| Sim dump loads | 1068 | 12 | 396 | 812 |
+
+**Tile bounding boxes** (horizontal gap = next `x` minus prior `x + width`, min 24):
+
+| Element | x | y | width | height |
+|---------|---|---|-------|--------|
+| `node-panel` | 36 | 628 | 190 | 160 |
+| `node-b3` | 250 | 648 | 160 | 120 |
+| `node-trailer-outlet` | 434 | 660 | 170 | 100 |
+| `node-sg-uti` | 628 | 628 | 240 | 168 |
+| `path-sim-acbus` | 996-1078 | 940 | | |
+| plug tiles 1-6 | 1096 | 48-548 | 340 | 76 |
 
 **Conductors (snap to node edges; hop ids in `app.js`):**
 
@@ -320,9 +382,9 @@ watts **20px**; node titles **16px**; details and hop labels **13px**. Dim secon
 | `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| if numeric, else \|A3\| while Sungold is the only outlet load |
 | `path-b3-outlet-sg-uti` | B3 to trailer outlet to Sungold UTI | same as B3 hop (or grid V x A fallback on UTI tile) |
 | `path-sg-uti-sph` | Sungold UTI down to SPH302480A | same AC-in watts |
-| `path-sim-acbus` | Sungold AC out (`node-sg-acout`) to sim dump-load riser | sim plug sum or `--` |
-| `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or `--` |
-| `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W |
+| `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
+| `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
+| `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W on the plug tile (duplicate hop labels hidden) |
 
 Do **not** draw EM16 A3 as a load tile on the sim dump-load AC riser (`node-em16` at the old
 x=700 y=70 position is removed). A3 is shown on the **panel incoming hop** and in the meter
@@ -343,7 +405,7 @@ Live MQTT `entity_id`s (unique_id in parentheses):
 `sensor.sungold_sph302480a_load_active_power` is the **live** Lovelace tile. The proxy
 copies it onto `_load_power` for dump load math. If both exist, **active power wins**.
 
-If those entities are missing (sidecar off), tiles stay grey `--` and live snapshot lists them in `missing_entity_ids`. **No** Renogy PWM / inverter ids are invented.
+If those entities are missing (sidecar off), watt tiles print **0 W**; V/A may stay `-- V / -- A`. Live snapshot lists plant gaps in `missing_entity_ids` (legacy `sim_soak_*` ids are not shown). **No** Renogy PWM / inverter ids are invented.
 
 Lovelace Solar tiles to GX fields (live REST ids):
 
@@ -400,9 +462,9 @@ back to grid V x A when both clamps are missing.
 | `path-panel-b3` | Panel hot leg to B3 breaker | \|B3\| or \|A3\| fallback |
 | `path-b3-outlet-sg-uti` | B3 to outlet to Sungold UTI | B3 hop W |
 | `path-sg-uti-sph` | Sungold UTI to SPH | B3 hop W |
-| `path-sim-acbus` | Sungold AC out (`node-sg-acout`) to sim dump-load riser | sim plug sum or `--` |
-| `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or `--` |
-| `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W |
+| `path-sim-acbus` | Sungold A/C out (`node-sg-acout`) to sim dump-load riser | sim plug sum or **0 W** |
+| `path-sim-riser` | Vertical sim dump-load bus (riser to plugs) | sim plug sum or **0 W** |
+| `path-sim-plug-1` … `path-sim-plug-6` | Riser to each sim plug | per-plug W on the plug tile (duplicate hop labels hidden) |
 | `path-sg-pv-panels` | Sungold PV panels to SPH / cart PV tile | PV W |
 | `path-sg-pv-batt` | Sungold PV to cart battery | PV W |
 | `path-sg-batt-inv` | Cart battery to SPH | cart batt W |
@@ -593,7 +655,7 @@ Sungold tiles use the live MQTT ids in the table above (`tests/test_ha_label_sun
 |------|-----|
 | Token in file only | HA [REST API](https://developers.home-assistant.io/docs/api/rest/) Bearer auth |
 | No Lovelace scrape | Frontend is not a machine API (alfa-ai policy) |
-| Localhost bind default | Dashboard is operator LAN tooling, not a public surface |
+| Production bind `0.0.0.0:8765` + ufw | Same dual-address pattern as HA `:8123`; not a public surface |
 | Read-only loads | Dump-load **actuation** stays on alfa-ai `.111` with audit (`solar_dump_actuated`) |
 | Victron BLE / Sungold publishers unchanged | Sensor-only; no MQTT publish back to hardware |
 

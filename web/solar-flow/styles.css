@@ -167,9 +167,10 @@ body.demo-mode .demo-watermark {
 
 .flow-layout {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 0;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1.5rem;
   min-height: calc(100vh - 52px);
+  align-items: start;
 }
 
 .side-panels {
@@ -182,15 +183,33 @@ body.demo-mode .demo-watermark {
 }
 
 .flow-diagram {
-  padding: 0.5rem;
+  padding: 1.5rem 2rem 2.5rem;
   overflow: auto;
 }
 
 .flow-svg {
   width: 100%;
-  max-width: 1480px;
+  min-width: 1240px;
+  max-width: none;
   height: auto;
   display: block;
+}
+
+.lane-band {
+  fill: #121820;
+  stroke: #3d4a57;
+  stroke-width: 1.25;
+}
+
+.lane-band.lane-t2 { fill: #141c2a; }
+.lane-band.lane-ku-dc { fill: #121c22; }
+.lane-band.lane-ku-ac { fill: #161a20; }
+.lane-band.lane-sg { fill: #14181f; }
+.lane-band.lane-dump { fill: #10161c; stroke: #455a64; }
+
+.sun-rays line {
+  stroke: #ffc107;
+  stroke-width: 2;
 }
 
 .fetched-at {
@@ -202,9 +221,9 @@ body.demo-mode .demo-watermark {
 .bus-banner,
 .sim-dump-banner {
   fill: var(--text-dim);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   font-family: var(--font);
 }
@@ -222,14 +241,22 @@ body.demo-mode .demo-watermark {
 
 .hop-watt {
   fill: var(--cyan-bright);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   font-family: var(--font);
   pointer-events: none;
+  paint-order: stroke fill;
+  stroke: #0d1117;
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .hop-watt.unmetered {
   fill: var(--text-dim);
+}
+
+.hop-on-plug {
+  display: none;
 }
 
 .unmetered-text {
@@ -251,8 +278,8 @@ body.demo-mode .demo-watermark {
 }
 
 .meter-bank {
-  max-width: 1480px;
-  padding: 0.75rem 0.5rem 1.25rem;
+  max-width: 1700px;
+  padding: 1.25rem 0.5rem 1.5rem;
 }
 
 .meter-bank h2 {
@@ -271,8 +298,8 @@ body.demo-mode .demo-watermark {
 
 .meter-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 1rem;
 }
 
 .meter-card {

@@ -176,12 +176,11 @@
   function setHopLabel(pathId, watts, unmetered) {
     var el = $('hop-' + pathId);
     if (!el) return;
-    if (unmetered || watts === null || watts === undefined) {
-      el.textContent = '-- W';
+    if (unmetered) {
       el.classList.add('unmetered');
-      return;
+    } else {
+      el.classList.remove('unmetered');
     }
-    el.classList.remove('unmetered');
     el.textContent = formatW(watts);
   }
 
@@ -285,12 +284,12 @@
   }
 
   function formatW(w) {
-    if (w === null) return '-- W';
+    if (w === null || w === undefined || isNaN(w)) return '0 W';
     return formatNum(Math.abs(w), 0) + ' W';
   }
 
   function formatSignedW(w) {
-    if (w === null) return '-- W';
+    if (w === null || w === undefined || isNaN(w)) return '0 W';
     var sign = w > 0 ? '+' : w < 0 ? '-' : '';
     return sign + formatNum(Math.abs(w), 0) + ' W';
   }
@@ -462,7 +461,7 @@
       if (missing && missing.length) {
         var plantMissing = [];
         for (var mi = 0; mi < missing.length; mi++) {
-          if (missing[mi].indexOf('sim_ac_plug') === -1 && missing[mi].indexOf('sim_dump') === -1 && missing[mi].indexOf('sim_soak') === -1) {
+          if (missing[mi].indexOf('sim_ac_plug') === -1 && missing[mi].indexOf('sim_dump') === -1) {
             plantMissing.push(missing[mi]);
           }
         }
@@ -479,8 +478,8 @@
     var solarW = getPowerW(entities, ENTITY_IDS.solar);
     setValue('val-solar-w', formatW(solarW));
     setValue('val-t2-panels-w', formatW(solarW));
-    setValue('val-ku-victron-panels-w', '-- W');
-    setValue('val-ku-pwm-panels-w', '-- W');
+    setValue('val-ku-victron-panels-w', '0 W');
+    setValue('val-ku-pwm-panels-w', '0 W');
     setPip('pip-solar', solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
@@ -496,7 +495,7 @@
     setValue('val-mppt-charge-w', 'chg ' + formatW(mpptChargeW));
     setValue(
       'val-mppt-load',
-      'load ' + (mpptLoadW !== null ? formatW(mpptLoadW) : '-- W') +
+      'load ' + formatW(mpptLoadW) +
         (mpptLoadA !== null ? ' / ' + formatNum(mpptLoadA, 1) + ' A' : '')
     );
     setValue(
@@ -551,9 +550,9 @@
     setValue('val-b3-va', formatVA(b3V, b3A));
     setPip('pip-b3', b3W !== null && b3W > 0);
 
-    setValue('val-t2-renogy-w', '-- W');
+    setValue('val-t2-renogy-w', '0 W');
     setPip('pip-t2-renogy', false);
-    setValue('val-ku-renogy-w', '-- W');
+    setValue('val-ku-renogy-w', '0 W');
 
     var totalDump = 0;
     var hasDump = false;
@@ -575,9 +574,6 @@
     }
 
     var dumpSensor = getPowerW(entities, ENTITY_IDS.dumpTotal);
-    if (dumpSensor === null) {
-      dumpSensor = getPowerW(entities, 'sensor.sim_soak_load_power');
-    }
     setValue('val-dump-w', formatW(dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null)));
 
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);

@@ -21,7 +21,7 @@ Canonical runbook (token, settings, dump-load physics):
 | Power buses (T2 vs KU, EM16 A3) | `docs/SOLAR_POWER_BALANCE.md` -- 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in |
 | Dump-load plugs must sit on the **intended AC circuit** | Fed from **Sungold AC out**, not KU Renogy; 15 Sep A3 clamp is Sungold AC-in; see SOLAR_POWER_BALANCE |
 | **Simulated** dump-load plugs (no hardware) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- six `switch.sim_ac_plug_*` on `.105` (YAML package; opt-in) |
-| **GX-style solar flow page** (local) | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- `python scripts/solar_flow_server.py` then `http://127.0.0.1:8765/`; HA via LAN proxy, deterministic dump-load panel (read-only) |
+| **GX-style solar flow page** | [SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md) -- production on `.105` like HA: LAN `:8765` + Tailscale MagicDNS `:8765`; HA REST proxy; dump-load panel read-only |
 
 ## Safety
 

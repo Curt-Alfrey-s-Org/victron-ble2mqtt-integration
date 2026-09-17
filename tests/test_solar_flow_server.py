@@ -74,7 +74,27 @@ def test_decide_dump_view_surplus_math() -> None:
     assert meta["sim_plug_w"] == 180
     assert meta["surplus_w"] == 120.0
     assert "Surplus 120W" in view["thinking"]
+    assert "soak" not in view["thinking"].lower()
     assert len(view["decisions"]) == 6
+
+
+def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
+    html = (ROOT / "web" / "solar-flow" / "index.html").read_text(encoding="utf-8")
+    js = (ROOT / "web" / "solar-flow" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "web" / "solar-flow" / "styles.css").read_text(encoding="utf-8")
+    blob = "\n".join((html, js, css))
+    assert "soak" not in blob.lower()
+    assert "-- W" not in blob
+    assert "A/C" in html
+    assert "D/C" in html
+    assert "dump load" in html.lower()
+    assert 'viewBox="0 0 1480 1116"' in html
+
+
+def test_public_missing_entity_ids_omits_legacy_unique_id() -> None:
+    assert sfs.public_missing_entity_ids(
+        ["sensor.em16_a3_power", "sensor.sim_soak_load_power"]
+    ) == ["sensor.em16_a3_power"]
 
 
 def test_decide_dump_view_turns_on_above_threshold() -> None:
@@ -289,7 +309,7 @@ def test_live_handler_error_json_redacts_token(monkeypatch: pytest.MonkeyPatch) 
     token = "abc123secret-token"
     monkeypatch.setenv("HA_TOKEN", token)
 
-    def _fail_live(_token: str) -> dict:
+    def _fail_live(_token: str, now: float | None = None) -> dict:
         raise ValueError(f"HA rejected Bearer {token}")
 
     monkeypatch.setattr(sfs, "build_live_snapshot", _fail_live)
@@ -320,6 +340,12 @@ def test_resolve_bind_host_default_localhost(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.delenv("SOLAR_FLOW_HOST", raising=False)
     args = sfs.parse_args([])
     assert sfs.resolve_bind_host(args) == "127.0.0.1"
+
+
+def test_resolve_bind_host_lan(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SOLAR_FLOW_HOST", raising=False)
+    args = sfs.parse_args(["--lan"])
+    assert sfs.resolve_bind_host(args) == "0.0.0.0"
 
 
 def test_default_settings_ha_load_entity_is_sim_dump_not_em16_a3() -> None:
@@ -385,35 +411,77 @@ def test_demo_snapshot_includes_sungold_and_em16_meters() -> None:
     assert snap["entities"]["sensor.sim_dump_load_power"]["state"] == "280"
 
 
-def test_live_snapshot_overlays_sim_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+def _ha_rows_plug1_off() -> list[dict]:
+    return [
+        {
+            "entity_id": "sensor.solar_controller_solar",
+            "state": "302.0",
+            "attributes": {"unit_of_measurement": "W"},
+        },
+        {
+            "entity_id": "switch.sim_ac_plug_1",
+            "state": "off",
+            "attributes": {},
+        },
+        {
+            "entity_id": "sensor.sim_ac_plug_1_power",
+            "state": "0",
+            "attributes": {"unit_of_measurement": "W"},
+        },
+    ]
+
+
+def test_live_snapshot_keeps_ha_sim_plug_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """HA switch.sim_ac_plug_1=off must not be overwritten by demo file ON."""
     monkeypatch.setenv("HA_TOKEN", "unit-test-token")
-
-    def _fake_states(_base: str, _token: str) -> list[dict]:
-        return [
-            {
-                "entity_id": "sensor.solar_controller_solar",
-                "state": "302.0",
-                "attributes": {"unit_of_measurement": "W"},
-            },
-            {
-                "entity_id": "switch.sim_ac_plug_1",
-                "state": "off",
-                "attributes": {},
-            },
-            {
-                "entity_id": "sensor.sim_ac_plug_1_power",
-                "state": "0",
-                "attributes": {"unit_of_measurement": "W"},
-            },
-        ]
-
-    monkeypatch.setattr(sfs, "fetch_ha_states", _fake_states)
+    monkeypatch.setattr(sfs, "fetch_ha_states", lambda _b, _t: _ha_rows_plug1_off())
     snap = sfs.build_live_snapshot("unit-test-token", now=1000.0)
     assert snap["mode"] == "live"
-    assert snap.get("sim_dump_demo") is True
+    assert snap["view"] == "production"
     assert snap["entities"]["sensor.solar_controller_solar"]["state"] == "302.0"
-    assert snap["entities"]["switch.sim_ac_plug_1"]["state"] == "on"
-    assert snap["entities"]["sensor.sim_ac_plug_1_power"]["state"] == "180"
+    assert snap["entities"]["switch.sim_ac_plug_1"]["state"] == "off"
+    assert snap["entities"]["sensor.sim_ac_plug_1_power"]["state"] == "0"
+
+
+def test_live_snapshot_fills_missing_sim_dump_from_demo(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    monkeypatch.setattr(sfs, "fetch_ha_states", lambda _b, _t: _ha_rows_plug1_off())
+    snap = sfs.build_live_snapshot("unit-test-token", now=1000.0)
+    assert snap.get("sim_dump_demo") is True
+    assert snap["entities"]["switch.sim_ac_plug_2"]["state"] == "off"
+    assert snap["entities"]["sensor.sim_dump_load_power"]["state"] == "280"
+
+
+def test_live_snapshot_all_sim_dump_present_sim_dump_demo_false(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = list(_ha_rows_plug1_off())
+    for plug in range(1, 7):
+        rows.append(
+            {
+                "entity_id": f"switch.sim_ac_plug_{plug}",
+                "state": "off",
+                "attributes": {},
+            }
+        )
+        rows.append(
+            {
+                "entity_id": f"sensor.sim_ac_plug_{plug}_power",
+                "state": "0",
+                "attributes": {"unit_of_measurement": "W"},
+            }
+        )
+    rows.append(
+        {
+            "entity_id": "sensor.sim_dump_load_power",
+            "state": "0",
+            "attributes": {"unit_of_measurement": "W"},
+        }
+    )
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    monkeypatch.setattr(sfs, "fetch_ha_states", lambda _b, _t: rows)
+    snap = sfs.build_live_snapshot("unit-test-token", now=1000.0)
+    assert snap.get("sim_dump_demo") is False
 
 
 def test_live_missing_lists_sungold_when_absent() -> None:
@@ -635,6 +703,81 @@ def test_build_ha_history_url_matches_official_encoding() -> None:
     assert "end_time=" in url
     assert "%3A" in url
     assert "significant_changes_only" not in url
+
+
+def test_http_view_demo_with_token_returns_illustrative_plant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    monkeypatch.setattr(
+        sfs,
+        "fetch_ha_states",
+        lambda _b, _t: [{"entity_id": "sensor.solar_controller_solar", "state": "302", "attributes": {}}],
+    )
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/snapshot?view=demo", timeout=5
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["mode"] == "demo"
+        assert payload["view"] == "demo"
+        assert payload["entities"]["sensor.solar_controller_solar_power"]["state"] == "400"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_http_view_production_with_token_uses_live_builder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    monkeypatch.setattr(sfs, "fetch_ha_states", lambda _b, _t: _ha_rows_plug1_off())
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/snapshot?view=production", timeout=5
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["mode"] == "live"
+        assert payload["view"] == "production"
+        assert payload["entities"]["switch.sim_ac_plug_1"]["state"] == "off"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_http_view_unknown_returns_400(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_ha_token(monkeypatch)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        try:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/snapshot?view=nope", timeout=5
+            )
+            pytest.fail("expected HTTP 400")
+        except urllib.error.HTTPError as err:
+            assert err.code == 400
+            body = json.loads(err.read().decode("utf-8"))
+        assert "error" in body
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
 
 
 def test_history_ha_404_returns_recorder_message(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -103,7 +103,7 @@ SNAPSHOT_PREFIXES: tuple[str, ...] = (
     "binary_sensor.sungold_sph302480a_",
     "sensor.sim_ac_plug_",
     "sensor.sim_dump_",
-    "sensor.sim_soak_",
+    "sensor.sim_soak_",  # leftover HA unique_id; never printed in UI copy
     "switch.sim_ac_plug_",
 )
 
@@ -826,6 +826,11 @@ _PRODUCTION_TOKEN_LABEL = (
 )
 
 
+def public_missing_entity_ids(entity_ids: list[str]) -> list[str]:
+    """Omit leftover HA unique_ids so the dashboard never prints soak."""
+    return [eid for eid in entity_ids if "soak" not in eid.lower()]
+
+
 def build_offline_snapshot(
     now: float | None = None,
     *,
@@ -845,7 +850,7 @@ def build_offline_snapshot(
         "sim_dump_demo": sim_dump_demo,
         "fetched_at": fetched_at,
         "entities": entities,
-        "missing_entity_ids": missing,
+        "missing_entity_ids": public_missing_entity_ids(missing),
         "ai": _snapshot_ai(entities, now),
     }
     if resolved_label:
@@ -890,7 +895,7 @@ def build_live_snapshot(token: str, now: float | None = None) -> dict[str, Any]:
         "sim_dump_demo": sim_dump_demo,
         "fetched_at": fetched_at,
         "entities": entities,
-        "missing_entity_ids": missing,
+        "missing_entity_ids": public_missing_entity_ids(missing),
         "ai": _snapshot_ai(entities, now),
     }
 
