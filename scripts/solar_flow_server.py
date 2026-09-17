@@ -525,6 +525,23 @@ def _build_thinking(meta: dict[str, Any]) -> str:
     vent = meta.get("vent_fan_w")
     if vent is not None:
         bits.append(f"Trailer vent fan residual {vent:.0f}W (A3 is not Sungold-only).")
+    ku_ac = meta.get("ku_renogy_ac_est_w")
+    if ku_ac is not None:
+        bits.append(
+            f"Battery 2 load {ku_ac:.0f}W same as KU Renogy A/C est (A3; DC >= AC)."
+        )
+    ku_pv = meta.get("ku_unmetered_pv_est_w")
+    share = meta.get("ku_charger_equal_share_w")
+    if ku_pv is not None:
+        bits.append(
+            f"KU PV combined lower bound {ku_pv:.0f}W "
+            f"(batt2 minus jumper plus load; not (batt2+load)/3)."
+        )
+        if share is not None:
+            bits.append(
+                f"Equal 1/3 est {share:.0f}W each on two MPPT plus PWM "
+                "(PWM likely less than MPPT; no site derate; not dump solar)."
+            )
     if after is not None:
         bits.append(f"Surplus after losses {after:.0f}W (dump ON/OFF uses this).")
     if meta.get("soc_unsynced"):
@@ -587,6 +604,10 @@ def decide_dump_view(
         "vent_fan_w": meta.get("vent_fan_w"),
         "trailer_outlet_w": meta.get("trailer_outlet_w"),
         "sungold_ac_in_w": meta.get("sungold_ac_in_w"),
+        "ku_renogy_ac_est_w": meta.get("ku_renogy_ac_est_w"),
+        "ku_unmetered_pv_est_w": meta.get("ku_unmetered_pv_est_w"),
+        "ku_charger_equal_share_w": meta.get("ku_charger_equal_share_w"),
+        "ku_charger_equal_share_a": meta.get("ku_charger_equal_share_a"),
         "solar_w": meta.get("solar_w"),
         "load_w": meta.get("load_w"),
         "sim_plug_w": meta.get("sim_plug_w"),

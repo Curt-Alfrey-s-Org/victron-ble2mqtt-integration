@@ -191,10 +191,21 @@ body.demo-mode .demo-watermark {
 
 .flow-svg {
   width: 100%;
-  min-width: 1240px;
+  min-width: 1400px;
   max-width: none;
   height: auto;
   display: block;
+}
+
+.legacy-alias {
+  display: none;
+}
+
+.est-label {
+  fill: var(--text-dim);
+  font-size: 11px;
+  font-style: italic;
+  font-family: var(--font);
 }
 
 .lane-band {
@@ -276,15 +287,18 @@ body.demo-mode .demo-watermark {
 }
 
 .hop-watt.unmetered.watt-pos,
-.hop-watt.unmetered.watt-neg,
-.hop-watt.unmetered.watt-zero {
-  fill: var(--text-dim);
+.node-watts.unmetered-text.watt-pos {
+  fill: var(--watt-pos);
 }
 
-.node-watts.unmetered-text.watt-pos,
-.node-watts.unmetered-text.watt-neg,
+.hop-watt.unmetered.watt-neg,
+.node-watts.unmetered-text.watt-neg {
+  fill: var(--watt-neg);
+}
+
+.hop-watt.unmetered.watt-zero,
 .node-watts.unmetered-text.watt-zero {
-  fill: var(--text-dim);
+  fill: var(--cyan-bright);
 }
 
 .hop-on-plug {
@@ -293,6 +307,16 @@ body.demo-mode .demo-watermark {
 
 .unmetered-text {
   fill: var(--text-dim);
+}
+
+.est-label {
+  fill: var(--text-dim);
+  font-size: 12px;
+  font-family: var(--font);
+}
+
+.legacy-alias {
+  display: none;
 }
 
 .node-clickable {
@@ -698,12 +722,59 @@ body.demo-mode .demo-watermark {
   word-break: break-word;
 }
 
-.alfa-metrics {
+.alfa-metrics-wrap {
+  margin-bottom: 1rem;
+  font-size: 0.75rem;
+}
+
+.metrics-section {
+  margin-bottom: 0.75rem;
+}
+
+.metrics-section:last-child {
+  margin-bottom: 0;
+}
+
+.metrics-heading {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.metrics-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
-  margin-bottom: 1rem;
-  font-size: 0.75rem;
+}
+
+.metric-subgroup {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  padding: 0.25rem 0 0.15rem 0.35rem;
+  border-left: 2px solid var(--border);
+  margin-left: 0.15rem;
+}
+
+.metric-item.metric-total {
+  grid-column: 1 / -1;
+  border-color: var(--amber);
+}
+
+.metric-item.metric-nested .metric-label {
+  font-size: 0.6rem;
+}
+
+.node-detail.inbound-lines {
+  font-size: 11px;
+}
+
+.node-detail.inbound-total {
+  font-weight: 600;
 }
 
 .watt-hops {

@@ -8,6 +8,7 @@
   var HISTORY_HOURS = 24;
   var HISTORY_TABLE_ROWS = 40;
   var lastSnapshot = null;
+  var lastInboundMetrics = { t2TotalA: null, kuTotalA: null };
   var proxyOnline = false;
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var selectedHistoryEntity = null;
@@ -169,11 +170,24 @@
     el.classList.add(wattSignClass(n));
   }
 
-  function setWattValue(id, watts, signed) {
+  function applyLoadSign(el, n) {
+    if (!el) return;
+    el.classList.remove('watt-pos', 'watt-neg', 'watt-zero');
+    el.classList.add(wattLossClass(n));
+  }
+
+  function signOpts(arg) {
+    if (arg && typeof arg === 'object') return arg;
+    return { signed: !!arg };
+  }
+
+  function setWattValue(id, watts, signedOrOpts) {
     var el = $(id);
     if (!el) return;
-    el.textContent = signed ? formatSignedW(watts) : formatW(watts);
-    applyWattSign(el, watts);
+    var opts = signOpts(signedOrOpts);
+    el.textContent = formatW(watts);
+    if (opts.load) applyLoadSign(el, watts);
+    else applyWattSign(el, watts);
   }
 
   function setSignedCurrent(id, v, a) {
@@ -208,16 +222,18 @@
     }
   }
 
-  function setHopLabel(pathId, watts, unmetered, signed) {
+  function setHopLabel(pathId, watts, unmetered, signedOrOpts) {
     var el = $('hop-' + pathId);
     if (!el) return;
+    var opts = signOpts(signedOrOpts);
     if (unmetered) {
       el.classList.add('unmetered');
     } else {
       el.classList.remove('unmetered');
     }
-    el.textContent = signed ? formatSignedW(watts) : formatW(watts);
-    applyWattSign(el, unmetered ? 0 : watts);
+    el.textContent = formatW(watts);
+    if (opts.load) applyLoadSign(el, watts);
+    else applyWattSign(el, watts);
   }
 
   function panelHopW(entities) {
@@ -278,6 +294,44 @@
   // T2-KU jumper has no clamp. Estimate from T2 bus balance:
   // solar_W + (-batt1_W when discharging) leaves via T2 Renogy and/or jumper.
   // SmartShunt power is signed ([operation] current into battery is +).
+  // KU_PV ≈ batt2_W − jumper_into_KU + KU_Renogy_load.
+  // jumper_W is T2→KU positive (T2_solar − batt1_W). Do not use (batt2+load)/3.
+  function kuUnmeteredPvEstW(batt2W, jumperW, kuRenogyAcW) {
+    if (batt2W === null || jumperW === null || kuRenogyAcW === null) return null;
+    return batt2W - jumperW + kuRenogyAcW;
+  }
+
+  function kuEqualShareW(combinedW) {
+    if (combinedW === null) return null;
+    return combinedW / 3;
+  }
+
+  function paintKuChargerEst(shareW, batt2V) {
+    var wattIds = [
+      'val-ku-panel-mppt1-w',
+      'val-ku-panel-mppt2-w',
+      'val-ku-panel-pwm-w',
+      'val-ku-mppt-1-w',
+      'val-ku-mppt-2-w',
+      'val-ku-pwm-w',
+      'val-ku-pwm-panels-w'
+    ];
+    var ampIds = ['val-ku-mppt-1-a', 'val-ku-mppt-2-a', 'val-ku-pwm-a'];
+    var i;
+    for (i = 0; i < wattIds.length; i++) {
+      setWattValue(wattIds[i], shareW);
+    }
+    for (i = 0; i < ampIds.length; i++) {
+      var aEl = $(ampIds[i]);
+      if (!aEl) continue;
+      if (shareW === null || batt2V === null || batt2V === 0) {
+        aEl.textContent = '-- A';
+      } else {
+        aEl.textContent = formatNum(Math.abs(shareW / batt2V), 1) + ' A';
+      }
+    }
+  }
+
   function jumperEstimateW(solarW, batt1W, t2RenogyW) {
     if (batt1W === null) return null;
     var solar = solarW === null ? 0 : solarW;
@@ -285,33 +339,107 @@
     return solar - inv - batt1W;
   }
 
+  // Inbound branch A from hop W and pack V (P = V*I; display magnitude only).
+  function inboundAFromW(watts, packV) {
+    if (watts === null || watts === undefined || watts <= 0.01) return null;
+    if (packV === null || packV === undefined || Math.abs(packV) < 0.01) return null;
+    return Math.abs(watts) / Math.abs(packV);
+  }
+
+  function computeBattery1Inbound(mpptBattW, jumperW, batt1V) {
+    var sources = [];
+    var total = 0;
+    var mpptA = inboundAFromW(mpptBattW, batt1V);
+    if (mpptA !== null) {
+      sources.push({ label: 'MPPT', a: mpptA, est: false });
+      total += mpptA;
+    }
+    if (jumperW !== null && jumperW < -0.5) {
+      var jumperA = inboundAFromW(Math.abs(jumperW), batt1V);
+      if (jumperA !== null) {
+        sources.push({ label: 'Jumper', a: jumperA, est: true });
+        total += jumperA;
+      }
+    }
+    return { sources: sources, totalA: sources.length ? total : 0 };
+  }
+
+  function computeBattery2Inbound(kuShareW, jumperW, batt2V) {
+    var sources = [];
+    var total = 0;
+    var shareA = inboundAFromW(kuShareW, batt2V);
+    if (shareA !== null) {
+      sources.push({ label: 'MPPT1', a: shareA, est: true });
+      sources.push({ label: 'MPPT2', a: shareA, est: true });
+      sources.push({ label: 'PWM', a: shareA, est: true });
+      total += shareA * 3;
+    }
+    if (jumperW !== null && jumperW > 0.5) {
+      var jumperA = inboundAFromW(jumperW, batt2V);
+      if (jumperA !== null) {
+        sources.push({ label: 'Jumper', a: jumperA, est: true });
+        total += jumperA;
+      }
+    }
+    return { sources: sources, totalA: sources.length ? total : 0 };
+  }
+
+  function formatInboundBranchA(source) {
+    return source.label + ' ' + formatNum(source.a, 1) + ' A' + (source.est ? ' est.' : '');
+  }
+
+  function paintBatteryInbound(prefix, inbound) {
+    var linesEl = $('val-' + prefix + '-inbound-lines');
+    var totalEl = $('val-' + prefix + '-inbound-total');
+    if (!linesEl || !totalEl) return;
+    if (!inbound.sources.length) {
+      linesEl.textContent = 'none';
+      totalEl.textContent = 'Total in 0 A';
+      applyWattSign(totalEl, 0);
+      return;
+    }
+    var parts = [];
+    for (var i = 0; i < inbound.sources.length; i++) {
+      parts.push(formatInboundBranchA(inbound.sources[i]));
+    }
+    linesEl.textContent = parts.join(' · ');
+    totalEl.textContent = 'Total in ' + formatNum(inbound.totalA, 1) + ' A';
+    applyWattSign(totalEl, inbound.totalA);
+  }
+
+  function formatShuntNetVA(v, a) {
+    return formatVA(v, a) + ' shunt net';
+  }
+
   function updateHopLabels(opts) {
     setHopLabel('path-t2-panels-mppt', opts.solarW, false);
     setHopLabel('path-t2-mppt-batt1', opts.mpptBattHopW, false);
-    setHopLabel('path-t2-batt1-renogy', null, true);
-    setHopLabel('path-t2-ku-jumper', opts.jumperW, false, true);
-    setHopLabel('path-ku-panels-chargers', null, true);
-    setHopLabel('path-ku-chargers-batt2', null, true);
-    setHopLabel('path-ku-pwm-panels', null, true);
-    setHopLabel('path-ku-pwm-batt2', null, true);
-    setHopLabel('path-ku-batt2-inverter', opts.batt2W, false, true);
-    setHopLabel('path-ku-renogy-panel', opts.panelW, false);
-    setHopLabel('path-panel-b3', opts.b3W, false);
-    setHopLabel('path-b3-outlet-sg-uti', opts.utiW, false);
-    setHopLabel('path-sg-uti-sph', opts.utiW, false);
-    setHopLabel('path-outlet-vent-fan', opts.ventW, opts.ventW === null);
-    setHopLabel('path-sg-acout-pi4', null, true);
+    setHopLabel('path-t2-batt1-renogy', null, true, { load: true });
+    setHopLabel('path-t2-ku-jumper', opts.jumperW, false);
+    setHopLabel('path-ku-mppt1-panels', opts.kuShareW, true);
+    setHopLabel('path-ku-mppt1-batt2', opts.kuShareW, true);
+    setHopLabel('path-ku-mppt2-panels', opts.kuShareW, true);
+    setHopLabel('path-ku-mppt2-batt2', opts.kuShareW, true);
+    setHopLabel('path-ku-pwm-panels', opts.kuShareW, true);
+    setHopLabel('path-ku-pwm-batt2', opts.kuShareW, true);
+    setHopLabel('path-ku-batt2-inverter', opts.kuRenogyAcW, false, { load: true });
+    setHopLabel('path-ku-renogy-panel', opts.panelW, false, { load: true });
+    setHopLabel('path-panel-b3', opts.b3W, false, { load: true });
+    setHopLabel('path-b3-outlet-sg-uti', opts.utiW, false, { load: true });
+    setHopLabel('path-sg-uti-sph', opts.utiW, false, { load: true });
+    setHopLabel('path-outlet-vent-fan', opts.ventW, opts.ventW === null, { load: true });
+    setHopLabel('path-sg-acout-pi4', null, true, { load: true });
     var simW = opts.simBusW;
     var simUnmetered = simW === null;
-    setHopLabel('path-sim-acbus', simW, simUnmetered);
-    setHopLabel('path-sim-riser', simW, simUnmetered);
+    setHopLabel('path-sim-acbus', simW, simUnmetered, { load: true });
+    setHopLabel('path-sim-riser', simW, simUnmetered, { load: true });
     for (var p = 1; p <= PLUG_COUNT; p++) {
-      setHopLabel('path-sim-plug-' + p, opts.plugWs[p], false);
+      setHopLabel('path-sim-plug-' + p, opts.plugWs[p], false, { load: true });
     }
     setHopLabel('path-sg-pv-panels', opts.sgPvW, false);
     setHopLabel('path-sg-pv-batt', opts.sgPvW, false);
-    setHopLabel('path-sg-batt-inv', opts.sgBattW, false, true);
-    setHopLabel('path-sg-inv-acout', opts.sgLoadW, false);
+    setHopLabel('path-sg-batt-inv', opts.sgBattW, false);
+    setHopLabel('path-sg-inv-acout', opts.sgLoadW, false, { load: true });
   }
 
   function setPlugOn(n, on) {
@@ -357,14 +485,12 @@
   }
 
   function formatSignedW(w) {
-    if (w === null || w === undefined || isNaN(w)) return '0 W';
-    var sign = w > 0 ? '+' : w < 0 ? '-' : '';
-    return sign + formatNum(Math.abs(w), 0) + ' W';
+    return formatW(w);
   }
 
   function formatVA(v, a) {
-    return (v !== null ? formatNum(v, 1) + ' V' : '-- V') + ' / ' +
-      (a !== null ? formatNum(a, 1) + ' A' : '-- A');
+    return (v !== null ? formatNum(Math.abs(v), 1) + ' V' : '-- V') + ' / ' +
+      (a !== null ? formatNum(Math.abs(a), 1) + ' A' : '-- A');
   }
 
   function formatAh(n) {
@@ -383,6 +509,52 @@
     return 'SoC unsynced ' + formatNum(pct, 0) + '%';
   }
 
+  function renderMetricItem(f, ai) {
+    var val = ai[f.key];
+    var display;
+    if (val === null || val === undefined) {
+      if (f.zeroOk && f.signedA) {
+        val = 0;
+        display = formatNum(0, 1) + ' A';
+      } else if (f.zeroOk && f.suffix) {
+        val = 0;
+        display = formatNum(0, 1) + f.suffix;
+      } else {
+        display = '--';
+      }
+    } else if (f.signedA) {
+      display = formatNum(Math.abs(val), 1) + ' A';
+    } else if (f.suffix) {
+      display = formatNum(val, 1) + f.suffix;
+    } else if (f.signed) {
+      display = formatW(val);
+    } else {
+      display = formatW(val);
+    }
+    var signClass = '';
+    if (val !== null && val !== undefined) {
+      if (f.loss || f.load) {
+        signClass = ' ' + wattLossClass(val);
+      } else if (f.signed || f.signedA || !f.suffix) {
+        signClass = ' ' + wattSignClass(val);
+      }
+    }
+    var extraClass = (f.dim ? ' unsynced' : '') + (f.total ? ' metric-total' : '') +
+      (f.nested ? ' metric-nested' : '');
+    return '<div class="metric-item' + extraClass +
+      '"><span class="metric-label">' + f.label +
+      '</span><span class="metric-value' + signClass + '">' +
+      escapeHtml(display) + '</span></div>';
+  }
+
+  function renderMetricFields(fields, ai) {
+    var html = '';
+    for (var i = 0; i < fields.length; i++) {
+      html += renderMetricItem(fields[i], ai);
+    }
+    return html;
+  }
+
   function renderMetrics(ai) {
     var container = $('ai-metrics');
     if (!container) return;
@@ -390,21 +562,62 @@
       container.innerHTML = '';
       return;
     }
+    ai = Object.assign({}, ai, {
+      t2_inbound_total_a: lastInboundMetrics.t2TotalA,
+      ku_inbound_total_a: lastInboundMetrics.kuTotalA
+    });
     var unsynced = !!ai.soc_unsynced;
-    var fields = [
+    var html = '';
+
+    html += '<section class="metrics-section" aria-label="Surplus">';
+    html += '<div class="metrics-grid">';
+    html += renderMetricFields([
       { label: 'Surplus', key: 'surplus_w', signed: true },
+      { label: 'After path losses', key: 'surplus_after_path_losses_w', signed: true }
+    ], ai);
+    html += '</div></section>';
+
+    html += '<section class="metrics-section" aria-label="Losses">';
+    html += '<h4 class="metrics-heading">Losses</h4>';
+    html += '<div class="metrics-grid">';
+    html += renderMetricFields([
       { label: 'Conversion losses', key: 'combined_losses_w', loss: true },
-      { label: 'Vdrop D/C', key: 'combined_vdrop_v', suffix: ' V' },
-      { label: 'Vdrop A/C', key: 'combined_vdrop_ac_v', suffix: ' V' },
-      { label: 'Vdrop loss', key: 'combined_vdrop_loss_w', loss: true },
-      { label: 'Path losses', key: 'combined_path_losses_w', loss: true },
-      { label: 'After losses', key: 'surplus_after_path_losses_w', signed: true },
-      { label: 'Vent fan', key: 'vent_fan_w' },
+      { label: 'Vdrop loss', key: 'combined_vdrop_loss_w', loss: true }
+    ], ai);
+    html += '<div class="metric-subgroup" aria-label="Vdrop voltage readings">';
+    html += renderMetricFields([
+      { label: 'Vdrop D/C', key: 'combined_vdrop_v', suffix: ' V', zeroOk: true, nested: true },
+      { label: 'Vdrop A/C', key: 'combined_vdrop_ac_v', suffix: ' V', zeroOk: true, nested: true }
+    ], ai);
+    html += '</div>';
+    html += renderMetricItem(
+      { label: 'Total path losses', key: 'combined_path_losses_w', loss: true, total: true },
+      ai
+    );
+    html += '</div></section>';
+
+    html += '<section class="metrics-section" aria-label="Loads">';
+    html += '<h4 class="metrics-heading">Loads</h4>';
+    html += '<div class="metrics-grid">';
+    html += renderMetricFields([
+      { label: 'Vent fan', key: 'vent_fan_w', load: true },
+      { label: 'KU Renogy A/C', key: 'ku_renogy_ac_est_w', load: true },
+      { label: 'Load', key: 'load_w', load: true },
+      { label: 'Sim dump loads', key: 'sim_plug_w', load: true },
+      { label: 'Eff. load', key: 'effective_load_w', load: true }
+    ], ai);
+    html += '</div></section>';
+
+    html += '<section class="metrics-section" aria-label="Energy">';
+    html += '<h4 class="metrics-heading">Energy</h4>';
+    html += '<div class="metrics-grid">';
+    html += renderMetricFields([
       { label: 'Panel in', key: 'panel_in_w' },
       { label: 'Solar', key: 'solar_w' },
-      { label: 'Load', key: 'load_w' },
-      { label: 'Sim dump loads', key: 'sim_plug_w' },
-      { label: 'Eff. load', key: 'effective_load_w' },
+      { label: 'KU PV est', key: 'ku_unmetered_pv_est_w', signed: true },
+      { label: 'KU charger est', key: 'ku_charger_equal_share_w', signed: true },
+      { label: 'T2 in from sources', key: 't2_inbound_total_a', signedA: true, zeroOk: true },
+      { label: 'KU in from sources', key: 'ku_inbound_total_a', signedA: true, zeroOk: true },
       { label: 'T2 shunt V', key: 't2_shunt_v', suffix: ' V', zeroOk: true },
       { label: 'T2 shunt A', key: 't2_shunt_a', signedA: true, zeroOk: true },
       { label: 'KU shunt V', key: 'ku_shunt_v', suffix: ' V', zeroOk: true },
@@ -415,44 +628,7 @@
         suffix: '%',
         dim: unsynced
       }
-    ];
-    var html = '';
-    for (var i = 0; i < fields.length; i++) {
-      var f = fields[i];
-      var val = ai[f.key];
-      var display;
-      if (val === null || val === undefined) {
-        if (f.zeroOk && f.signedA) {
-          val = 0;
-          display = formatNum(0, 1) + ' A';
-        } else if (f.zeroOk && f.suffix) {
-          val = 0;
-          display = formatNum(0, 1) + f.suffix;
-        } else {
-          display = '--';
-        }
-      } else if (f.signedA) {
-        display = (val > 0 ? '+' : '') + formatNum(val, 1) + ' A';
-      } else if (f.suffix) {
-        display = formatNum(val, 1) + f.suffix;
-      } else if (f.signed) {
-        display = formatSignedW(val);
-      } else {
-        display = formatW(val);
-      }
-      var signClass = '';
-      if (val !== null && val !== undefined) {
-        if (f.loss) {
-          signClass = ' ' + wattLossClass(val);
-        } else if (f.signed || f.signedA || !f.suffix) {
-          signClass = ' ' + wattSignClass(val);
-        }
-      }
-      html += '<div class="metric-item' + (f.dim ? ' unsynced' : '') +
-        '"><span class="metric-label">' + f.label +
-        '</span><span class="metric-value' + signClass + '">' +
-        escapeHtml(display) + '</span></div>';
-    }
+    ], ai);
     if (ai.charge_state) {
       html += '<div class="metric-item"><span class="metric-label">Charge</span>' +
         '<span class="metric-value">' + escapeHtml(String(ai.charge_state)) + '</span></div>';
@@ -465,6 +641,8 @@
       html += '<div class="metric-item"><span class="metric-label">Skipped</span>' +
         '<span class="metric-value">' + escapeHtml(String(ai.skipped)) + '</span></div>';
     }
+    html += '</div></section>';
+
     container.innerHTML = html;
   }
 
@@ -490,7 +668,7 @@
         : (hop.loss_w === null || hop.loss_w === undefined ? '0 W' : formatW(hop.loss_w));
       var storedCell = (hop.stored_w === null || hop.stored_w === undefined)
         ? '0 W'
-        : formatSignedW(hop.stored_w);
+        : formatW(hop.stored_w);
       html += '<tr title="' + escapeHtml(hop.note || '') + '">' +
         '<td>' + escapeHtml(hop.label || hop.id || '') + '</td>' +
         '<td>' + wattSpan(hopCellW(hop.watts_in, hop.unmetered), hop.unmetered ? 0 : hop.watts_in) + '</td>' +
@@ -561,7 +739,7 @@
         '<div class="meter-ch">' + ch.toUpperCase() +
         (note ? ' <span class="meter-va">' + escapeHtml(note) + '</span>' : '') +
         '</div>' +
-        '<div class="meter-w ' + wattSignClass(w) + '">' + escapeHtml(formatSignedW(w)) + '</div>' +
+        '<div class="meter-w ' + wattSignClass(w) + '">' + escapeHtml(formatW(w)) + '</div>' +
         '<div class="meter-va ' + wattSignClass(a) + '">' + escapeHtml(formatVA(v, a)) + '</div>' +
         '</div>';
     }
@@ -606,9 +784,6 @@
     var solarW = getPowerW(entities, ENTITY_IDS.solar);
     setWattValue('val-solar-w', solarW);
     setWattValue('val-t2-panels-w', solarW);
-    // KU Victron+PWM residual is not HA W (needs KU Renogy DC). Do not print 2x T2.
-    setWattValue('val-ku-victron-panels-w', 0);
-    setWattValue('val-ku-pwm-panels-w', 0);
     setPip('pip-solar', solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
@@ -628,7 +803,7 @@
       'load ' + formatW(mpptLoadW) +
         (mpptLoadA !== null ? ' / ' + formatNum(mpptLoadA, 1) + ' A' : '')
     );
-    applyWattSign($('val-mppt-load'), mpptLoadW);
+    applyLoadSign($('val-mppt-load'), mpptLoadW);
     setValue(
       'val-mppt-yield',
       (mpptYield !== null ? 'yield ' + formatNum(mpptYield, 0) + ' Wh' : 'yield --') +
@@ -640,7 +815,8 @@
     var batt1A = parseFloatSafe(getState(entities, ENTITY_IDS.batt1A));
     var batt1W = getBatteryPower(entities, 'battery_1');
     setValue('val-batt1-soc', formatSocUnsynced(batt1Soc));
-    setSignedCurrent('val-batt1-va', batt1V, batt1A);
+    setValue('val-batt1-va', formatShuntNetVA(batt1V, batt1A));
+    applyWattSign($('val-batt1-va'), batt1A);
     setWattValue('val-batt1-w', batt1W, true);
     setValue('val-batt1-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Ah))));
     setValue(
@@ -655,7 +831,8 @@
     var batt2A = parseFloatSafe(getState(entities, ENTITY_IDS.batt2A));
     var batt2W = getBatteryPower(entities, 'battery_2');
     setValue('val-batt2-soc', formatSocUnsynced(batt2Soc));
-    setSignedCurrent('val-batt2-va', batt2V, batt2A);
+    setValue('val-batt2-va', formatShuntNetVA(batt2V, batt2A));
+    applyWattSign($('val-batt2-va'), batt2A);
     setWattValue('val-batt2-w', batt2W, true);
     setValue('val-batt2-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Ah))));
     setValue(
@@ -669,7 +846,7 @@
     var panelA3V = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3V));
     var panelA3A = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3A));
     var panelW = panelHopW(entities);
-    setWattValue('val-panel-a3-w', panelA3W);
+    setWattValue('val-panel-a3-w', panelA3W, { load: true });
     setValue('val-panel-a3-va', 'A3 ' + formatVA(panelA3V, panelA3A));
     setPip('pip-panel', panelW !== null && panelW > 0);
 
@@ -677,13 +854,12 @@
     var b3V = parseFloatSafe(getState(entities, ENTITY_IDS.b3V));
     var b3A = parseFloatSafe(getState(entities, ENTITY_IDS.b3A));
     var b3W = b3HopW(entities, panelW);
-    setWattValue('val-b3-w', b3RawW !== null ? b3RawW : panelA3W);
+    setWattValue('val-b3-w', b3RawW !== null ? b3RawW : panelA3W, { load: true });
     setValue('val-b3-va', formatVA(b3V, b3A));
     setPip('pip-b3', b3W !== null && b3W > 0);
 
     setWattValue('val-t2-renogy-w', 0);
     setPip('pip-t2-renogy', false);
-    setWattValue('val-ku-renogy-w', 0);
 
     var totalDump = 0;
     var hasDump = false;
@@ -693,7 +869,7 @@
       var plugOn = isSwitchOn(entities, p);
       var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
       plugWs[p] = plugW;
-      setWattValue('val-plug-' + p + '-w', plugW);
+      setWattValue('val-plug-' + p + '-w', plugW, { load: true });
       setPip('pip-plug-' + p, plugOn || (plugW !== null && plugW > 0));
       setPlugOn(p, plugOn);
       setFlow('path-sim-plug-' + p, plugOn || (plugW !== null && plugW > 0), false);
@@ -705,7 +881,7 @@
     }
 
     var dumpSensor = getPowerW(entities, ENTITY_IDS.dumpTotal);
-    setWattValue('val-dump-w', dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null));
+    setWattValue('val-dump-w', dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null), { load: true });
 
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
     var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
@@ -732,7 +908,20 @@
     var trailerW = trailerOutletW(entities);
     var utiW = utiHopW(entities, b3W, sgGridV, sgGridA);
     var ventW = ventFanEstimateW(trailerW, utiW);
-    setWattValue('val-sg-uti-w', utiW);
+    var kuRenogyAcW = trailerW;
+    setWattValue('val-ku-renogy-w', kuRenogyAcW, { load: true });
+    setValue(
+      'val-ku-renogy-note',
+      kuRenogyAcW !== null ? 'est. from A3 A/C' : 'no HA inverter'
+    );
+    if (kuRenogyAcW === null) {
+      setValue('val-batt2-load', 'load 0 W');
+      applyLoadSign($('val-batt2-load'), 0);
+    } else {
+      setValue('val-batt2-load', 'load ' + formatW(kuRenogyAcW));
+      applyLoadSign($('val-batt2-load'), kuRenogyAcW);
+    }
+    setWattValue('val-sg-uti-w', utiW, { load: true });
     setValue('val-sg-uti-va', formatVA(sgGridV, sgGridA));
     setValue('val-sg-uti-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
     setPip('pip-sg-uti', utiW !== null && utiW > 0);
@@ -740,7 +929,7 @@
       setValue('val-vent-fan-w', 'unmetered');
       applyWattSign($('val-vent-fan-w'), 0);
     } else {
-      setWattValue('val-vent-fan-w', ventW);
+      setWattValue('val-vent-fan-w', ventW, { load: true });
     }
     setPip('pip-vent-fan', ventW !== null && ventW > 0.5);
     setValue('val-pi4-w', 'unmetered');
@@ -751,7 +940,7 @@
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
     var sgOutV = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutV));
     var sgOutHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutHz));
-    setWattValue('val-sg-load-w', sgLoadW);
+    setWattValue('val-sg-load-w', sgLoadW, { load: true });
     setValue('val-sg-load-va', formatVA(sgOutV, sgLoadA));
     setValue('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
     setPip('pip-sg-acout', sgLoadW !== null && Math.abs(sgLoadW) > 0);
@@ -768,13 +957,25 @@
 
     var ai = snapshot.ai || {};
     setText('ai-thinking', ai.thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
-    renderMetrics(ai);
     renderWattHops(ai);
     renderDecisions(ai.decisions);
 
     var simBusW = hasDump && totalDump > 0 ? totalDump : null;
     var mpptBattHopW = mpptToBattHopW(entities, solarW);
     var jumperW = jumperEstimateW(solarW, batt1W, 0);
+    var kuPvEstW = kuUnmeteredPvEstW(batt2W, jumperW, kuRenogyAcW);
+    var kuShareW = kuEqualShareW(kuPvEstW);
+    paintKuChargerEst(kuShareW, batt2V);
+    setWattValue('val-ku-victron-panels-w', kuPvEstW);
+    var b1Inbound = computeBattery1Inbound(mpptBattHopW, jumperW, batt1V);
+    var b2Inbound = computeBattery2Inbound(kuShareW, jumperW, batt2V);
+    paintBatteryInbound('batt1', b1Inbound);
+    paintBatteryInbound('batt2', b2Inbound);
+    lastInboundMetrics = {
+      t2TotalA: b1Inbound.totalA,
+      kuTotalA: b2Inbound.totalA
+    };
+    renderMetrics(ai);
     var jumperDir = $('lbl-jumper-dir');
     if (jumperDir) {
       if (jumperW === null || Math.abs(jumperW) < 0.5) {
@@ -790,6 +991,8 @@
       mpptBattHopW: mpptBattHopW,
       jumperW: jumperW,
       batt2W: batt2W,
+      kuRenogyAcW: kuRenogyAcW,
+      kuShareW: kuShareW,
       panelW: panelW,
       b3W: b3W,
       utiW: utiW,
@@ -806,6 +1009,7 @@
       batt2W: batt2W,
       jumperW: jumperW,
       panelW: panelW,
+      kuRenogyAcW: kuRenogyAcW,
       b3W: b3W,
       utiW: utiW,
       ventW: ventW,
@@ -817,7 +1021,7 @@
     });
     setPip(
       'pip-inverter',
-      (batt2W !== null && batt2W < 0) || (utiW !== null && utiW > 0)
+      kuRenogyAcW !== null && kuRenogyAcW > 0.5
     );
   }
 
@@ -848,13 +1052,13 @@
     var jumperAbs = opts.jumperW !== null ? Math.abs(opts.jumperW) : 0;
     setFlow('path-t2-ku-jumper', jumperAbs >= 0.5, opts.jumperW !== null && opts.jumperW < 0);
 
-    var batt2Discharge = opts.batt2W !== null && opts.batt2W < 0;
     var panelFlow = opts.panelW !== null && opts.panelW > 0;
     var b3Flow = opts.b3W !== null && opts.b3W > 0;
     var utiFlow = opts.utiW !== null && opts.utiW > 0;
+    var kuRenogyFlow = opts.kuRenogyAcW !== null && opts.kuRenogyAcW > 0.5;
     var plugLoad = (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
-    setFlow('path-ku-batt2-inverter', batt2Discharge || utiFlow, false);
-    setFlow('path-ku-renogy-panel', panelFlow || b3Flow || utiFlow, false);
+    setFlow('path-ku-batt2-inverter', kuRenogyFlow, false);
+    setFlow('path-ku-renogy-panel', panelFlow || b3Flow || utiFlow || kuRenogyFlow, false);
     setFlow('path-panel-b3', b3Flow || utiFlow, false);
     setFlow('path-b3-outlet-sg-uti', utiFlow, false);
     setFlow('path-sg-uti-sph', utiFlow, false);

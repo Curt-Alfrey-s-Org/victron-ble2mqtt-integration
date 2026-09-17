@@ -71,9 +71,10 @@ def _va_w(v: float | None, a: float | None) -> float | None:
 
 
 _KU_UNMETERED_PV_REASON = (
-    "KU Victron 2+3 + PWM residual needs batt2, jumper est., and KU Renogy DC; "
-    "no HA inverter entity so est. is not computable; tiles stay 0 W; "
-    "PWM harvests less than MPPT but Victron publishes no site derate"
+    "KU combined PV lower bound uses A3 A/C as KU Renogy DC proxy "
+    "(DC in >= AC out; no invented efficiency); each charger tile is "
+    "equal 1/3 by suitcase count (est. only; PWM likely less than MPPT); "
+    "not ha_solar_entity"
 )
 
 
@@ -89,12 +90,35 @@ def ku_unmetered_pv_residual(
     SmartShunt +charge / -discharge:
     https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
 
-    Returns None when any term is missing. This site has no KU Renogy DC meter,
-    so build_watt_ledger always passes None (do not substitute 0).
+    Returns None when any term is missing. Live site has no KU Renogy DC clamp;
+    callers may pass trailer A/C (|A3|) as a **lower bound** for KU_Renogy_DC
+    (inverter DC in >= AC out). Do not invent efficiency. Do not substitute 0
+    when A/C is missing.
     """
     if batt2_w is None or jumper_w is None or ku_renogy_dc_w is None:
         return None
     return batt2_w - jumper_w + ku_renogy_dc_w
+
+
+KU_EQUAL_SHARE_CHARGERS = 3
+
+
+def ku_equal_share_w(combined_pv_w: float | None) -> float | None:
+    """Equal 1/3 of combined KU PV. Two MPPT + one PWM, two suitcases each.
+
+    Not (batt2 + load) / 3 -- that drops the jumper. PWM likely harvests less
+    than MPPT (Victron 81 W vs 100 W at 25 C) but there is no site derate.
+    https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf
+    """
+    if combined_pv_w is None:
+        return None
+    return combined_pv_w / float(KU_EQUAL_SHARE_CHARGERS)
+
+
+def ku_est_amps(watts: float | None, volts: float | None) -> float | None:
+    if watts is None or volts is None or volts == 0:
+        return None
+    return watts / volts
 
 
 _CONVERSION_HOP_IDS = frozenset({"t2_mppt", "sungold"})
@@ -284,7 +308,17 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             None,
             None,
             stored_w=batt2,
-            note="SmartShunt net; +charge / -discharge",
+            note="SmartShunt net; +charge / -discharge; load line is KU Renogy A/C est",
+        )
+    )
+
+    hops.append(
+        _hop(
+            "ku_renogy_ac",
+            "KU Renogy A/C",
+            trailer_w,
+            trailer_w,
+            note="est. from A3/B3 trailer A/C (no DC clamp); DC in >= AC out; Battery 2 load uses this same W",
         )
     )
 
@@ -381,6 +415,8 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     path_total = combined + vdrop_w
     panel_parts = [p for p in (t2_pv, sg_pv) if p is not None]
     panel_in = sum(panel_parts) if panel_parts else None
+    ku_pv = ku_unmetered_pv_residual(batt2, jumper_w, trailer_w)
+    ku_share = ku_equal_share_w(ku_pv)
 
     return {
         "watt_hops": hops,
@@ -396,7 +432,13 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "trailer_outlet_w": trailer_w,
         "sungold_ac_in_w": sg_ac_in,
         "vent_fan_w": vent_fan_w,
-        "ku_unmetered_pv_est_w": ku_unmetered_pv_residual(batt2, jumper_w, None),
+        "ku_renogy_ac_est_w": trailer_w,
+        "ku_unmetered_pv_est_w": ku_pv,
+        "ku_unmetered_pv_est_kind": (
+            "ac_lower_bound" if trailer_w is not None else None
+        ),
+        "ku_charger_equal_share_w": ku_share,
+        "ku_charger_equal_share_a": ku_est_amps(ku_share, b2v),
     }
 
 
@@ -420,7 +462,11 @@ def apply_ledger_to_meta(
     meta["trailer_outlet_w"] = ledger["trailer_outlet_w"]
     meta["sungold_ac_in_w"] = ledger["sungold_ac_in_w"]
     meta["vent_fan_w"] = ledger["vent_fan_w"]
+    meta["ku_renogy_ac_est_w"] = ledger["ku_renogy_ac_est_w"]
     meta["ku_unmetered_pv_est_w"] = ledger["ku_unmetered_pv_est_w"]
+    meta["ku_unmetered_pv_est_kind"] = ledger["ku_unmetered_pv_est_kind"]
+    meta["ku_charger_equal_share_w"] = ledger["ku_charger_equal_share_w"]
+    meta["ku_charger_equal_share_a"] = ledger["ku_charger_equal_share_a"]
     path_losses = float(ledger.get("combined_path_losses_w") or 0.0)
     if surplus is None:
         meta["surplus_after_path_losses_w"] = None

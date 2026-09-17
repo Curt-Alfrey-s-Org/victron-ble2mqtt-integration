@@ -81,6 +81,9 @@ def test_decide_dump_view_surplus_math() -> None:
     assert view["watt_hops"]
     assert "vent_fan" in {h["id"] for h in view["watt_hops"]}
     assert "pi4" in {h["id"] for h in view["watt_hops"]}
+    assert "ku_renogy_ac" in {h["id"] for h in view["watt_hops"]}
+    assert view["ku_renogy_ac_est_w"] == 100.0
+    assert "Battery 2 load 100W" in view["thinking"]
 
 
 def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
@@ -93,10 +96,14 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "A/C" in html
     assert "D/C" in html
     assert "dump load" in html.lower()
-    assert 'viewBox="0 0 1480 1116"' in html
+    assert 'viewBox="0 0 1560 1420"' in html
     assert 'path-t2-ku-jumper' in html
     assert 'id="node-vent-fan"' in html
     assert 'id="node-pi4"' in html
+    assert 'id="val-batt2-load"' in html
+    assert 'id="val-ku-renogy-note"' in html
+    assert "opts.kuRenogyAcW" in js
+    assert "setHopLabel('path-ku-batt2-inverter', opts.batt2W" not in js
     assert 'id="art-pv"' in html
     assert 'id="path-outlet-vent-fan"' in html
     assert 'id="path-sg-acout-pi4"' in html
@@ -104,9 +111,12 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "watt-neg" in css
     assert "watt-zero" in css
     assert "function wattSignClass" in js
-    assert "function applyWattSign" in js
+    assert "function applyLoadSign" in js
     assert "function setWattValue" in js
     assert "function formatSignedW" in js
+    assert "function kuUnmeteredPvEstW" in js
+    assert "function kuEqualShareW" in js
+    assert "return batt2W - jumperW + kuRenogyAcW" in js
     assert "function setHopLabel" in js
     assert "{ label: 'T2 shunt V'" in js
     assert "{ label: 'T2 shunt A'" in js
@@ -114,9 +124,16 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "{ label: 'KU shunt A'" in js
     assert "{ label: 'Shunt V'" not in js
     assert "{ label: 'Shunt A'" not in js
-    assert "incomplete" in html
-    assert "setWattValue('val-ku-victron-panels-w', 0)" in js
-    assert "setWattValue('val-ku-pwm-panels-w', 0)" in js
+    assert 'id="node-ku-mppt-1"' in html
+    assert 'id="node-ku-mppt-2"' in html
+    assert 'id="node-ku-pwm"' in html
+    assert 'id="val-ku-mppt-1-w"' in html
+    assert 'id="val-ku-pwm-w"' in html
+    assert ">est.<" in html
+    assert "w > 0 ? '+' : w < 0 ? '-' : ''" not in js
+    assert "val > 0 ? '+' : ''" not in js
+    assert "setWattValue('val-ku-victron-panels-w', 0)" not in js
+    assert "setWattValue('val-ku-pwm-panels-w', 0)" not in js
 
 
 def test_public_missing_entity_ids_omits_legacy_unique_id() -> None:
