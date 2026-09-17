@@ -74,12 +74,14 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 
 The GX-style diagram (`scripts/solar_flow_server.py`, port **8765**) defaults to localhost only. To open it on a phone the same way as HA:
 
-On **`.105` / `web-sites`** (after Tailscale is up). Prefer linking an **existing**
-site token so the diagram starts **LIVE** — do not invent a new HA UI token if one
-already lives in `host105-ai.env` / alfa-ai secrets:
+On the host that runs **solar-flow** (this site: **web-sites**; HA Container stays on
+**`.105`**). Prefer linking an **existing** site token so the diagram starts **LIVE** —
+do not invent a new HA UI token if one already lives on `.105` in `host105-ai.env` /
+`/opt/homeassistant/secrets/` / alfa-ai secrets (**not** in the victron git clone):
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
+# From web-sites: linker searches local paths, then ssh ansible@192.168.0.105
 sudo bash scripts/solar_flow_enable_tailscale.sh
 # (calls scripts/solar_flow_link_ha_token.sh first; search order in SOLAR_FLOW_DASHBOARD.md)
 ```
@@ -87,11 +89,12 @@ sudo bash scripts/solar_flow_enable_tailscale.sh
 Token-only (no Tailscale Serve change):
 
 ```bash
-sudo bash scripts/solar_flow_link_ha_token.sh
+sudo bash scripts/solar_flow_link_ha_token.sh -v
 sudo systemctl restart solar-flow.service
 ```
 
-If auto-link finds nothing, only then paste a new long-lived token into
+If auto-link finds nothing, ensure `ssh ansible@192.168.0.105 true` works from web-sites,
+or only then paste a new long-lived token into
 `/opt/homeassistant/secrets/ha_long_lived.token` (`chmod 600`).
 
 That script:
@@ -137,7 +140,7 @@ Both talk to the **same** Home Assistant / same MQTT plant. You are not duplicat
 | “Can’t connect” with Tailscale off | Expected. Turn Tailscale on, or wait until you are on home Wi‑Fi. |
 | Sungold missing on phone, present on PC | Same HA URL? Open **Solar → Sungold**. Re-label with `ha_label_sungold_solar.py` if tiles are Entity not found. |
 | Solar flow 404 / connection refused on Tailscale | Run `sudo bash scripts/solar_flow_enable_tailscale.sh`; confirm `systemctl status solar-flow` and `tailscale serve status`. |
-| Diagram shows DEMO / Battery 1 stuck at ~29.0 V | Token missing at `/opt/homeassistant/secrets/ha_long_lived.token`. Run `sudo bash scripts/solar_flow_link_ha_token.sh` (copies from `host105-ai.env` / alfa-ai / known `*.token`), then `sudo systemctl restart solar-flow`. Confirm `curl …/api/snapshot` prints `live` and a real voltage. |
+| Diagram shows DEMO / Battery 1 stuck at ~29.0 V | Token missing on the **solar-flow host** at `/opt/homeassistant/secrets/ha_long_lived.token`. On web-sites run `sudo bash scripts/solar_flow_link_ha_token.sh -v` (pulls from `.105` over ssh when local search is empty). Also set `HA_BASE_URL=http://192.168.0.105:8123` when HA is not local. Restart `solar-flow`; confirm `curl …/api/snapshot` prints `live` and a real voltage. |
 
 ## Out of scope
 

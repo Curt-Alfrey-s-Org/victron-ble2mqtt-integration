@@ -65,17 +65,28 @@ The Python proxy holds the long-lived token server-side only
 
 ## Operator (one path)
 
-**Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN (or
-`127.0.0.1:8123` when the diagram runs on the same host as HA). Token file on disk
-(gitignored) at `/opt/homeassistant/secrets/ha_long_lived.token`.
+**Prerequisites:** Python 3.11+ in the victron clone. HA reachable on the LAN.
+Token file on the **diagram host** (gitignored) at
+`/opt/homeassistant/secrets/ha_long_lived.token`.
 
-**Do not hunt in the HA UI first.** On `web-sites` / `.105`, link an existing site
-token (alfa-ai / `host105-ai.env` / other `*.token` files) into the path solar-flow
-expects:
+**Where the token actually lives:** on **`.105`** (HA Container host), as
+operator disk secrets — **not** in the victron git clone:
+
+| Location on `.105` | Role |
+|--------------------|------|
+| `/opt/homeassistant/secrets/ha_long_lived.token` | Canonical solar-flow / HA tooling path |
+| `/home/ansible/.config/host105-ai.env` | `HA_TOKEN=` / `HA_TOKEN_FILE=` for alfa-ai ops |
+| `/home/ansible/alfa-ai/secrets/*.token` | alfa-ai brain secrets dir |
+
+This site runs **solar-flow on `web-sites`** and **HA on `.105`**. Local search on
+web-sites is empty until the linker copies (or ssh-pulls) the token.
+
+**Do not hunt in the HA UI first.** On the diagram host, link an existing site token:
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
-sudo bash scripts/solar_flow_link_ha_token.sh
+# From web-sites: searches local paths, then ssh ansible@192.168.0.105
+sudo bash scripts/solar_flow_link_ha_token.sh -v
 # or full Tailscale enable (calls link automatically):
 sudo bash scripts/solar_flow_enable_tailscale.sh
 ```
@@ -87,7 +98,12 @@ sudo bash scripts/solar_flow_enable_tailscale.sh
 3. `HA_TOKEN` env (written to dest)
 4. Known files under `/opt/homeassistant/secrets/`, `/home/ansible/secrets/`, `/home/ansible/alfa-ai/secrets/`
 5. Env files: `/home/ansible/.config/host105-ai.env`, `/home/ansible/alfa-ai/.env` (and similar) for `HA_TOKEN=` / `HA_TOKEN_FILE=`
-6. Shallow `find` of `*.token` under `/opt/homeassistant` and `/home/ansible`
+6. systemd `EnvironmentFile=` from solar-flow / HA / alfa-related units
+7. Shallow `find` of `*.token` under `/opt/homeassistant` and `/home/ansible`
+8. **Remote `.105`** via `ssh`/`scp` (`HA_TOKEN_HOST=192.168.0.105`, user `ansible`) when local search is empty
+
+Override: `HA_TOKEN_HOST=…`, `HA_TOKEN_SSH_USER=…`, or `HA_TOKEN_REMOTE=0` (local only).
+Requires BatchMode ssh from the diagram host to `.105` (`ssh-copy-id ansible@192.168.0.105`).
 
 The script prints only `copied N chars from PATH → DEST` (never the token). Mode `600`.
 
@@ -95,11 +111,12 @@ If no source exists yet, create one per alfa-ai
 [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
 (HA UI → Profile → Long-lived access token), then re-run the link script.
 
-**Step 1 — From the host running the dashboard** (e.g. `.105` / `web-sites`):
+**Step 1 — From the host running the dashboard** (this site: **web-sites**):
 
 ```bash
 cd /path/to/victron-ble2mqtt-integration
-export HA_BASE_URL=http://127.0.0.1:8123
+sudo bash scripts/solar_flow_link_ha_token.sh -v
+export HA_BASE_URL=http://192.168.0.105:8123   # HA is on .105, not localhost
 export HA_TOKEN_FILE=/opt/homeassistant/secrets/ha_long_lived.token
 python scripts/solar_flow_server.py
 ```
@@ -124,7 +141,7 @@ http://127.0.0.1:8765/
 Default bind is **localhost only** (`127.0.0.1:8765`). Do not expose the server to the public
 internet without an explicit operator change.
 
-**Away / phone (Tailscale):** on `.105` run:
+**Away / phone (Tailscale):** on the **solar-flow host** (web-sites) run:
 
 ```bash
 sudo bash scripts/solar_flow_enable_tailscale.sh
@@ -152,7 +169,7 @@ a token is present. `GET /api/access` returns discovered Tailscale / localhost U
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `HA_BASE_URL` | `http://127.0.0.1:8123` | HA Container base URL (no trailing slash). Override when the diagram host is not the HA host. |
+| `HA_BASE_URL` | `http://192.168.0.105:8123` | HA Container base URL (no trailing slash). Use `127.0.0.1:8123` only when the diagram runs on the same host as HA and prefers loopback. |
 | `HA_TOKEN_FILE` | `/opt/homeassistant/secrets/ha_long_lived.token` (tried when unset) | Path to one-line long-lived token (preferred) |
 | `HA_LONG_LIVED_TOKEN_FILE` | — | Alias for `HA_TOKEN_FILE` if the first is unset |
 | `SOLAR_FLOW_HOST` | `127.0.0.1` | Listen address (`--host`; `--lan` / `--tailscale` bind `0.0.0.0`) |

@@ -7,10 +7,12 @@
 #      MagicDNS HTTPS URL (tailnet only — not Funnel / public internet).
 #   3. Prints the exact URL(s) to open on phone or laptop with Tailscale on.
 #
-# Prerequisites on .105 / web-sites:
+# Prerequisites on the solar-flow host (this site: web-sites; HA is on .105):
 #   - Tailscale installed and `tailscale status` online
-#   - HA long-lived token somewhere on the host (auto-linked into HA_TOKEN_FILE)
+#   - HA long-lived token on .105 (host105-ai.env / /opt/homeassistant/secrets / alfa-ai)
+#     — linker auto-copies locally, or pulls via ssh ansible@192.168.0.105
 #   - This repo checked out (REPO_ROOT)
+#   - When not on .105: HA_BASE_URL=http://192.168.0.105:8123
 #
 # Official:
 #   https://tailscale.com/docs/features/tailscale-serve
@@ -27,7 +29,8 @@ PORT="${SOLAR_FLOW_PORT:-8765}"
 UNIT_SRC="$ROOT_DIR/systemd/solar-flow.service"
 UNIT_DST="/etc/systemd/system/solar-flow.service"
 TOKEN_FILE="${HA_TOKEN_FILE:-${HA_LONG_LIVED_TOKEN_FILE:-/opt/homeassistant/secrets/ha_long_lived.token}}"
-HA_BASE_URL="${HA_BASE_URL:-http://127.0.0.1:8123}"
+# HA Container is on .105; use LAN IP so web-sites (and .105) both reach it.
+HA_BASE_URL="${HA_BASE_URL:-http://192.168.0.105:8123}"
 LINK_TOKEN_SCRIPT="$ROOT_DIR/scripts/solar_flow_link_ha_token.sh"
 
 die() { echo "FAIL: $*" >&2; exit 1; }
@@ -98,9 +101,10 @@ if [[ "$snap_mode" == "live" ]]; then
 elif [[ "$snap_mode" == "demo" ]]; then
   echo >&2
   echo "=== DEMO MODE — Battery 1 ~29.0 V is a placeholder, not live HA ===" >&2
-  echo "Auto-link failed (or no source on this host). Prefer:" >&2
-  echo "  sudo bash ${LINK_TOKEN_SCRIPT}" >&2
-  echo "That copies from host105-ai.env / alfa-ai secrets / known *.token paths." >&2
+  echo "Auto-link failed (or no source on this host / unreachable .105). Prefer:" >&2
+  echo "  sudo bash ${LINK_TOKEN_SCRIPT} -v" >&2
+  echo "That searches local paths, then ssh ansible@192.168.0.105 (HA_TOKEN_HOST)." >&2
+  echo "Token is on .105 disk secrets — not in the victron git clone." >&2
   echo "Only if nothing exists yet — HA Profile → Long-lived access tokens, then:" >&2
   echo "  sudo mkdir -p $(dirname "$TOKEN_FILE")" >&2
   echo "  sudo tee $TOKEN_FILE >/dev/null   # paste one line, Ctrl-D" >&2
