@@ -153,6 +153,41 @@
     setText(id, text);
   }
 
+  function wattSignClass(n) {
+    if (n === null || n === undefined || isNaN(n) || n === 0) return 'watt-zero';
+    return n > 0 ? 'watt-pos' : 'watt-neg';
+  }
+
+  function wattLossClass(n) {
+    if (n === null || n === undefined || isNaN(n) || n === 0) return 'watt-zero';
+    return 'watt-neg';
+  }
+
+  function applyWattSign(el, n) {
+    if (!el) return;
+    el.classList.remove('watt-pos', 'watt-neg', 'watt-zero');
+    el.classList.add(wattSignClass(n));
+  }
+
+  function setWattValue(id, watts, signed) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = signed ? formatSignedW(watts) : formatW(watts);
+    applyWattSign(el, watts);
+  }
+
+  function setSignedCurrent(id, v, a) {
+    var el = $(id);
+    if (!el) return;
+    el.textContent = formatVA(v, a);
+    applyWattSign(el, a);
+  }
+
+  function wattSpan(text, n, loss) {
+    var cls = loss ? wattLossClass(n) : wattSignClass(n);
+    return '<span class="' + cls + '">' + escapeHtml(text) + '</span>';
+  }
+
   function setPip(id, active) {
     var el = $(id);
     if (!el) return;
@@ -173,7 +208,7 @@
     }
   }
 
-  function setHopLabel(pathId, watts, unmetered) {
+  function setHopLabel(pathId, watts, unmetered, signed) {
     var el = $('hop-' + pathId);
     if (!el) return;
     if (unmetered) {
@@ -181,7 +216,8 @@
     } else {
       el.classList.remove('unmetered');
     }
-    el.textContent = formatW(watts);
+    el.textContent = signed ? formatSignedW(watts) : formatW(watts);
+    applyWattSign(el, unmetered ? 0 : watts);
   }
 
   function panelHopW(entities) {
@@ -189,21 +225,40 @@
     return a3W !== null ? Math.abs(a3W) : null;
   }
 
+  function trailerOutletW(entities) {
+    var b3W = getPowerW(entities, ENTITY_IDS.b3W);
+    if (b3W !== null && Math.abs(b3W) >= 0.5) {
+      return Math.abs(b3W);
+    }
+    var a3W = getPowerW(entities, ENTITY_IDS.panelA3W);
+    return a3W !== null ? Math.abs(a3W) : null;
+  }
+
+  function sungoldAcInW(entities, sgGridV, sgGridA) {
+    if (sgGridV !== null && sgGridA !== null) {
+      return Math.abs(sgGridV * sgGridA);
+    }
+    return null;
+  }
+
+  function ventFanEstimateW(trailerW, sgAcInW) {
+    if (trailerW === null || sgAcInW === null) return null;
+    var residual = trailerW - sgAcInW;
+    return residual > 0 ? residual : 0;
+  }
+
   function b3HopW(entities, panelW) {
     var b3W = getPowerW(entities, ENTITY_IDS.b3W);
-    if (b3W !== null) {
+    if (b3W !== null && Math.abs(b3W) >= 0.5) {
       return Math.abs(b3W);
     }
     return panelW;
   }
 
   function utiHopW(entities, b3W, sgGridV, sgGridA) {
-    if (b3W !== null) {
-      return b3W;
-    }
-    if (sgGridV !== null && sgGridA !== null && Math.abs(sgGridA) > 0.01) {
-      return Math.abs(sgGridV * sgGridA);
-    }
+    var acIn = sungoldAcInW(entities, sgGridV, sgGridA);
+    if (acIn !== null) return acIn;
+    if (b3W !== null && Math.abs(b3W) >= 0.5) return Math.abs(b3W);
     return null;
   }
 
@@ -220,19 +275,32 @@
     return solarW;
   }
 
+  // T2-KU jumper has no clamp. Estimate from T2 bus balance:
+  // solar_W + (-batt1_W when discharging) leaves via T2 Renogy and/or jumper.
+  // SmartShunt power is signed ([operation] current into battery is +).
+  function jumperEstimateW(solarW, batt1W, t2RenogyW) {
+    if (batt1W === null) return null;
+    var solar = solarW === null ? 0 : solarW;
+    var inv = t2RenogyW === null ? 0 : t2RenogyW;
+    return solar - inv - batt1W;
+  }
+
   function updateHopLabels(opts) {
     setHopLabel('path-t2-panels-mppt', opts.solarW, false);
     setHopLabel('path-t2-mppt-batt1', opts.mpptBattHopW, false);
     setHopLabel('path-t2-batt1-renogy', null, true);
+    setHopLabel('path-t2-ku-jumper', opts.jumperW, false, true);
     setHopLabel('path-ku-panels-chargers', null, true);
     setHopLabel('path-ku-chargers-batt2', null, true);
     setHopLabel('path-ku-pwm-panels', null, true);
     setHopLabel('path-ku-pwm-batt2', null, true);
-    setHopLabel('path-ku-batt2-inverter', opts.batt2W !== null ? Math.abs(opts.batt2W) : null, false);
+    setHopLabel('path-ku-batt2-inverter', opts.batt2W, false, true);
     setHopLabel('path-ku-renogy-panel', opts.panelW, false);
     setHopLabel('path-panel-b3', opts.b3W, false);
     setHopLabel('path-b3-outlet-sg-uti', opts.utiW, false);
     setHopLabel('path-sg-uti-sph', opts.utiW, false);
+    setHopLabel('path-outlet-vent-fan', opts.ventW, opts.ventW === null);
+    setHopLabel('path-sg-acout-pi4', null, true);
     var simW = opts.simBusW;
     var simUnmetered = simW === null;
     setHopLabel('path-sim-acbus', simW, simUnmetered);
@@ -242,7 +310,7 @@
     }
     setHopLabel('path-sg-pv-panels', opts.sgPvW, false);
     setHopLabel('path-sg-pv-batt', opts.sgPvW, false);
-    setHopLabel('path-sg-batt-inv', opts.sgBattW !== null ? Math.abs(opts.sgBattW) : null, false);
+    setHopLabel('path-sg-batt-inv', opts.sgBattW, false, true);
     setHopLabel('path-sg-inv-acout', opts.sgLoadW, false);
   }
 
@@ -325,12 +393,22 @@
     var unsynced = !!ai.soc_unsynced;
     var fields = [
       { label: 'Surplus', key: 'surplus_w', signed: true },
+      { label: 'Conversion losses', key: 'combined_losses_w', loss: true },
+      { label: 'Vdrop D/C', key: 'combined_vdrop_v', suffix: ' V' },
+      { label: 'Vdrop A/C', key: 'combined_vdrop_ac_v', suffix: ' V' },
+      { label: 'Vdrop loss', key: 'combined_vdrop_loss_w', loss: true },
+      { label: 'Path losses', key: 'combined_path_losses_w', loss: true },
+      { label: 'After losses', key: 'surplus_after_path_losses_w', signed: true },
+      { label: 'Vent fan', key: 'vent_fan_w' },
+      { label: 'Panel in', key: 'panel_in_w' },
       { label: 'Solar', key: 'solar_w' },
       { label: 'Load', key: 'load_w' },
       { label: 'Sim dump loads', key: 'sim_plug_w' },
       { label: 'Eff. load', key: 'effective_load_w' },
-      { label: 'Shunt V', key: 'shunt_v', suffix: ' V' },
-      { label: 'Shunt A', key: 'shunt_a', signedA: true },
+      { label: 'T2 shunt V', key: 't2_shunt_v', suffix: ' V', zeroOk: true },
+      { label: 'T2 shunt A', key: 't2_shunt_a', signedA: true, zeroOk: true },
+      { label: 'KU shunt V', key: 'ku_shunt_v', suffix: ' V', zeroOk: true },
+      { label: 'KU shunt A', key: 'ku_shunt_a', signedA: true, zeroOk: true },
       {
         label: unsynced ? 'SoC unsynced' : 'SoC',
         key: 'soc',
@@ -344,7 +422,15 @@
       var val = ai[f.key];
       var display;
       if (val === null || val === undefined) {
-        display = '--';
+        if (f.zeroOk && f.signedA) {
+          val = 0;
+          display = formatNum(0, 1) + ' A';
+        } else if (f.zeroOk && f.suffix) {
+          val = 0;
+          display = formatNum(0, 1) + f.suffix;
+        } else {
+          display = '--';
+        }
       } else if (f.signedA) {
         display = (val > 0 ? '+' : '') + formatNum(val, 1) + ' A';
       } else if (f.suffix) {
@@ -354,9 +440,18 @@
       } else {
         display = formatW(val);
       }
+      var signClass = '';
+      if (val !== null && val !== undefined) {
+        if (f.loss) {
+          signClass = ' ' + wattLossClass(val);
+        } else if (f.signed || f.signedA || !f.suffix) {
+          signClass = ' ' + wattSignClass(val);
+        }
+      }
       html += '<div class="metric-item' + (f.dim ? ' unsynced' : '') +
         '"><span class="metric-label">' + f.label +
-        '</span><span class="metric-value">' + escapeHtml(display) + '</span></div>';
+        '</span><span class="metric-value' + signClass + '">' +
+        escapeHtml(display) + '</span></div>';
     }
     if (ai.charge_state) {
       html += '<div class="metric-item"><span class="metric-label">Charge</span>' +
@@ -371,6 +466,39 @@
         '<span class="metric-value">' + escapeHtml(String(ai.skipped)) + '</span></div>';
     }
     container.innerHTML = html;
+  }
+
+  function hopCellW(val, unmetered) {
+    if (unmetered) return 'unmetered';
+    if (val === null || val === undefined) return '0 W';
+    return formatW(val);
+  }
+
+  function renderWattHops(ai) {
+    var body = $('watt-hops-body');
+    if (!body) return;
+    var hops = (ai && ai.watt_hops) || [];
+    if (!hops.length) {
+      body.innerHTML = '<tr><td colspan="5">waiting for hops</td></tr>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < hops.length; i++) {
+      var hop = hops[i];
+      var lossCell = hop.unmetered
+        ? 'unmetered'
+        : (hop.loss_w === null || hop.loss_w === undefined ? '0 W' : formatW(hop.loss_w));
+      var storedCell = (hop.stored_w === null || hop.stored_w === undefined)
+        ? '0 W'
+        : formatSignedW(hop.stored_w);
+      html += '<tr title="' + escapeHtml(hop.note || '') + '">' +
+        '<td>' + escapeHtml(hop.label || hop.id || '') + '</td>' +
+        '<td>' + wattSpan(hopCellW(hop.watts_in, hop.unmetered), hop.unmetered ? 0 : hop.watts_in) + '</td>' +
+        '<td>' + wattSpan(hopCellW(hop.watts_out, hop.unmetered), hop.unmetered ? 0 : hop.watts_out) + '</td>' +
+        '<td>' + wattSpan(lossCell, hop.unmetered ? 0 : hop.loss_w, true) + '</td>' +
+        '<td>' + wattSpan(storedCell, hop.stored_w) + '</td></tr>';
+    }
+    body.innerHTML = html;
   }
 
   function escapeHtml(str) {
@@ -433,8 +561,8 @@
         '<div class="meter-ch">' + ch.toUpperCase() +
         (note ? ' <span class="meter-va">' + escapeHtml(note) + '</span>' : '') +
         '</div>' +
-        '<div class="meter-w">' + escapeHtml(formatSignedW(w)) + '</div>' +
-        '<div class="meter-va">' + escapeHtml(formatVA(v, a)) + '</div>' +
+        '<div class="meter-w ' + wattSignClass(w) + '">' + escapeHtml(formatSignedW(w)) + '</div>' +
+        '<div class="meter-va ' + wattSignClass(a) + '">' + escapeHtml(formatVA(v, a)) + '</div>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -476,10 +604,11 @@
     }
 
     var solarW = getPowerW(entities, ENTITY_IDS.solar);
-    setValue('val-solar-w', formatW(solarW));
-    setValue('val-t2-panels-w', formatW(solarW));
-    setValue('val-ku-victron-panels-w', '0 W');
-    setValue('val-ku-pwm-panels-w', '0 W');
+    setWattValue('val-solar-w', solarW);
+    setWattValue('val-t2-panels-w', solarW);
+    // KU Victron+PWM residual is not HA W (needs KU Renogy DC). Do not print 2x T2.
+    setWattValue('val-ku-victron-panels-w', 0);
+    setWattValue('val-ku-pwm-panels-w', 0);
     setPip('pip-solar', solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
@@ -493,11 +622,13 @@
     var mpptRssi = parseFloatSafe(getState(entities, ENTITY_IDS.mpptRssi));
     setValue('val-mppt-va', formatVA(mpptV, mpptA));
     setValue('val-mppt-charge-w', 'chg ' + formatW(mpptChargeW));
+    applyWattSign($('val-mppt-charge-w'), mpptChargeW);
     setValue(
       'val-mppt-load',
       'load ' + formatW(mpptLoadW) +
         (mpptLoadA !== null ? ' / ' + formatNum(mpptLoadA, 1) + ' A' : '')
     );
+    applyWattSign($('val-mppt-load'), mpptLoadW);
     setValue(
       'val-mppt-yield',
       (mpptYield !== null ? 'yield ' + formatNum(mpptYield, 0) + ' Wh' : 'yield --') +
@@ -509,8 +640,8 @@
     var batt1A = parseFloatSafe(getState(entities, ENTITY_IDS.batt1A));
     var batt1W = getBatteryPower(entities, 'battery_1');
     setValue('val-batt1-soc', formatSocUnsynced(batt1Soc));
-    setValue('val-batt1-va', formatVA(batt1V, batt1A));
-    setValue('val-batt1-w', formatSignedW(batt1W));
+    setSignedCurrent('val-batt1-va', batt1V, batt1A);
+    setWattValue('val-batt1-w', batt1W, true);
     setValue('val-batt1-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt1Ah))));
     setValue(
       'val-batt1-rem',
@@ -524,8 +655,8 @@
     var batt2A = parseFloatSafe(getState(entities, ENTITY_IDS.batt2A));
     var batt2W = getBatteryPower(entities, 'battery_2');
     setValue('val-batt2-soc', formatSocUnsynced(batt2Soc));
-    setValue('val-batt2-va', formatVA(batt2V, batt2A));
-    setValue('val-batt2-w', formatSignedW(batt2W));
+    setSignedCurrent('val-batt2-va', batt2V, batt2A);
+    setWattValue('val-batt2-w', batt2W, true);
     setValue('val-batt2-ah', formatAh(parseFloatSafe(getState(entities, ENTITY_IDS.batt2Ah))));
     setValue(
       'val-batt2-rem',
@@ -538,7 +669,7 @@
     var panelA3V = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3V));
     var panelA3A = parseFloatSafe(getState(entities, ENTITY_IDS.panelA3A));
     var panelW = panelHopW(entities);
-    setValue('val-panel-a3-w', formatW(panelA3W));
+    setWattValue('val-panel-a3-w', panelA3W);
     setValue('val-panel-a3-va', 'A3 ' + formatVA(panelA3V, panelA3A));
     setPip('pip-panel', panelW !== null && panelW > 0);
 
@@ -546,13 +677,13 @@
     var b3V = parseFloatSafe(getState(entities, ENTITY_IDS.b3V));
     var b3A = parseFloatSafe(getState(entities, ENTITY_IDS.b3A));
     var b3W = b3HopW(entities, panelW);
-    setValue('val-b3-w', formatW(b3RawW !== null ? b3RawW : panelA3W));
+    setWattValue('val-b3-w', b3RawW !== null ? b3RawW : panelA3W);
     setValue('val-b3-va', formatVA(b3V, b3A));
     setPip('pip-b3', b3W !== null && b3W > 0);
 
-    setValue('val-t2-renogy-w', '0 W');
+    setWattValue('val-t2-renogy-w', 0);
     setPip('pip-t2-renogy', false);
-    setValue('val-ku-renogy-w', '0 W');
+    setWattValue('val-ku-renogy-w', 0);
 
     var totalDump = 0;
     var hasDump = false;
@@ -562,7 +693,7 @@
       var plugOn = isSwitchOn(entities, p);
       var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
       plugWs[p] = plugW;
-      setValue('val-plug-' + p + '-w', formatW(plugW));
+      setWattValue('val-plug-' + p + '-w', plugW);
       setPip('pip-plug-' + p, plugOn || (plugW !== null && plugW > 0));
       setPlugOn(p, plugOn);
       setFlow('path-sim-plug-' + p, plugOn || (plugW !== null && plugW > 0), false);
@@ -574,13 +705,13 @@
     }
 
     var dumpSensor = getPowerW(entities, ENTITY_IDS.dumpTotal);
-    setValue('val-dump-w', formatW(dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null)));
+    setWattValue('val-dump-w', dumpSensor !== null ? dumpSensor : (hasDump ? totalDump : null));
 
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
     var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
     var sgPvA = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvA));
-    setValue('val-sg-panels-w', formatW(sgPvW));
-    setValue('val-sg-pv-w', formatW(sgPvW));
+    setWattValue('val-sg-panels-w', sgPvW);
+    setWattValue('val-sg-pv-w', sgPvW);
     setValue('val-sg-pv-va', formatVA(sgPvV, sgPvA));
     setPip('pip-sg-pv', sgPvW !== null && sgPvW > 0);
 
@@ -590,25 +721,37 @@
     var sgBattW = getPowerW(entities, ENTITY_IDS.sgBattW);
     var sgCharge = getState(entities, ENTITY_IDS.sgCharge);
     setValue('val-sg-soc', sgSoc !== null ? 'remain ' + formatNum(sgSoc, 0) + '%' : 'remain --');
-    setValue('val-sg-batt-va', formatVA(sgBattV, sgBattA));
-    setValue('val-sg-batt-w', formatSignedW(sgBattW));
+    setSignedCurrent('val-sg-batt-va', sgBattV, sgBattA);
+    setWattValue('val-sg-batt-w', sgBattW, true);
     setValue('val-sg-charge', sgCharge || '--');
     setPip('pip-sg-batt', sgBattW !== null && Math.abs(sgBattW) > 0);
 
     var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
     var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
     var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
+    var trailerW = trailerOutletW(entities);
     var utiW = utiHopW(entities, b3W, sgGridV, sgGridA);
-    setValue('val-sg-uti-w', formatW(utiW));
+    var ventW = ventFanEstimateW(trailerW, utiW);
+    setWattValue('val-sg-uti-w', utiW);
     setValue('val-sg-uti-va', formatVA(sgGridV, sgGridA));
     setValue('val-sg-uti-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
     setPip('pip-sg-uti', utiW !== null && utiW > 0);
+    if (ventW === null) {
+      setValue('val-vent-fan-w', 'unmetered');
+      applyWattSign($('val-vent-fan-w'), 0);
+    } else {
+      setWattValue('val-vent-fan-w', ventW);
+    }
+    setPip('pip-vent-fan', ventW !== null && ventW > 0.5);
+    setValue('val-pi4-w', 'unmetered');
+    applyWattSign($('val-pi4-w'), 0);
+    setPip('pip-pi4', true);
 
     var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
     var sgOutV = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutV));
     var sgOutHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgOutHz));
-    setValue('val-sg-load-w', formatW(sgLoadW));
+    setWattValue('val-sg-load-w', sgLoadW);
     setValue('val-sg-load-va', formatVA(sgOutV, sgLoadA));
     setValue('val-sg-load-hz', sgOutHz !== null ? formatNum(sgOutHz, 0) + ' Hz' : '-- Hz');
     setPip('pip-sg-acout', sgLoadW !== null && Math.abs(sgLoadW) > 0);
@@ -626,17 +769,31 @@
     var ai = snapshot.ai || {};
     setText('ai-thinking', ai.thinking || (proxyOnline ? 'idle' : 'waiting for proxy'));
     renderMetrics(ai);
+    renderWattHops(ai);
     renderDecisions(ai.decisions);
 
     var simBusW = hasDump && totalDump > 0 ? totalDump : null;
     var mpptBattHopW = mpptToBattHopW(entities, solarW);
+    var jumperW = jumperEstimateW(solarW, batt1W, 0);
+    var jumperDir = $('lbl-jumper-dir');
+    if (jumperDir) {
+      if (jumperW === null || Math.abs(jumperW) < 0.5) {
+        jumperDir.textContent = 'T2-KU jumper est.';
+      } else if (jumperW > 0) {
+        jumperDir.textContent = 'T2 to KU jumper est.';
+      } else {
+        jumperDir.textContent = 'KU to T2 jumper est.';
+      }
+    }
     updateHopLabels({
       solarW: solarW,
       mpptBattHopW: mpptBattHopW,
+      jumperW: jumperW,
       batt2W: batt2W,
       panelW: panelW,
       b3W: b3W,
       utiW: utiW,
+      ventW: ventW,
       simBusW: simBusW,
       plugWs: plugWs,
       sgPvW: sgPvW,
@@ -647,9 +804,11 @@
       solarW: solarW,
       batt1W: batt1W,
       batt2W: batt2W,
+      jumperW: jumperW,
       panelW: panelW,
       b3W: b3W,
       utiW: utiW,
+      ventW: ventW,
       plugTotal: totalDump,
       anyPlugOn: anyPlugOn,
       sgPvW: sgPvW,
@@ -686,6 +845,8 @@
     setFlow('path-t2-panels-mppt', solarFlow, false);
     setFlow('path-t2-mppt-batt1', solarFlow || batt1Charge || batt1Discharge, batt1Discharge);
     setFlow('path-t2-batt1-renogy', false, false);
+    var jumperAbs = opts.jumperW !== null ? Math.abs(opts.jumperW) : 0;
+    setFlow('path-t2-ku-jumper', jumperAbs >= 0.5, opts.jumperW !== null && opts.jumperW < 0);
 
     var batt2Discharge = opts.batt2W !== null && opts.batt2W < 0;
     var panelFlow = opts.panelW !== null && opts.panelW > 0;
@@ -697,6 +858,8 @@
     setFlow('path-panel-b3', b3Flow || utiFlow, false);
     setFlow('path-b3-outlet-sg-uti', utiFlow, false);
     setFlow('path-sg-uti-sph', utiFlow, false);
+    setFlow('path-outlet-vent-fan', opts.ventW !== null && opts.ventW > 0.5, false);
+    setFlow('path-sg-acout-pi4', true, false);
     setFlow('path-sim-acbus', plugLoad, false);
     setFlow('path-sim-riser', plugLoad, false);
     setFlow('path-sg-pv-panels', opts.sgPvW !== null && opts.sgPvW > 0, false);

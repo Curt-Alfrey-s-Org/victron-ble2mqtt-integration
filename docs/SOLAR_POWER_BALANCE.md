@@ -40,6 +40,11 @@ into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold A/C-in). PWM
 inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
 Do not merge Sungold D/C into T2/KU. Do not print 2x T2 watts as live KU Victron.
 Dashboard hop policy: KU Renogy tile shows **0 W** (no HA inverter entity; never `-- W`).
+**T2-KU jumper** on the Overview is an **estimate** (`solar_W - T2_Renogy_W - batt1_W`,
+signed; T2 Renogy **0 W** while idle). Negative Battery 1 W with idle T2 Renogy means
+current is leaving T2 through the jumper toward the KU bus (KU Renogy / trailer A/C),
+not into the T2 RV outlet. The SmartShunt still does **not** measure jumper amps
+([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
 **A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). **B3** =
 breaker feeding the Sungold outlet (`path-panel-b3`, \|B3\| or A3 fallback while Sungold
 is the only outlet load). **UTI hop** (`path-b3-outlet-sg-uti`, `path-sg-uti-sph`) uses
@@ -132,22 +137,129 @@ does not write SoC over MQTT/HA. Dashboard procedure:
 
 ```
 PV_T2         = Solar-controller solar power (W)     # charger 1
-PV_KU_victron = 2 * PV_T2                            # chargers 2 and 3
+PV_KU_victron = 2 * PV_T2                            # paper close only (10-11 Sep tables)
 PV_KU_pwm     = unmetered                            # 2 ground suitcases + Renogy PWM
-PV_victron    = 3 * PV_T2                            # three identical Victron strings only
+PV_victron    = 3 * PV_T2                            # three identical Victron strings; not live tiles
 Shunt_T2      = Battery 1 power (HQ2239CQYT2)
 Shunt_KU      = Battery 2 power (HQ2239JTRKU)
 AC_trailer    = EM16 A3 magnitude                    # 10-11 Sep only: KU Renogy path
 ```
 
+`PV x3` / `2 * PV_T2` is a **historical paper close**, not live telemetry. Do **not** print 2x T2 as a KU Victron reading on Solar flow.
+
+### KU Victron + PWM residual (not a live tile)
+
+SmartShunt Battery 2 is **net** of KU chargers 2+3 + PWM + jumper minus KU Renogy DC
+([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html):
++charge / -discharge):
+
+```
+batt2_W ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
+KU_PV_DC ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
+jumper_into_KU ≈ solar_W − T2_Renogy_W − batt1_W   # + = T2 to KU; T2 Renogy 0 W while idle
+```
+
+**Live HA cannot close `KU_PV_DC`.** KU Renogy DC has no inverter entity (tile **0 W**).
+EM16 A3 is trailer A/C (Sungold + vent), not KU Renogy DC. Substituting **0** for
+KU_Renogy_DC makes the residual **often negative** when Battery 2 is discharging and
+the jumper is feeding KU (15 Sep: batt2 about **-803 W**, jumper about **+223 W** →
+about **-1026 W**). When Battery 2 is charging, omitting inverter DC **understates**
+KU PV (11 Sep 11:21: residual about **+76 W** while A3 was about **385 W** A/C).
+
+**Split** into Victron 2 vs Victron 3 vs PWM is not measured. Panel counts (4 Victron
+suitcases / 2 PWM) would be an assumption. Victron: PWM pulls the array near Vbat
+while MPPT holds MPP
+([Which solar charge controller: PWM or MPPT?](https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf)).
+A 25 C worked example is **81 W PWM vs 100 W MPPT** (19% less). SmartSolar manuals
+say **up to 30% more** harvest vs PWM in changing cloud
+([features](https://www.victronenergy.com/media/pg/Manual_SmartSolar_MPPT_100-30__100-50/en/features.html)).
+The same PWM/MPPT paper shows the MPPT advantage **vanishes at 75 C cell temperature**.
+There is **no** single site derate to apply. Do not invent one.
+
+**Dashboard / dump-load:** KU Victron and KU PWM tiles stay **0 W** (incomplete /
+unmetered). Residual stays out of `combined_losses_w` and is **not** `ha_solar_entity`.
+Ledger `ku_unmetered_pv_est_w` is **None** until KU Renogy DC is metered.
+
 **Sungold cart (15 Sep, AC charge, PV = 0)** -- LCD names from the SPH302480A manual ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1). `INPUT BATT` is battery **input** power; `INV OUTPUT LOAD KW` is AC load; `AC INPUT` is mains. HA **Output mode** `4` is not in the sidecar lookup (0-3 only) -- leave it as the raw integer ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)).
 
 ```
-SG_AC_in   = |EM16 A3|                         # check vs Sungold AC input A * AC input V
+SG_AC_in   = SPH AC INPUT V * A                    # reprint §4.1; do NOT use A3
 SG_batt_in = Sungold battery input power       # LCD INPUT BATT KW (Boost charge = charging)
-SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW
-SG_PV      = Sungold PV output power           # 0 in the 15 Sep shot
-SG_loss    = SG_AC_in - SG_batt_in - SG_AC_out - SG_PV
+SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (includes Pi4)
+SG_PV      = Sungold PV output power
+trailer_outlet_W = |EM16 B3| if B3 >= 0.5 W else |EM16 A3|
+vent_fan_W = max(0, trailer_outlet_W - SG_AC_in)   # sibling on KU trailer outlet
+SG_loss    = (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out
+```
+
+**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio; no HA watt entity). Cargo-trailer **vent fan** shares the **KU Renogy trailer outlet** with Sungold UTI / A/C INPUT. EM16 A3 is that hot-leg total -- **not** Sungold-only. Do not force A3 = SPH A/C in.
+
+When `SG_PV` is 0 this matches the 15 Sep LCD split on the hybrid itself. With PV present, add PV to the input side (reprint §4.1). Do not subtract `SG_PV` from the right-hand side.
+
+## End-to-end path losses
+
+Follow watts **in** and **out** of each hop starting at panel current/power (`P = V * I` when HA has no power entity). **Battery charge is storage, not conversion loss** (SmartShunt [+charge / -discharge](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)). Combined path loss is the sum of **metered conversion** hops only:
+
+```
+combined_losses_w = T2_MPPT_loss + SG_loss     # skip a hop when either end is missing
+surplus_after_path_losses_w = surplus_w - combined_losses_w
+```
+
+- **T2 MPPT:** `solar_W - charging_power - load_power` when charging_power is present. If charging_power is 0/missing while the T2-KU jumper estimate is flowing, skip MPPT conversion loss (the bus is carrying watts the charge sensor did not report).
+- **T2-KU jumper:** `solar_W - batt1_W` (signed estimate; no clamp). Not a conversion hop.
+- **KU Victron + PWM D/C:** unmetered; residual not computable without KU Renogy DC;
+  **not** guessed into `combined_losses_w`; tiles stay **0 W**.
+- Dump-load ON/OFF in alfa-ai and this dashboard uses `surplus_after_path_losses_w` ([Morningstar diversion §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf) -- divert excess source energy after the battery is full).
+
+Keep ledger code in `scripts/solar_watt_ledger.py` in sync with `alfa-ai/src/ops/solar_watt_ledger.py`.
+
+### KU Victron + PWM residual (not a live watt)
+
+Battery 2 is **net** of KU Victron 2+3 + PWM + jumper minus KU Renogy DC
+([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html):
++charge / -discharge; not each charger).
+
+```
+batt2_W    ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
+KU_PV_DC   ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
+jumper_est ≈ T2_solar − T2_Renogy − batt1_W     # T2 Renogy 0 W while idle; + = T2 to KU
+```
+
+That combined residual is the only meter-backed KU PV estimate, and **live HA cannot
+close it.** KU Renogy DC has **no inverter entity** (tile **0 W**). EM16 A3 is trailer
+**A/C** (Sungold + vent), not KU Renogy DC. Substituting 0 for the missing inverter DC
+makes the residual **often negative** when Battery 2 is discharging and the jumper is
+feeding KU (15 Sep ~15:53: batt2 **−803 W**, jumper **~223 W** → residual **~−1026 W**).
+When Battery 2 is charging, omitting inverter DC **understates** KU PV (11 Sep 11:21:
+residual **~76 W** while A3 was **~385 W** A/C).
+
+**Split** of residual into two Victron MPPTs vs one PWM is **not measured**. Suitcase
+counts (4 Victron / 2 PWM) would be an assumption. Victron: PWM connects the array to
+the battery so panel voltage sits near Vbat; MPPT holds the maximum power point
+([Which solar charge controller: PWM or MPPT?](https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf)).
+That paper's 25 °C worked example is **81 W PWM vs 100 W MPPT** (19% less). SmartSolar
+manuals say **up to 30% more** harvest vs PWM in changing cloud
+([SmartSolar MPPT 100/30 features](https://www.victronenergy.com/media/pg/Manual_SmartSolar_MPPT_100-30__100-50/en/features.html)).
+The same PWM-vs-MPPT paper shows the advantage **vanishes at 75 °C cell temperature**.
+There is **no** single site derate to apply. Do not invent one.
+
+**Dashboard / dump-load:** KU Victron (2+2) and KU PWM tiles stay **0 W** (incomplete /
+unmetered). Do **not** print 2× T2 as a KU Victron reading. Do **not** paint residual
+watts as live HA W. `ha_solar_entity` stays the T2 reporter only. The watt-ledger hop
+`ku_victron_pwm` stays unmetered and is **not** in `combined_losses_w`. Historical
+10-11 Sep tables still use `PV x3` as a paper close, not live telemetry.
+
+Voltage drop (D/C vs A/C kept separate; never 24 V minus 120 V):
+[Victron Wiring Unlimited §2.7](https://www.victronenergy.com/media/pg/The_Wiring_Unlimited_book/en/theory.html)
+V = I×R, cable loss P = I²R. With both-end voltages, ΔV = V_up − V_down and
+P_drop ≈ |ΔV × I|. No AWG/length guesses. Jumper has ΔV when both shunts report
+voltage but **no jumper current clamp**, so vdrop watts stay incomplete on that hop.
+
+```
+combined_vdrop_v     = sum |ΔV| on metered D/C hops
+combined_vdrop_ac_v  = sum |ΔV| on metered A/C hops
+combined_vdrop_loss_w = sum |ΔV × I| when I is metered
+combined_path_losses_w = combined_losses_w + combined_vdrop_loss_w
 ```
 
 Do not add A3+B2 or A2+A3. PWM is **not** inside `PV_victron`. 10-11 Sep snapshot tables still use `PV x3` for the three Victron strings and A3 as trailer AC.
@@ -164,7 +276,7 @@ Expect BLE fields from different advertisements to disagree by a few watts. A3 a
 | ~720-940 W extra PV from a Sungold hybrid MPPT | Sungold is the **dolly cart** (2x 24 V 100 Ah), not on T2/KU. |
 | Used = A3 + B2 (~1,380 W) | **Never add A3+B2.** 10-11 Sep: A3 trailer total, B2 branch. **15 Sep:** A3/B2 are the Sungold AC-input feed (same amps as `AC INPUT`). |
 | A3 and B2 "two CTs on the same feed" as the only explanation | They read almost equal because they are on the **same leg**. Sign can flip (15 Sep B2 negative). |
-| A3 is always KU Renogy / cluster idle | **15 Sep 15:53** A3 **10.4 A / 1190 W** = Sungold AC in. KU DC was still **-803 W** with no other EM16 channel carrying that AC. |
+| A3 is always KU Renogy / cluster idle | **15 Sep 15:53** A3 **10.4 A / 1190 W** matched Sungold AC in that day. **17 Sep:** A3 is trailer-outlet hot leg = SPH A/C in **plus** cargo-trailer vent fan. |
 | Shunt 2 negative => the two silent MPPTs are fully on BATTERY MINUS | Shunt 2 is **KU net** (Victron 2+3 + PWM minus KU Renogy). |
 | Shunt should show charger-to-inverter amps at float | Battery monitor shows **that LiTime** only. Chargers on the SYSTEM MINUS bus of that shunt is correct. |
 | Battery 2 capacity ~185 Ah from 91.7% / 15.4 Ah | **230 Ah** LiTime. 15.4 / 230 = 6.7% used, implied **93.3%**. |

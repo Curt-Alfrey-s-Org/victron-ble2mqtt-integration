@@ -43,6 +43,8 @@ def _demo_states(
         "sensor.battery_1_soc": {"entity_id": "sensor.battery_1_soc", "state": soc},
         "sensor.battery_1_voltage": {"entity_id": "sensor.battery_1_voltage", "state": "28.6"},
         "sensor.battery_1_current": {"entity_id": "sensor.battery_1_current", "state": "2.1"},
+        "sensor.battery_2_voltage": {"entity_id": "sensor.battery_2_voltage", "state": "25.6"},
+        "sensor.battery_2_current": {"entity_id": "sensor.battery_2_current", "state": "-4.8"},
         "sensor.solar_controller_battery_state": {
             "entity_id": "sensor.solar_controller_battery_state",
             "state": charge,
@@ -76,6 +78,9 @@ def test_decide_dump_view_surplus_math() -> None:
     assert "Surplus 120W" in view["thinking"]
     assert "soak" not in view["thinking"].lower()
     assert len(view["decisions"]) == 6
+    assert view["watt_hops"]
+    assert "vent_fan" in {h["id"] for h in view["watt_hops"]}
+    assert "pi4" in {h["id"] for h in view["watt_hops"]}
 
 
 def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
@@ -89,6 +94,29 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "D/C" in html
     assert "dump load" in html.lower()
     assert 'viewBox="0 0 1480 1116"' in html
+    assert 'path-t2-ku-jumper' in html
+    assert 'id="node-vent-fan"' in html
+    assert 'id="node-pi4"' in html
+    assert 'id="art-pv"' in html
+    assert 'id="path-outlet-vent-fan"' in html
+    assert 'id="path-sg-acout-pi4"' in html
+    assert "watt-pos" in css
+    assert "watt-neg" in css
+    assert "watt-zero" in css
+    assert "function wattSignClass" in js
+    assert "function applyWattSign" in js
+    assert "function setWattValue" in js
+    assert "function formatSignedW" in js
+    assert "function setHopLabel" in js
+    assert "{ label: 'T2 shunt V'" in js
+    assert "{ label: 'T2 shunt A'" in js
+    assert "{ label: 'KU shunt V'" in js
+    assert "{ label: 'KU shunt A'" in js
+    assert "{ label: 'Shunt V'" not in js
+    assert "{ label: 'Shunt A'" not in js
+    assert "incomplete" in html
+    assert "setWattValue('val-ku-victron-panels-w', 0)" in js
+    assert "setWattValue('val-ku-pwm-panels-w', 0)" in js
 
 
 def test_public_missing_entity_ids_omits_legacy_unique_id() -> None:
@@ -511,9 +539,18 @@ def test_unsynced_soc_zero_still_decides() -> None:
     assert view["soc_gate"] == "skipped_unsynced"
     assert view["shunt_v"] == 28.6
     assert view["shunt_a"] == 2.1
+    assert view["t2_shunt_v"] == 28.6
+    assert view["t2_shunt_a"] == 2.1
+    assert view["ku_shunt_v"] == 25.6
+    assert view["ku_shunt_a"] == -4.8
     assert view.get("skipped") is None
     assert "SoC gate skipped: unsynced; using V/A + charge state only" in view["thinking"]
-    assert "28.6V" in view["thinking"]
+    assert "T2 HQ2239CQYT2 shunt 28.6V" in view["thinking"]
+    assert "T2 HQ2239CQYT2 shunt +2.1A" in view["thinking"]
+    assert "KU HQ2239JTRKU shunt 25.6V" in view["thinking"]
+    assert "KU HQ2239JTRKU shunt -4.8A" in view["thinking"]
+    assert "Shunt 28.6V" not in view["thinking"]
+    assert "soak" not in view["thinking"].lower()
     assert any(d["action"] == "on" for d in view["decisions"])
 
 

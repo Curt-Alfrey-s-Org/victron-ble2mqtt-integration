@@ -28,6 +28,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
+from solar_watt_ledger import apply_ledger_to_meta
+
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "web" / "solar-flow"
 DEMO_SNAPSHOT = WEB_ROOT / "demo-snapshot.json"
@@ -317,6 +319,10 @@ def decide_dump(
     soc = _parse_float_state(_state_row(states, soc_e))
     shunt_v = _parse_float_state(_state_row(states, volt_e))
     shunt_a = _parse_float_state(_state_row(states, curr_e))
+    t2_shunt_v = shunt_v
+    t2_shunt_a = shunt_a
+    ku_shunt_v = _parse_float_state(_state_row(states, "sensor.battery_2_voltage"))
+    ku_shunt_a = _parse_float_state(_state_row(states, "sensor.battery_2_current"))
     charge_row = _state_row(states, charge_e)
     watts_map = _parse_switch_watts(settings.get("ha_switch_watts", ""))
     sim_plug_w = _sim_on_watts(states, watts_map)
@@ -333,10 +339,20 @@ def decide_dump(
         "soc": soc,
         "shunt_v": shunt_v,
         "shunt_a": shunt_a,
+        "t2_shunt_v": t2_shunt_v,
+        "t2_shunt_a": t2_shunt_a,
+        "ku_shunt_v": ku_shunt_v,
+        "ku_shunt_a": ku_shunt_a,
         "soc_unsynced": soc_unsynced,
         "charge_state": str(charge_row.get("state") if charge_row else ""),
         "allowlist_count": len(allowlist),
     }
+
+    surplus: float | None = None
+    if solar_w is not None and effective_load_w is not None:
+        surplus = solar_w - effective_load_w
+        meta["surplus_w"] = surplus
+    decision_surplus = apply_ledger_to_meta(meta, states, surplus)
 
     if not enabled:
         return [], {**meta, "skipped": "ha_solar_dump_enabled=false"}
@@ -350,8 +366,8 @@ def decide_dump(
     if effective_load_w is None:
         return [], {**meta, "skipped": "load sensor unavailable and no ha_switch_watts map"}
 
-    surplus = solar_w - effective_load_w
-    meta["surplus_w"] = surplus
+    if decision_surplus is None:
+        return [], {**meta, "skipped": "solar sensor unavailable"}
 
     if soc_unsynced:
         meta["soc_gate"] = "skipped_unsynced"
@@ -373,12 +389,19 @@ def decide_dump(
         target: Literal["on", "off", "skip"] = "skip"
         reason = "hysteresis hold"
 
-        if surplus > min_surplus:
+        losses = float(meta.get("combined_losses_w") or 0.0)
+        if decision_surplus > min_surplus:
             target = "on"
-            reason = f"surplus {surplus:.0f}W > {min_surplus}W"
-        elif surplus <= off_surplus:
+            reason = (
+                f"surplus {surplus:.0f}W minus {losses:.0f}W path losses "
+                f"= {decision_surplus:.0f}W > {min_surplus}W"
+            )
+        elif decision_surplus <= off_surplus:
             target = "off"
-            reason = f"surplus {surplus:.0f}W <= {off_surplus}W"
+            reason = (
+                f"surplus {surplus:.0f}W minus {losses:.0f}W path losses "
+                f"= {decision_surplus:.0f}W <= {off_surplus}W"
+            )
 
         if target == "on" and current_on:
             decisions.append((entity_id, "skip", "already on"))
@@ -418,24 +441,44 @@ def decide_dump(
     return decisions, meta
 
 
+def _shunt_current_flow(amps: float) -> str:
+    if amps > 0:
+        return "charging"
+    if amps < 0:
+        return "discharging"
+    return "idle"
+
+
+def _shunt_thinking_bits(meta: dict[str, Any]) -> list[str]:
+    bits: list[str] = []
+    t2v = meta.get("t2_shunt_v")
+    t2a = meta.get("t2_shunt_a")
+    kuv = meta.get("ku_shunt_v")
+    kua = meta.get("ku_shunt_a")
+    if t2v is not None:
+        bits.append(
+            f"T2 HQ2239CQYT2 shunt {t2v:.1f}V "
+            "(LiTime absorb 28.4-29.2 V nameplate, not a Victron SoC)."
+        )
+    if t2a is not None:
+        bits.append(
+            f"T2 HQ2239CQYT2 shunt {t2a:+.1f}A "
+            f"({_shunt_current_flow(t2a)}; +charge/-discharge)."
+        )
+    if kuv is not None:
+        bits.append(f"KU HQ2239JTRKU shunt {kuv:.1f}V.")
+    if kua is not None:
+        bits.append(
+            f"KU HQ2239JTRKU shunt {kua:+.1f}A "
+            f"({_shunt_current_flow(kua)}; +charge/-discharge)."
+        )
+    return bits
+
+
 def _build_thinking(meta: dict[str, Any]) -> str:
     skipped = meta.get("skipped")
     charge = meta.get("charge_state") or "unknown"
-    shunt_bits: list[str] = []
-    shunt_v = meta.get("shunt_v")
-    shunt_a = meta.get("shunt_a")
-    if shunt_v is not None:
-        shunt_bits.append(
-            f"Shunt {shunt_v:.1f}V (LiTime absorb 28.4-29.2 V nameplate, not a Victron SoC)."
-        )
-    if shunt_a is not None:
-        if shunt_a > 0:
-            flow = "charging"
-        elif shunt_a < 0:
-            flow = "discharging"
-        else:
-            flow = "idle"
-        shunt_bits.append(f"Shunt {shunt_a:.1f}A ({flow}; +charge/-discharge).")
+    shunt_bits = _shunt_thinking_bits(meta)
 
     if skipped:
         solar_w = meta.get("solar_w")
@@ -444,6 +487,14 @@ def _build_thinking(meta: dict[str, Any]) -> str:
         bits = [f"Dump load skipped: {skipped}."]
         if surplus is not None:
             bits.append(f"Surplus would be {surplus:.0f}W.")
+            losses = meta.get("combined_losses_w")
+            after = meta.get("surplus_after_path_losses_w")
+            if losses is not None:
+                bits.append(
+                    f"Path losses {losses:.0f}W (metered conversion hops; KU Victron/PWM D/C unmetered)."
+                )
+            if after is not None:
+                bits.append(f"Surplus after losses {after:.0f}W.")
         elif solar_w is not None and meta.get("effective_load_w") is not None:
             eff = meta["effective_load_w"]
             bits.append(f"Solar {solar_w:.0f}W minus effective load {eff:.0f}W.")
@@ -459,6 +510,23 @@ def _build_thinking(meta: dict[str, Any]) -> str:
     if surplus is None:
         return "Insufficient sensor data for dump load evaluation."
     bits = [f"Surplus {surplus:.0f}W with charge state {charge}."]
+    losses = meta.get("combined_losses_w")
+    after = meta.get("surplus_after_path_losses_w")
+    if losses is not None:
+        bits.append(
+            f"Conversion losses {losses:.0f}W (metered hops; KU Victron/PWM D/C unmetered)."
+        )
+    vdrop_w = meta.get("combined_vdrop_loss_w")
+    if vdrop_w is not None:
+        bits.append(f"Voltage-drop loss {vdrop_w:.0f}W (D/C and A/C ΔV kept separate).")
+    path_total = meta.get("combined_path_losses_w")
+    if path_total is not None:
+        bits.append(f"Combined path losses {path_total:.0f}W.")
+    vent = meta.get("vent_fan_w")
+    if vent is not None:
+        bits.append(f"Trailer vent fan residual {vent:.0f}W (A3 is not Sungold-only).")
+    if after is not None:
+        bits.append(f"Surplus after losses {after:.0f}W (dump ON/OFF uses this).")
     if meta.get("soc_unsynced"):
         bits.append("SoC gate skipped: unsynced; using V/A + charge state only.")
         soc = meta.get("soc")
@@ -507,6 +575,18 @@ def decide_dump_view(
         "thinking": _build_thinking(meta),
         "decisions": rows,
         "surplus_w": meta.get("surplus_w"),
+        "combined_losses_w": meta.get("combined_losses_w"),
+        "combined_losses_incomplete": meta.get("combined_losses_incomplete"),
+        "combined_vdrop_v": meta.get("combined_vdrop_v"),
+        "combined_vdrop_ac_v": meta.get("combined_vdrop_ac_v"),
+        "combined_vdrop_loss_w": meta.get("combined_vdrop_loss_w"),
+        "combined_path_losses_w": meta.get("combined_path_losses_w"),
+        "surplus_after_path_losses_w": meta.get("surplus_after_path_losses_w"),
+        "panel_in_w": meta.get("panel_in_w"),
+        "watt_hops": meta.get("watt_hops") or [],
+        "vent_fan_w": meta.get("vent_fan_w"),
+        "trailer_outlet_w": meta.get("trailer_outlet_w"),
+        "sungold_ac_in_w": meta.get("sungold_ac_in_w"),
         "solar_w": meta.get("solar_w"),
         "load_w": meta.get("load_w"),
         "sim_plug_w": meta.get("sim_plug_w"),
@@ -514,6 +594,10 @@ def decide_dump_view(
         "soc": meta.get("soc"),
         "shunt_v": meta.get("shunt_v"),
         "shunt_a": meta.get("shunt_a"),
+        "t2_shunt_v": meta.get("t2_shunt_v"),
+        "t2_shunt_a": meta.get("t2_shunt_a"),
+        "ku_shunt_v": meta.get("ku_shunt_v"),
+        "ku_shunt_a": meta.get("ku_shunt_a"),
         "soc_unsynced": meta.get("soc_unsynced"),
         "soc_gate": meta.get("soc_gate"),
         "charge_state": meta.get("charge_state"),

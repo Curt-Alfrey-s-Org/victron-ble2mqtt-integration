@@ -11,6 +11,8 @@
   --cyan: #00bcd4;
   --cyan-bright: #00e5ff;
   --green: #3fb950;
+  --watt-pos: #3fb950;
+  --watt-neg: #f85149;
   --grey-pip: #484f58;
   --amber: #f0a030;
   --red-banner: #da3633;
@@ -255,6 +257,36 @@ body.demo-mode .demo-watermark {
   fill: var(--text-dim);
 }
 
+.hop-watt.watt-pos,
+.node-watts.watt-pos,
+.plug-watts.watt-pos {
+  fill: var(--watt-pos);
+}
+
+.hop-watt.watt-neg,
+.node-watts.watt-neg,
+.plug-watts.watt-neg {
+  fill: var(--watt-neg);
+}
+
+.hop-watt.watt-zero,
+.node-watts.watt-zero,
+.plug-watts.watt-zero {
+  fill: var(--cyan-bright);
+}
+
+.hop-watt.unmetered.watt-pos,
+.hop-watt.unmetered.watt-neg,
+.hop-watt.unmetered.watt-zero {
+  fill: var(--text-dim);
+}
+
+.node-watts.unmetered-text.watt-pos,
+.node-watts.unmetered-text.watt-neg,
+.node-watts.unmetered-text.watt-zero {
+  fill: var(--text-dim);
+}
+
 .hop-on-plug {
   display: none;
 }
@@ -320,6 +352,20 @@ body.demo-mode .demo-watermark {
   color: var(--cyan);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.meter-card .meter-w.watt-pos,
+.meter-card .meter-va.watt-pos {
+  color: var(--watt-pos);
+}
+
+.meter-card .meter-w.watt-neg,
+.meter-card .meter-va.watt-neg {
+  color: var(--watt-neg);
+}
+
+.meter-card .meter-w.watt-zero {
+  color: var(--cyan);
 }
 
 .meter-card .meter-va {
@@ -396,6 +442,10 @@ body.demo-mode .demo-watermark {
   font-size: 13px;
   font-family: var(--font);
 }
+
+.node-detail.watt-pos { fill: var(--watt-pos); }
+.node-detail.watt-neg { fill: var(--watt-neg); }
+.node-detail.watt-zero { fill: var(--text-dim); }
 
 .soc-unsynced {
   fill: var(--text-dim);
@@ -656,6 +706,40 @@ body.demo-mode .demo-watermark {
   font-size: 0.75rem;
 }
 
+.watt-hops {
+  margin-bottom: 1rem;
+}
+
+.watt-hops h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+}
+
+.watt-hops-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.watt-hops-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.watt-hops-table th,
+.watt-hops-table td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.35rem;
+  text-align: right;
+}
+
+.watt-hops-table th:first-child,
+.watt-hops-table td:first-child {
+  text-align: left;
+}
+
 .metric-item {
   background: var(--bg-node);
   border: 1px solid var(--border);
@@ -674,6 +758,21 @@ body.demo-mode .demo-watermark {
   color: var(--cyan);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.metric-item .metric-value.watt-pos,
+.watt-hops-table .watt-pos {
+  color: var(--watt-pos);
+}
+
+.metric-item .metric-value.watt-neg,
+.watt-hops-table .watt-neg {
+  color: var(--watt-neg);
+}
+
+.metric-item .metric-value.watt-zero,
+.watt-hops-table .watt-zero {
+  color: var(--cyan);
 }
 
 .ai-actions-list {

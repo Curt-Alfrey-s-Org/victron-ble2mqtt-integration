@@ -42,9 +42,11 @@ the switch is ON. **Green LED** = on or flowing; **grey** = off or unavailable.
 
 A side **ALFa dump loads** panel is a **deterministic dump-load explainer** — same thresholds
 and allowlist policy as alfa-ai `src/ops/solar_dump.py` (brain setting keys
-`ha_solar_dump_*`). It is **not** an LLM. It shows thinking text (surplus math, SoC gate,
+`ha_solar_dump_*`). It is **not** an LLM. It shows thinking text (surplus math, path losses, SoC gate,
 charge stage, hysteresis, min on/off dwell) and **planned / held** plug actions. Actuation
-stays on alfa-ai; this page is read-only for loads.
+stays on alfa-ai; this page is read-only for loads. Combined path losses start at panel
+watts and sum metered conversion hops (T2 MPPT, Sungold SPH); dump ON/OFF uses
+`surplus_after_path_losses_w` ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)).
 
 ---
 
@@ -247,15 +249,20 @@ Follows Victron GX Overview
 energy sources on the **left** (including **suitcase panel** tiles), batteries in the
 **centre**, consumers on the **right**. Sungold **DC** stays off T2/KU.
 
-**KU AC hop (operator 16 Sep evening):** Refoss EM16 lives **in the cargo-trailer
-breaker panel**. KU Renogy feeds that panel. **EM16 A3 is the hot leg** in the panel
-(B2 is the return -- never add A3+B2). That hot leg feeds **cargo-trailer outlets**.
-**Right now only Sungold is plugged in** -- the cord goes into Sungold **UTI /
-AC INPUT** ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf);
-LCD `AC INPUT V` / `AC INPUT Hz`; setting `[01] UTI` is mains-priority, not a utility
-meter). Draw that as one left-to-right flow:
+**KU AC hop (operator 16-17 Sep):** Refoss EM16 lives **in the cargo-trailer
+breaker panel**. KU Renogy feeds that panel. **EM16 A3 is the hot leg** (B2 is the
+return -- never add A3+B2). That outlet circuit feeds **Sungold UTI / A/C INPUT**
+**and** a **cargo-trailer vent fan** (siblings). Do **not** set A3 equal to SPH A/C in.
 
-`KU Renogy --> breaker panel (Refoss, A3 hot leg) --> B3 breaker --> trailer outlet --> Sungold UTI (AC INPUT) --> SPH --> Sungold AC out --> dump loads`
+```
+KU Renogy --> breaker panel (A3) --> B3 --> trailer outlet
+  --> Sungold UTI (SPH A/C INPUT) --> SPH --> A/C out --> Pi4 (always-on) + sim dump column
+  --> cargo-trailer vent fan
+```
+
+Pi4 is plugged into SPH **A/C OUTPUT**, not the trailer KU outlet. It is not a sim dump
+plug. No HA watt entity -- unmetered node. Nodes are **illustrated components** (PV grid,
+battery pack, fan, Pi board), not Victron GX clones.
 
 Do **not** hang A3 as a fake load on the sim-plug AC riser. Do **not** branch sim dump loads
 from KU Renogy (`path-sim-acbus` starts at `node-sg-acout`, not the inverter). Sim dump load
@@ -277,11 +284,11 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 | Node | Live HA / display | Notes |
 |------|-------------------|-------|
 | **T2 suitcase (2 in series)** | No per-panel entity. Tile shows T2 MPPT **solar W** as the only live PV for that pair | Victron charger 1. Unmetered at the panel; meter is the MPPT. |
-| **KU Victron suitcases (2+2)** | **No entity.** Grey `--` W | Chargers 2 and 3. Do not print 2x T2 as live. |
-| **KU PWM suitcases (2)** | **No entity.** Grey `--` W | Voyager PWM. |
+| **KU Victron suitcases (2+2)** | **No entity.** Grey **0 W**, label **incomplete** | Chargers 2 and 3. Do not print 2x T2 as live. Residual needs KU Renogy DC ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)). |
+| **KU PWM suitcases (2)** | **No entity.** Grey **0 W**, label **incomplete** | Voyager PWM. Combined with Victron 2+3; no official site derate to split. |
 | **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Policy canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when solar W is numeric and > 0 (demo or live). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
-| **KU Victron** (chargers 2+3) | **No entity.** Grey tile, `--` W, dashed wire, **never** animated | Silent until Instant Readout keys ([DEVICES.md](DEVICES.md)). Do **not** display 2x T2 watts as live. |
-| **KU Renogy PWM** | **No entity** (Voyager 20A). Grey tile, `--` W, dashed wire, never animated | Unmetered into KU shunt. |
+| **KU Victron** (chargers 2+3) | **No entity.** Grey tile, **0 W**, dashed wire, **never** animated | Silent until Instant Readout keys ([DEVICES.md](DEVICES.md)). Do **not** display 2x T2 watts as live. Incomplete until KU Renogy DC is metered. |
+| **KU Renogy PWM** | **No entity** (Voyager 20A). Grey tile, **0 W**, dashed wire, never animated | Unmetered into KU shunt. PWM harvests less than MPPT in Victron's 25 C example; no site split. |
 
 ### Storage (centre)
 
@@ -289,7 +296,7 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 |------|------------------|-------|
 | **LiTime T2** | `sensor.battery_1_state_of_charge` (alias of `battery_1_soc`), `voltage`, `current`, `power`, `consumed_ah`, `remaining_minutes`, `rssi`, `auxiliary_mode`, `midpoint_voltage`, `midpoint_shift`, `midpoint_shift_2` | SmartShunt `HQ2239CQYT2` |
 | **LiTime KU** | `sensor.battery_2_state_of_charge` (alias of `battery_2_soc`), `voltage`, `current`, `power`, `consumed_ah`, `remaining_minutes`, `rssi`, `auxiliary_mode` | Net of KU chargers + PWM minus KU Renogy |
-| **T2-KU jumper** | Not a numbered bus (dim label only) | Amp-less workaround; see jumper table in SOLAR_POWER_BALANCE |
+| **T2-KU jumper** | No jumper shunt. Hop **estimate** `solar_W - T2_Renogy_W - batt1_W` (signed W). T2 Renogy is **0 W** while the RV is idle. | Drawn as `path-t2-ku-jumper` between Battery 1 and Battery 2. Positive = T2 to KU. SmartShunt current is **net pack** only ([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)); two shunts plus a jumper cannot clamp pack-to-pack amps ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)). |
 
 **Primary numbers (16 Sep 2026):** shunt **V** and signed **A** (and **W**, or V x A if the
 power sensor is missing). Charge **+** / discharge **-** per SmartShunt
@@ -308,9 +315,11 @@ substitute. Pips and wires follow numeric V/A/W and switch ON only.
 | **KU Renogy 2 kW** | **No inverter entity.** Tile **0 W** (unmetered). Do **not** paint EM16 A3 onto this node. | Feeds the **cargo-trailer breaker panel** (ATS / manual TS). |
 | **Breaker panel (Refoss)** | A3 on the incoming hot leg: `sensor.em16_a3_power` (+ V/A). Meter strip for A1-C6. | Physical home of the EM16 in the cargo-trailer panel. Label **Cargo trailer panel**. [EM16](https://www.home-assistant.io/integrations/refoss/). |
 | **B3 breaker** | `sensor.em16_b3_power` (+ V/A) when present; hop falls back to \|A3\| while Sungold is the only outlet load | Breaker that feeds the outlet Sungold is plugged into. Highlight on the diagram and in the meter bank. |
-| **Trailer outlet** | Unmetered node. | Fed by B3. **Operator 16 Sep evening:** only Sungold plugged in. |
-| **Sungold UTI** | `sensor.sungold_sph302480a_grid_voltage` / `_grid_current` / `_grid_frequency`; hop W from B3 (or A3 fallback) | LCD **AC INPUT** / UTI ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). Not a utility meter. |
-| **Sim A/C plugs 1-6** | `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power` | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md). **Not** trailer outlets. Column title **Sim dump loads**. Do **not** show `input_boolean.sim_ac_plug_*_internal`. |
+| **Trailer outlet** | Unmetered split node. | Fed by B3. **Operator 17 Sep:** Sungold **and** cargo-trailer vent fan. |
+| **Trailer vent fan** | Residual `max(0, trailer_outlet_W − SPH A/C INPUT V×A)` when both metered; else unmetered | Sibling of Sungold on the KU outlet. Not on SPH A/C out. |
+| **Sungold UTI** | `sensor.sungold_sph302480a_grid_voltage` / `_grid_current` / `_grid_frequency`; hop W from SPH A/C INPUT V×A, **not** A3 | LCD **AC INPUT** / UTI ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)). |
+| **Sim A/C plugs 1-6** | `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power` | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md). **Not** trailer outlets. **Not** Pi4. Column title **Sim dump loads**. |
+| **Pi4** | No watt entity. Tile **unmetered** | Always-on on SPH **A/C OUTPUT**. Victron BLE radio. |
 | **Other EM16 channels** | `sensor.em16_{a1-c6}_{power,voltage,current,...}` | Meter bank on the panel. **Never add A3+B2.** B2 = return of A3. C1-C6 unused CTs (~0 W). |
 
 ### Sungold cart (AC from KU Renogy outlet; DC separate)
@@ -336,7 +345,11 @@ Normal-size labels meet [WCAG 2.2 1.4.3 Contrast (Minimum)](https://www.w3.org/W
 (4.5:1 on `#0d1117`). Do **not** copy Victron logos.
 
 **Watts:** missing or unmetered hop/node watts print **`0 W`**, never `-- W`. Missing
-voltage/current may still print `-- V / -- A`. UI copy is **A/C** and **D/C** plus
+voltage/current may still print `-- V / -- A`. Live signed watts use **`watt-pos`**
+(green, `#3fb950`) when the value is **> 0** and **`watt-neg`** (red, `#f85149`) when
+**< 0**. True zero keeps **`watt-zero`** (cyan idle), not green or red. Path / conversion
+/ vdrop **losses** paint red or idle, never green. SVG `text` uses **`fill`**
+([SVG `text`](https://www.w3.org/TR/SVG2/text.html)). UI copy is **A/C** and **D/C** plus
 **dump load** / **diversion load** (Morningstar). Do not print draft names such as
 "soak".
 
@@ -427,7 +440,8 @@ Lovelace Solar tiles to GX fields (live REST ids):
 End-to-end watt path (operator 16 Sep):
 
 ```
-T2 suitcases (2) --> BlueSolar MPPT --W--> Battery 1 -- --> T2 Renogy RV (idle)
+T2 suitcases (2) --> BlueSolar MPPT --W--> Battery 1 --0 W--> T2 Renogy RV (idle)
+Battery 1 <--jumper est.--> Battery 2   (T2-KU; no jumper clamp)
 KU suitcases (2+2, unmetered) --> chargers 2-3 --dashed--> Battery 2
 KU PWM suitcases (2, unmetered) --> Voyager --dashed--> Battery 2
 Battery 2 --> KU Renogy 2 kW --> breaker panel (A3 hot leg) --> B3 --> trailer outlet
@@ -437,10 +451,11 @@ Battery 2 --> KU Renogy 2 kW --> breaker panel (A3 hot leg) --> B3 --> trailer o
    |       +-- Sungold AC OUTPUT --> sim dump load column (plugs 1-6; NOT trailer outlets)
 ```
 
-Hop watt labels sit in gutters on each conductor (live numeric W, or `--` if unmetered).
+Hop watt labels sit in gutters on each conductor (live numeric W, or **0 W** if
+unmetered/missing). The T2-KU jumper hop is an **estimate** (not a clamp).
 
 **Sim dump load hops** (`path-sim-acbus`, `path-sim-riser`, `path-sim-plug-*`): sum of **sim
-dump load plug** watts when any plug reports W; otherwise `--` (unmetered). **Do not** drive
+dump load plug** watts when any plug reports W; otherwise **0 W**. **Do not** drive
 these from EM16 A3 or B3.
 
 **Sungold UTI hops** (`path-ku-renogy-panel`, `path-panel-b3`, `path-b3-outlet-sg-uti`,
@@ -452,7 +467,8 @@ back to grid V x A when both clamps are missing.
 |---------|----------|-----------|
 | `path-t2-panels-mppt` | T2 suitcase pair to BlueSolar | T2 MPPT solar W |
 | `path-t2-mppt-batt1` | MPPT to Battery 1 | `sensor.solar_controller_charging_power` when present; else `battery_charging` x `battery` V; else solar W |
-| `path-t2-batt1-renogy` | Battery 1 to T2 Renogy (idle) | unmetered |
+| `path-t2-batt1-renogy` | Battery 1 to T2 Renogy (idle) | **0 W** (no HA inverter) |
+| `path-t2-ku-jumper` | Battery 1 to Battery 2 (T2-KU jumper) | **estimate** `solar_W - 0 - batt1_W`; positive T2 to KU. Not a clamp. |
 | `path-ku-panels-chargers` | KU Victron suitcase groups to chargers 2-3 (dashed) | unmetered |
 | `path-ku-chargers-batt2` | Chargers 2-3 to Battery 2 (dashed) | unmetered |
 | `path-ku-pwm-panels` | PWM suitcases to Voyager (dashed) | unmetered |
@@ -584,7 +600,13 @@ Read-only mirror of alfa-ai `decide_dump()` -- same defaults as
 
 ```
 surplus_w = solar_W - effective_load_w
+combined_losses_w = T2_MPPT_loss + SG_loss   # metered conversion hops only
+surplus_after_path_losses_w = surplus_w - combined_losses_w
 ```
+
+Dump ON/OFF uses **`surplus_after_path_losses_w`**. Battery charge is storage, not loss.
+KU Victron / PWM D/C is unmetered and omitted from the sum. Hop table: Path losses panel.
+Formulas: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
 - **Default (`ha_load_entity` = `sensor.sim_dump_load_power`):** `effective_load_w` is the
   aggregate sensor only (no double-count with `ha_switch_watts`). If the sensor is
@@ -606,12 +628,18 @@ The panel lists why dump-load control is armed or skipped:
    `ha_soc_unsynced=false` after VictronConnect synchronise to restore
    `ha_min_soc_percent` (85).
 4. Charge state in **`float` or `absorption`** (`ha_charge_states_ok`) — else skip
-5. **Surplus > 200 W** (`ha_min_surplus_watts`) → target **on**; **<= 50 W** (`ha_off_surplus_watts`) → target **off**; between → hysteresis hold
+5. **Surplus after path losses > 200 W** (`ha_min_surplus_watts`) → target **on**; **<= 50 W** (`ha_off_surplus_watts`) → target **off**; between → hysteresis hold
 6. **Min on 600 s / min off 300 s** — dwell timers
 7. **Max concurrent on 6** — cap simultaneous sim plugs
 
-Shunt V/A appear in thinking only (LiTime 28.4-29.2 V nameplate;
-+charge / -discharge). They are **not** a new skip threshold.
+Two SmartShunts: thinking and the dump-load metrics show **T2 shunt V/A**
+(`sensor.battery_1_voltage` / `_current`, HQ2239CQYT2) and **KU shunt V/A**
+(`sensor.battery_2_voltage` / `_current`, HQ2239JTRKU; aliases `_battery_voltage` /
+`_battery_current`). Do not print unlabeled "Shunt 25.9V". Current is signed
+(+charge / -discharge per
+[operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html));
+green +A / red -A; missing A prints **0 A**, not `--`. They are **not** a new skip
+threshold. T2 LiTime absorb 28.4-29.2 V is nameplate, not a Victron SoC map.
 
 ### Operator: synchronise SmartShunt SoC (VictronConnect only)
 

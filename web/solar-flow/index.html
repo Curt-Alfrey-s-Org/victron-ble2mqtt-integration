@@ -28,7 +28,7 @@
     <section class="flow-diagram" aria-label="Energy flow diagram">
       <svg class="flow-svg" viewBox="0 0 1480 1116" role="img" aria-labelledby="flow-title flow-desc">
         <title id="flow-title">Solar energy flow</title>
-        <desc id="flow-desc">T2 and KU 24 volt D/C buses. KU Renogy feeds the cargo-trailer breaker panel (A3 hot leg, B3 Sungold-outlet breaker), trailer outlet, Sungold A/C INPUT, then SPH. Sim dump load plugs are a separate column. Sungold D/C stays off T2 and KU.</desc>
+        <desc id="flow-desc">T2 and KU 24 volt D/C buses with a T2-KU jumper estimate. KU Renogy feeds the cargo-trailer breaker panel. Trailer outlet splits to Sungold A/C INPUT and a cargo-trailer vent fan. SPH A/C OUTPUT feeds Pi4 (always-on BLE radio) plus simulated dump loads. Sungold D/C stays off T2 and KU.</desc>
 
         <defs>
           <linearGradient id="flow-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -44,11 +44,45 @@
             <feGaussianBlur stdDeviation="4" result="blur"/>
             <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
+          <symbol id="art-pv" viewBox="0 0 80 48">
+            <title>Photovoltaic module</title>
+            <rect x="1" y="1" width="78" height="46" rx="2" fill="#9aa7b2" stroke="#cfd8dc" stroke-width="1"/>
+            <rect x="5" y="5" width="70" height="32" fill="#0b1a28"/>
+            <g fill="#123047" stroke="#1e4a66" stroke-width="0.6">
+              <rect x="7" y="7" width="15" height="13"/><rect x="24" y="7" width="15" height="13"/>
+              <rect x="41" y="7" width="15" height="13"/><rect x="58" y="7" width="15" height="13"/>
+              <rect x="7" y="22" width="15" height="13"/><rect x="24" y="22" width="15" height="13"/>
+              <rect x="41" y="22" width="15" height="13"/><rect x="58" y="22" width="15" height="13"/>
+            </g>
+            <rect x="34" y="38" width="12" height="6" rx="1" fill="#546e7a"/>
+          </symbol>
+          <symbol id="art-batt-lg" viewBox="0 0 90 56">
+            <title>24 volt Li battery pack</title>
+            <rect x="4" y="10" width="82" height="42" rx="4" fill="#1b2d26" stroke="#4db6ac" stroke-width="1.5"/>
+            <rect x="10" y="16" width="70" height="6" fill="#263832"/>
+            <rect x="10" y="26" width="70" height="6" fill="#263832"/>
+            <rect x="10" y="36" width="70" height="6" fill="#263832"/>
+            <rect x="18" y="4" width="10" height="8" fill="#eceff1"/><rect x="62" y="4" width="10" height="8" fill="#ff8a65"/>
+          </symbol>
+          <symbol id="art-fan" viewBox="0 0 40 40">
+            <title>Vent fan</title>
+            <circle cx="20" cy="20" r="16" fill="#1a2733" stroke="#78909c" stroke-width="1.5"/>
+            <ellipse cx="20" cy="20" rx="12" ry="4" fill="#90a4ae"/>
+            <ellipse cx="20" cy="20" rx="4" ry="12" fill="#90a4ae"/>
+            <circle cx="20" cy="20" r="3" fill="#cfd8dc"/>
+          </symbol>
+          <symbol id="art-pi" viewBox="0 0 56 36">
+            <title>Single-board computer</title>
+            <rect x="1" y="4" width="54" height="28" rx="2" fill="#2e7d32" stroke="#81c784" stroke-width="1"/>
+            <rect x="6" y="8" width="18" height="12" rx="1" fill="#1b5e20"/>
+            <circle cx="44" cy="14" r="4" fill="#0d47a1"/><circle cx="44" cy="24" r="4" fill="#0d47a1"/>
+            <rect x="8" y="24" width="10" height="4" fill="#ffcc80"/>
+          </symbol>
         </defs>
 
         <rect class="lane-band lane-t2" x="16" y="12" width="1036" height="280" rx="10"/>
         <rect class="lane-band lane-ku-dc" x="16" y="308" width="1036" height="260" rx="10"/>
-        <rect class="lane-band lane-ku-ac" x="16" y="584" width="1036" height="240" rx="10"/>
+        <rect class="lane-band lane-ku-ac" x="16" y="584" width="1036" height="268" rx="10"/>
         <rect class="lane-band lane-sg" x="16" y="840" width="1036" height="248" rx="10"/>
         <rect class="lane-band lane-dump" x="1068" y="12" width="396" height="812" rx="10"/>
 
@@ -56,6 +90,7 @@
           <path id="path-t2-panels-mppt" class="flow-path" d="M 190 126 L 254 126"/>
           <path id="path-t2-mppt-batt1" class="flow-path" d="M 474 166 L 538 166"/>
           <path id="path-t2-batt1-renogy" class="flow-path unmetered" d="M 748 166 L 812 166"/>
+          <path id="path-t2-ku-jumper" class="flow-path" d="M 748 260 L 758 260 L 758 352 L 748 352"/>
           <path id="path-ku-panels-chargers" class="flow-path unmetered" d="M 190 397 L 538 420"/>
           <path id="path-ku-chargers-batt2" class="flow-path unmetered" d="M 360 420 L 538 430"/>
           <path id="path-ku-pwm-panels" class="flow-path unmetered" d="M 190 503 L 538 500"/>
@@ -64,7 +99,9 @@
           <path id="path-ku-renogy-panel" class="flow-path" d="M 912 518 L 912 600 L 226 600 L 226 628"/>
           <path id="path-panel-b3" class="flow-path" d="M 226 708 L 250 708"/>
           <path id="path-b3-outlet-sg-uti" class="flow-path" d="M 410 708 L 434 708 L 604 708 L 628 708"/>
+          <path id="path-outlet-vent-fan" class="flow-path" d="M 519 760 L 519 772"/>
           <path id="path-sg-uti-sph" class="flow-path" d="M 748 796 L 748 840 L 723 840 L 723 884"/>
+          <path id="path-sg-acout-pi4" class="flow-path" d="M 942 1008 L 942 1016"/>
           <path id="path-sim-acbus" class="flow-path" d="M 1042 944 L 1078 944"/>
           <path id="path-sim-riser" class="flow-path" d="M 1078 86 L 1078 944"/>
           <path id="path-sim-plug-1" class="flow-path" d="M 1078 86 L 1096 86"/>
@@ -80,40 +117,45 @@
         </g>
 
         <g class="hop-labels" aria-hidden="true">
-          <text class="hop-watt" id="hop-path-t2-panels-mppt" x="222" y="116" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-t2-mppt-batt1" x="506" y="154" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered" id="hop-path-t2-batt1-renogy" x="780" y="154" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered" id="hop-path-ku-panels-chargers" x="340" y="384" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered" id="hop-path-ku-chargers-batt2" x="430" y="408" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered" id="hop-path-ku-pwm-panels" x="340" y="478" text-anchor="middle">0 W</text>
-          <text class="hop-watt unmetered" id="hop-path-ku-pwm-batt2" x="430" y="536" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-ku-batt2-inverter" x="780" y="430" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-ku-renogy-panel" x="928" y="556" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-panel-b3" x="238" y="690" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-b3-outlet-sg-uti" x="519" y="690" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-sg-uti-sph" x="768" y="818" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-sim-acbus" x="1060" y="928" text-anchor="middle">0 W</text>
-          <text class="hop-watt" id="hop-path-sim-riser" x="1094" y="720" text-anchor="middle">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-1" x="1094" y="42">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-2" x="1094" y="142">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-3" x="1094" y="242">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-4" x="1094" y="342">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-5" x="1094" y="442">0 W</text>
-          <text class="hop-watt hop-on-plug" id="hop-path-sim-plug-6" x="1094" y="542">0 W</text>
-          <text class="hop-watt" id="hop-path-sg-pv-panels" x="188" y="928">0 W</text>
-          <text class="hop-watt" id="hop-path-sg-pv-batt" x="382" y="928">0 W</text>
-          <text class="hop-watt" id="hop-path-sg-batt-inv" x="606" y="928">0 W</text>
-          <text class="hop-watt" id="hop-path-sg-inv-acout" x="820" y="928">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-t2-panels-mppt" x="222" y="116" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-t2-mppt-batt1" x="506" y="154" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-t2-batt1-renogy" x="780" y="154" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-t2-ku-jumper" x="772" y="300" text-anchor="start">0 W</text>
+          <text class="jumper-note" id="lbl-jumper-dir" x="772" y="316" text-anchor="start">T2-KU jumper est.</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-panels-chargers" x="340" y="384" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-chargers-batt2" x="430" y="408" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-panels" x="340" y="478" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-ku-pwm-batt2" x="430" y="536" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-ku-batt2-inverter" x="780" y="430" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-ku-renogy-panel" x="928" y="556" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-panel-b3" x="238" y="690" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-b3-outlet-sg-uti" x="519" y="690" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-outlet-vent-fan" x="536" y="768" text-anchor="start">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-uti-sph" x="768" y="818" text-anchor="middle">0 W</text>
+          <text class="hop-watt unmetered watt-zero" id="hop-path-sg-acout-pi4" x="960" y="1012" text-anchor="start">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sim-acbus" x="1060" y="928" text-anchor="middle">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sim-riser" x="1094" y="720" text-anchor="middle">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-1" x="1094" y="42">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-2" x="1094" y="142">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-3" x="1094" y="242">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-4" x="1094" y="342">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-5" x="1094" y="442">0 W</text>
+          <text class="hop-watt hop-on-plug watt-zero" id="hop-path-sim-plug-6" x="1094" y="542">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-pv-panels" x="188" y="928">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-pv-batt" x="382" y="928">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-batt-inv" x="606" y="928">0 W</text>
+          <text class="hop-watt watt-zero" id="hop-path-sg-inv-acout" x="820" y="928">0 W</text>
         </g>
 
         <text class="bus-banner" x="534" y="40" text-anchor="middle">T2 24 V D/C bus</text>
-        <text class="jumper-note" x="534" y="58" text-anchor="middle">T2-KU jumper is not a numbered bus</text>
+        <text class="jumper-note" x="534" y="58" text-anchor="middle">T2-KU jumper is estimated (no jumper shunt)</text>
 
         <g class="node-group node-clickable" id="node-t2-panels" data-history-entity="sensor.solar_controller_solar" data-history-title="T2 suitcases (2 in series)" role="button" tabindex="0" aria-label="T2 suitcase panels">
           <rect class="node-bg panel" x="40" y="76" width="150" height="100" rx="6"/>
+          <use href="#art-pv" x="48" y="80" width="56" height="34"/>
           <text class="node-label" x="115" y="106" text-anchor="middle">T2 suitcases</text>
           <text class="node-sublabel" x="115" y="126" text-anchor="middle">2 in series</text>
-          <text class="node-watts small" id="val-t2-panels-w" x="115" y="154" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-t2-panels-w" x="115" y="154" text-anchor="middle">0 W</text>
         </g>
 
         <g class="node-group node-clickable" id="node-solar" transform="translate(40,0)" data-history-entity="sensor.solar_controller_solar" data-history-title="BlueSolar MPPT" role="button" tabindex="0" aria-label="T2 BlueSolar MPPT">
@@ -127,7 +169,7 @@
               <line x1="344" y1="80" x2="338" y2="86"/><line x1="310" y1="114" x2="304" y2="120"/>
             </g>
           </g>
-          <text class="node-watts" id="val-solar-w" x="324" y="142" text-anchor="middle">0 W</text>
+          <text class="node-watts watt-zero" id="val-solar-w" x="324" y="142" text-anchor="middle">0 W</text>
           <text class="node-label" x="324" y="162" text-anchor="middle">BlueSolar MPPT</text>
           <text class="node-sublabel" x="324" y="178" text-anchor="middle">T2 reporter</text>
           <text class="node-detail" id="val-batt-state" x="324" y="196" text-anchor="middle">--</text>
@@ -140,10 +182,11 @@
 
         <g class="node-group node-clickable" id="node-batt1" transform="translate(80,0)" data-history-entity="sensor.battery_1_power" data-history-title="Battery 1 T2" role="button" tabindex="0" aria-label="Battery 1 T2">
           <rect class="node-bg batt" x="458" y="72" width="210" height="188" rx="6"/>
+          <use href="#art-batt-lg" x="464" y="78" width="48" height="30"/>
           <text class="node-label" x="563" y="98" text-anchor="middle">Battery 1</text>
           <text class="node-sublabel" x="563" y="118" text-anchor="middle">T2 HQ2239CQYT2</text>
-          <text class="node-watts small" id="val-batt1-va" x="563" y="144" text-anchor="middle">-- V / -- A</text>
-          <text class="node-watts small" id="val-batt1-w" x="563" y="166" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-batt1-va" x="563" y="144" text-anchor="middle">-- V / -- A</text>
+          <text class="node-watts small watt-zero" id="val-batt1-w" x="563" y="166" text-anchor="middle">0 W</text>
           <text class="node-detail soc-unsynced" id="val-batt1-soc" x="563" y="188" text-anchor="middle">SoC unsynced --</text>
           <text class="node-detail" id="val-batt1-ah" x="563" y="206" text-anchor="middle">-- Ah</text>
           <text class="node-detail" id="val-batt1-rem" x="563" y="224" text-anchor="middle">rem --</text>
@@ -154,33 +197,36 @@
           <rect class="node-bg inverter unmetered" x="692" y="88" width="200" height="150" rx="6"/>
           <text class="node-label" x="792" y="118" text-anchor="middle">T2 Renogy</text>
           <text class="node-sublabel" x="792" y="140" text-anchor="middle">30A RV idle</text>
-          <text class="node-watts small" id="val-t2-renogy-w" x="792" y="168" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-t2-renogy-w" x="792" y="168" text-anchor="middle">0 W</text>
           <text class="node-sublabel dim" x="792" y="190" text-anchor="middle">no HA inverter</text>
           <circle class="status-pip" id="pip-t2-renogy" cx="880" cy="100" r="5"/>
         </g>
 
         <text class="bus-banner" x="534" y="336" text-anchor="middle">KU 24 V D/C bus</text>
 
-        <g class="node-group node-unmetered" id="node-ku-victron-panels" role="group" aria-label="KU Victron suitcases unmetered">
-          <rect class="note-box" x="40" y="352" width="150" height="90" rx="6"/>
-          <text class="note-text" x="115" y="380" text-anchor="middle">KU Victron</text>
-          <text class="note-text dim" x="115" y="398" text-anchor="middle">2+2 suitcases</text>
-          <text class="node-watts small unmetered-text" id="val-ku-victron-panels-w" x="115" y="422" text-anchor="middle">0 W</text>
+        <g class="node-group node-unmetered" id="node-ku-victron-panels" role="group" aria-label="KU Victron suitcases unmetered incomplete">
+          <rect class="note-box" x="40" y="348" width="150" height="104" rx="6"/>
+          <text class="note-text" x="115" y="376" text-anchor="middle">KU Victron</text>
+          <text class="note-text dim" x="115" y="394" text-anchor="middle">2+2 suitcases</text>
+          <text class="node-watts small unmetered-text watt-zero" id="val-ku-victron-panels-w" x="115" y="418" text-anchor="middle">0 W</text>
+          <text class="node-detail dim" x="115" y="438" text-anchor="middle">incomplete</text>
         </g>
 
-        <g class="node-group node-unmetered" id="node-ku-pwm-panels" role="group" aria-label="KU PWM suitcases unmetered">
-          <rect class="note-box" x="40" y="458" width="150" height="90" rx="6"/>
+        <g class="node-group node-unmetered" id="node-ku-pwm-panels" role="group" aria-label="KU PWM suitcases unmetered incomplete">
+          <rect class="note-box" x="40" y="458" width="150" height="104" rx="6"/>
           <text class="note-text" x="115" y="486" text-anchor="middle">KU PWM</text>
           <text class="note-text dim" x="115" y="504" text-anchor="middle">2 suitcases</text>
-          <text class="node-watts small unmetered-text" id="val-ku-pwm-panels-w" x="115" y="528" text-anchor="middle">0 W</text>
+          <text class="node-watts small unmetered-text watt-zero" id="val-ku-pwm-panels-w" x="115" y="528" text-anchor="middle">0 W</text>
+          <text class="node-detail dim" x="115" y="548" text-anchor="middle">incomplete</text>
         </g>
 
         <g class="node-group node-clickable" id="node-batt2" transform="translate(80,0)" data-history-entity="sensor.battery_2_power" data-history-title="Battery 2 KU" role="button" tabindex="0" aria-label="Battery 2 KU">
           <rect class="node-bg batt" x="458" y="352" width="210" height="188" rx="6"/>
+          <use href="#art-batt-lg" x="464" y="358" width="48" height="30"/>
           <text class="node-label" x="563" y="378" text-anchor="middle">Battery 2</text>
           <text class="node-sublabel" x="563" y="398" text-anchor="middle">KU HQ2239JTRKU</text>
-          <text class="node-watts small" id="val-batt2-va" x="563" y="424" text-anchor="middle">-- V / -- A</text>
-          <text class="node-watts small" id="val-batt2-w" x="563" y="446" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-batt2-va" x="563" y="424" text-anchor="middle">-- V / -- A</text>
+          <text class="node-watts small watt-zero" id="val-batt2-w" x="563" y="446" text-anchor="middle">0 W</text>
           <text class="node-detail soc-unsynced" id="val-batt2-soc" x="563" y="468" text-anchor="middle">SoC unsynced --</text>
           <text class="node-detail" id="val-batt2-ah" x="563" y="486" text-anchor="middle">-- Ah</text>
           <text class="node-detail" id="val-batt2-rem" x="563" y="504" text-anchor="middle">rem --</text>
@@ -191,7 +237,7 @@
           <rect class="node-bg inverter" x="692" y="368" width="200" height="150" rx="6"/>
           <text class="node-label" x="792" y="398" text-anchor="middle">KU Renogy</text>
           <text class="node-sublabel" x="792" y="420" text-anchor="middle">2 kW A/C to panel</text>
-          <text class="node-watts small" id="val-ku-renogy-w" x="792" y="448" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-ku-renogy-w" x="792" y="448" text-anchor="middle">0 W</text>
           <text class="node-sublabel dim" x="792" y="470" text-anchor="middle">no HA inverter</text>
           <circle class="status-pip" id="pip-inverter" cx="880" cy="380" r="5"/>
         </g>
@@ -202,7 +248,7 @@
           <rect class="node-bg hub" x="36" y="628" width="190" height="160" rx="6"/>
           <text class="node-label" x="131" y="656" text-anchor="middle">Breaker panel</text>
           <text class="node-sublabel" x="131" y="676" text-anchor="middle">Refoss EM16</text>
-          <text class="node-watts" id="val-panel-a3-w" x="131" y="708" text-anchor="middle">0 W</text>
+          <text class="node-watts watt-zero" id="val-panel-a3-w" x="131" y="708" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-panel-a3-va" x="131" y="730" text-anchor="middle">A3 -- V / -- A</text>
           <text class="node-sublabel dim" x="131" y="750" text-anchor="middle">A3 hot leg</text>
           <circle class="status-pip" id="pip-panel" cx="214" cy="640" r="5"/>
@@ -211,22 +257,31 @@
         <g class="node-group node-clickable" id="node-b3" data-history-entity="sensor.em16_b3_power" data-history-title="EM16 B3 Sungold outlet" role="button" tabindex="0" aria-label="B3 Sungold outlet breaker">
           <rect class="node-bg load highlight" x="250" y="648" width="160" height="120" rx="6"/>
           <text class="node-label" x="330" y="680" text-anchor="middle">B3 breaker</text>
-          <text class="node-watts" id="val-b3-w" x="330" y="710" text-anchor="middle">0 W</text>
+          <text class="node-watts watt-zero" id="val-b3-w" x="330" y="710" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-b3-va" x="330" y="734" text-anchor="middle">-- V / -- A</text>
           <circle class="status-pip" id="pip-b3" cx="398" cy="660" r="5"/>
         </g>
 
-        <g class="node-group node-unmetered" id="node-trailer-outlet" role="group" aria-label="Trailer outlet Sungold plugged in">
-          <rect class="node-bg load" x="434" y="660" width="170" height="100" rx="6"/>
-          <text class="node-label" x="519" y="698" text-anchor="middle">Trailer outlet</text>
-          <text class="node-sublabel" x="519" y="724" text-anchor="middle">Sungold plugged in</text>
+        <g class="node-group node-unmetered" id="node-trailer-outlet" role="group" aria-label="Trailer outlet Sungold and vent fan">
+          <rect class="node-bg load" x="434" y="648" width="170" height="112" rx="6"/>
+          <text class="node-label" x="519" y="676" text-anchor="middle">Trailer outlet</text>
+          <text class="node-sublabel" x="519" y="698" text-anchor="middle">Sungold + vent fan</text>
+        </g>
+
+        <g class="node-group" id="node-vent-fan" role="group" aria-label="Cargo trailer vent fan on KU outlet">
+          <title>Cargo trailer vent fan (sibling of Sungold A/C in)</title>
+          <rect class="node-bg load" x="434" y="772" width="170" height="56" rx="6"/>
+          <use href="#art-fan" x="444" y="780" width="36" height="36"/>
+          <text class="node-label" x="560" y="796" text-anchor="middle">Vent fan</text>
+          <text class="node-watts small watt-zero" id="val-vent-fan-w" x="560" y="816" text-anchor="middle">0 W</text>
+          <circle class="status-pip" id="pip-vent-fan" cx="592" cy="784" r="4"/>
         </g>
 
         <g class="node-group node-clickable" id="node-sg-uti" data-history-entity="sensor.em16_a3_power" data-history-title="Sungold A/C input" role="button" tabindex="0" aria-label="Sungold A/C input">
           <rect class="node-bg load highlight" x="628" y="628" width="240" height="168" rx="6"/>
           <text class="node-label" x="748" y="658" text-anchor="middle">Sungold UTI</text>
           <text class="node-sublabel" x="748" y="680" text-anchor="middle">A/C INPUT</text>
-          <text class="node-watts" id="val-sg-uti-w" x="748" y="712" text-anchor="middle">0 W</text>
+          <text class="node-watts watt-zero" id="val-sg-uti-w" x="748" y="712" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-sg-uti-va" x="748" y="736" text-anchor="middle">-- V / -- A</text>
           <text class="node-detail" id="val-sg-uti-hz" x="748" y="758" text-anchor="middle">-- Hz</text>
           <circle class="status-pip" id="pip-sg-uti" cx="856" cy="640" r="5"/>
@@ -245,7 +300,7 @@
               </g>
             </g>
             <text class="plug-label" x="1416" y="76" text-anchor="end">Fan 180W</text>
-            <text class="plug-watts" id="val-plug-1-w" x="1416" y="100" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-1-w" x="1416" y="100" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-1" cx="1420" cy="60" r="4"/>
           </g>
 
@@ -258,7 +313,7 @@
               </g>
             </g>
             <text class="plug-label" x="1416" y="176" text-anchor="end">Dehumid 300W</text>
-            <text class="plug-watts" id="val-plug-2-w" x="1416" y="200" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-2-w" x="1416" y="200" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-2" cx="1420" cy="160" r="4"/>
           </g>
 
@@ -269,7 +324,7 @@
               <rect class="heater-coil" x="6" y="6" width="8" height="8" rx="1"/>
             </g>
             <text class="plug-label" x="1416" y="276" text-anchor="end">Heater 1200W</text>
-            <text class="plug-watts" id="val-plug-3-w" x="1416" y="300" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-3-w" x="1416" y="300" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-3" cx="1420" cy="260" r="4"/>
           </g>
 
@@ -283,7 +338,7 @@
               </g>
             </g>
             <text class="plug-label" x="1416" y="376" text-anchor="end">Fan 130W</text>
-            <text class="plug-watts" id="val-plug-4-w" x="1416" y="400" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-4-w" x="1416" y="400" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-4" cx="1420" cy="360" r="4"/>
           </g>
 
@@ -297,7 +352,7 @@
               </g>
             </g>
             <text class="plug-label" x="1416" y="476" text-anchor="end">Fan 130W</text>
-            <text class="plug-watts" id="val-plug-5-w" x="1416" y="500" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-5-w" x="1416" y="500" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-5" cx="1420" cy="460" r="4"/>
           </g>
 
@@ -310,14 +365,14 @@
               </g>
             </g>
             <text class="plug-label" x="1416" y="576" text-anchor="end">Gaming PC 300W</text>
-            <text class="plug-watts" id="val-plug-6-w" x="1416" y="600" text-anchor="end">0 W</text>
+            <text class="plug-watts watt-zero" id="val-plug-6-w" x="1416" y="600" text-anchor="end">0 W</text>
             <circle class="status-pip" id="pip-plug-6" cx="1420" cy="560" r="4"/>
           </g>
         </g>
 
         <g class="node-group" id="node-dump-load-total" role="group" aria-label="Total sim dump load">
           <text class="node-sublabel" x="1266" y="656" text-anchor="middle">Dump load total</text>
-          <text class="node-watts small" id="val-dump-w" x="1266" y="680" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-dump-w" x="1266" y="680" text-anchor="middle">0 W</text>
         </g>
 
         <text class="bus-banner" x="534" y="868" text-anchor="middle">Sungold cart (D/C off T2/KU; A/C from UTI above)</text>
@@ -325,13 +380,13 @@
         <g class="node-group node-unmetered" id="node-sg-panels" role="group" aria-label="Sungold PV panels">
           <rect class="node-bg panel" x="36" y="884" width="150" height="110" rx="6"/>
           <text class="node-label" x="111" y="922" text-anchor="middle">SG panels</text>
-          <text class="node-watts small" id="val-sg-panels-w" x="111" y="956" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-sg-panels-w" x="111" y="956" text-anchor="middle">0 W</text>
         </g>
 
         <g class="node-group node-clickable" id="node-sg-pv" data-history-entity="sensor.sungold_sph302480a_pv_power" data-history-title="Sungold PV" role="button" tabindex="0" aria-label="Sungold PV">
           <rect class="node-bg" x="210" y="884" width="170" height="110" rx="6"/>
           <text class="node-label" x="295" y="916" text-anchor="middle">Sungold PV</text>
-          <text class="node-watts small" id="val-sg-pv-w" x="295" y="944" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-sg-pv-w" x="295" y="944" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-sg-pv-va" x="295" y="968" text-anchor="middle">-- V / -- A</text>
           <circle class="status-pip" id="pip-sg-pv" cx="368" cy="896" r="5"/>
         </g>
@@ -341,7 +396,7 @@
           <text class="node-label" x="504" y="904" text-anchor="middle">Cart 2x 100 Ah</text>
           <text class="node-detail" id="val-sg-soc" x="504" y="926" text-anchor="middle">-- %</text>
           <text class="node-detail" id="val-sg-batt-va" x="504" y="946" text-anchor="middle">-- V / -- A</text>
-          <text class="node-watts small" id="val-sg-batt-w" x="504" y="968" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-sg-batt-w" x="504" y="968" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-sg-charge" x="504" y="988" text-anchor="middle">--</text>
           <circle class="status-pip" id="pip-sg-batt" cx="592" cy="888" r="5"/>
         </g>
@@ -357,10 +412,19 @@
         <g class="node-group node-clickable" id="node-sg-acout" data-history-entity="sensor.sungold_sph302480a_load_active_power" data-history-title="Sungold A/C output" role="button" tabindex="0" aria-label="Sungold A/C output load">
           <rect class="node-bg load" x="842" y="880" width="200" height="128" rx="6"/>
           <text class="node-label" x="942" y="908" text-anchor="middle">Sungold A/C out</text>
-          <text class="node-watts small" id="val-sg-load-w" x="942" y="936" text-anchor="middle">0 W</text>
+          <text class="node-watts small watt-zero" id="val-sg-load-w" x="942" y="936" text-anchor="middle">0 W</text>
           <text class="node-detail" id="val-sg-load-va" x="942" y="958" text-anchor="middle">-- V / -- A</text>
           <text class="node-detail" id="val-sg-load-hz" x="942" y="980" text-anchor="middle">-- Hz</text>
           <circle class="status-pip" id="pip-sg-acout" cx="1030" cy="892" r="5"/>
+        </g>
+
+        <g class="node-group" id="node-pi4" role="group" aria-label="Pi4 always-on load on Sungold A/C out">
+          <title>Pi4 Victron BLE radio on SPH A/C OUTPUT</title>
+          <rect class="node-bg load" x="842" y="1016" width="200" height="64" rx="6"/>
+          <use href="#art-pi" x="850" y="1026" width="52" height="34"/>
+          <text class="node-label" x="960" y="1038" text-anchor="middle">Pi4 BLE radio</text>
+          <text class="node-watts small watt-zero" id="val-pi4-w" x="960" y="1058" text-anchor="middle">0 W</text>
+          <circle class="status-pip" id="pip-pi4" cx="1030" cy="1028" r="4"/>
         </g>
       </svg>
 
@@ -398,6 +462,22 @@
         <p id="ai-thinking" class="ai-text">waiting for proxy</p>
       </div>
       <div class="alfa-metrics" id="ai-metrics" aria-label="AI metrics"></div>
+      <div class="watt-hops" id="watt-hops" aria-label="End-to-end watt hops">
+        <h3>Path losses</h3>
+        <p class="watt-hops-note">Panel watts in, then each hop. Battery charge is storage, not loss. KU Victron/PWM D/C is unmetered (residual needs KU Renogy DC; tiles stay 0 W).</p>
+        <table class="watt-hops-table">
+          <thead>
+            <tr>
+              <th>Hop</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Loss</th>
+              <th>Stored</th>
+            </tr>
+          </thead>
+          <tbody id="watt-hops-body"></tbody>
+        </table>
+      </div>
       <div class="alfa-actions">
         <h3>Actions</h3>
         <ul id="ai-actions" class="ai-actions-list" aria-live="polite">
