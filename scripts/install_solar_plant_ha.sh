@@ -67,6 +67,14 @@ history:
 YAML
 fi
 
+if ! grep -q '^energy:' "$CONF"; then
+  echo "[solar-plant] Appending energy (default_config would have loaded it) ..."
+  sudo tee -a "$CONF" >/dev/null <<'YAML'
+
+energy:
+YAML
+fi
+
 if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   echo "[solar-plant] check_config ..."
   docker exec homeassistant python -m homeassistant --script check_config -c /config

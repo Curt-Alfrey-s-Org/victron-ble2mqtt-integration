@@ -74,11 +74,15 @@ bash scripts/install_solar_plant_ha.sh
 ```
 
 The script copies the package and dashboard YAML, appends `lovelace:` / `recorder:` /
-`history:` when missing, runs
+`history:` / `energy:` when missing, runs
 `python -m homeassistant --script check_config -c /config` inside the container
 ([check configuration](https://www.home-assistant.io/docs/configuration/troubleshooting/)),
 then `docker restart homeassistant`
 ([Container install](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
+This HA has no `default_config:`. Recorder/history are required for graphs; Energy
+(`energy`) is required for **Settings > Dashboards > Energy**
+([default config](https://www.home-assistant.io/integrations/default_config/),
+[Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).
 
 Open:
 
@@ -121,3 +125,5 @@ If glance history is empty, this HA instance has no `default_config:` -- the
 install script adds `recorder:` and `history:` when missing
 ([Recorder](https://www.home-assistant.io/integrations/recorder/),
 [History](https://www.home-assistant.io/integrations/history/)).
+It also adds `energy:` so the Energy settings page exists
+([Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).

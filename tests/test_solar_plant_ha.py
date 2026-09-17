@@ -94,3 +94,4 @@ def test_docs_and_install_script_exist() -> None:
     assert "check_config" in script
     assert "docker restart homeassistant" in script
     assert "dashboards/solar-plant.yaml" in script
+    assert "energy:" in script
