@@ -18,7 +18,7 @@
 #   4. Known token files under /opt/homeassistant, /home/ansible, alfa-ai, stacks, run/secrets
 #   5. Env files that may hold HA_TOKEN= or HA_TOKEN_FILE= (host105-ai.env, alfa-ai .env, …)
 #   6. systemd EnvironmentFile= from solar-flow / HA / soak / brain / alfa units
-#   7. Shallow find of *.token / *ha*token* under search roots
+#   7. Shallow find of *.token / HA_TOKEN basenames under search roots (never *ha*token*)
 #   8. Remote .105 over ssh (when local search is empty) — see HA_TOKEN_HOST
 #
 # Usage:
@@ -81,18 +81,62 @@ _token_len() {
   printf '%s' "$1" | wc -c | tr -d '[:space:]'
 }
 
+# Home Assistant long-lived tokens are single-line JWTs / opaque secrets — never shell scripts.
+# Reject the false positive that matched solar_flow_link_ha_token.sh via *ha*token* find.
+_looks_like_ha_token() {
+  local t="$1"
+  local n
+  n="$(_token_len "$t")"
+  if [[ "$n" -lt 32 || "$n" -gt 4096 ]]; then
+    return 1
+  fi
+  case "$t" in
+    \#!*) return 1 ;;
+  esac
+  if [[ "$t" == *$'\n'* ]]; then
+    return 1
+  fi
+  # JWT / URL-safe opaque token charset only
+  [[ "$t" =~ ^[A-Za-z0-9._=-]+$ ]] || return 1
+  return 0
+}
+
+_path_looks_like_token_file() {
+  local path="$1" base
+  base="$(basename "$path")"
+  case "$path" in
+    */scripts/*|*/.git/*|*/tests/*|*/node_modules/*) return 1 ;;
+  esac
+  case "$base" in
+    *.sh|*.py|*.md|*.js|*.css|*.html|*.yml|*.yaml|*.service|*.timer|*.json|*.lock)
+      return 1
+      ;;
+    *.token|HA_TOKEN|ha_token|long_lived.token|long-lived.token|ha.token)
+      return 0
+      ;;
+    *)
+      # Exact secret-style basenames only — never *token* glob hits on this script.
+      return 1
+      ;;
+  esac
+}
+
 _dest_ok() {
   [[ -f "$DEST" ]] || return 1
   local body
   body="$(_normalize_token "$(cat "$DEST" 2>/dev/null || true)")"
-  [[ -n "$body" ]]
+  _looks_like_ha_token "$body"
 }
 
 _install_token_text() {
   local token="$1" source_label="$2"
   local n
+  token="$(_normalize_token "$token")"
+  if ! _looks_like_ha_token "$token"; then
+    _v "reject non-token payload from ${source_label} (len=$(_token_len "$token"))"
+    return 1
+  fi
   n="$(_token_len "$token")"
-  [[ "$n" -gt 0 ]] || return 1
   mkdir -p "$(dirname "$DEST")"
   # Atomic write via temp in same dir; mode 600; never log contents.
   local tmp
@@ -114,6 +158,10 @@ _try_token_file() {
     _v "miss token-file: ${path}"
     return 1
   fi
+  if ! _path_looks_like_token_file "$path"; then
+    _v "skip non-secret path: ${path}"
+    return 1
+  fi
   # Skip if already the dest (caller handles dest-ok).
   if [[ "$(readlink -f "$path" 2>/dev/null || echo "$path")" == "$(readlink -f "$DEST" 2>/dev/null || echo "$DEST")" ]]; then
     _v "skip token-file: ${path} (is dest)"
@@ -123,6 +171,10 @@ _try_token_file() {
   body="$(_normalize_token "$(cat "$path" 2>/dev/null || true)")"
   if [[ -z "$body" ]]; then
     _v "empty token-file: ${path}"
+    return 1
+  fi
+  if ! _looks_like_ha_token "$body"; then
+    _v "reject non-token file: ${path} (len=$(_token_len "$body"))"
     return 1
   fi
   _v "hit token-file: ${path}"
@@ -387,6 +439,10 @@ if _dest_ok; then
   echo "[solar-flow] token already present at ${DEST} (${n} chars) — nothing to do"
   exit 0
 fi
+if [[ -f "$DEST" ]]; then
+  echo "[solar-flow] removing invalid dest (not an HA long-lived token): ${DEST}" >&2
+  rm -f "$DEST"
+fi
 _v "dest missing/empty: ${DEST}"
 
 # --- 2. Env path overrides ---
@@ -486,8 +542,8 @@ for dir in /home/ansible/.config /home/ansible/alfa-ai /home/ansible/alfa-ai/sec
   [[ -d "$dir" ]] || continue
   while IFS= read -r -d '' ef; do
     KNOWN_ENV_FILES+=("$ef")
-  done < <(find "$dir" -maxdepth 3 -type f \( -name '*.env' -o -name '*ha*token*' -o -name '*.token' \) \
-    -print0 2>/dev/null || true)
+  done < <(find "$dir" -maxdepth 3 -type f \( -name '*.env' -o -name '*.token' \) \
+    ! -path '*/.git/*' ! -path '*/scripts/*' -print0 2>/dev/null || true)
 done
 
 # --- 6. systemd EnvironmentFile= from related units ---
@@ -507,7 +563,8 @@ for file in "${KNOWN_ENV_FILES[@]}"; do
   fi
 done
 
-# --- 7. Shallow find *.token / *ha*token* under operator roots ---
+# --- 7. Shallow find *.token (and exact HA_TOKEN basenames) under operator roots ---
+# Never use *ha*token* — that matched scripts/solar_flow_link_ha_token.sh and poisoned DEST.
 IFS=':' read -r -a roots <<<"$SEARCH_ROOTS"
 for root in "${roots[@]}"; do
   [[ -d "$root" ]] || { _v "skip find root (missing): ${root}"; continue; }
@@ -518,11 +575,9 @@ for root in "${roots[@]}"; do
     fi
   done < <(find "$root" -maxdepth 5 \( \
       -name '*.token' -o \
-      -name '*ha*long*lived*' -o \
-      -name '*ha*token*' -o \
       -name 'HA_TOKEN' -o \
       -name 'ha_token' \
-    \) -type f -print0 2>/dev/null || true)
+    \) -type f ! -path '*/.git/*' ! -path '*/scripts/*' ! -path '*/tests/*' -print0 2>/dev/null || true)
 done
 
 # --- 8. Remote .105 (or HA_TOKEN_HOST) when diagram host ≠ HA host ---
