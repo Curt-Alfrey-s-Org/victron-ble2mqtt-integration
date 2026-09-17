@@ -54,7 +54,7 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 4;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   font-size: 18vw;
@@ -63,6 +63,10 @@ html, body {
   color: rgba(218, 54, 51, 0.09);
   transform: rotate(-18deg);
   user-select: none;
+}
+
+body.demo-mode .demo-watermark {
+  display: flex;
 }
 
 .snapshot-label {
@@ -137,9 +141,18 @@ html, body {
 
 .flow-layout {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 1fr 300px;
   gap: 0;
   min-height: calc(100vh - 52px);
+}
+
+.side-panels {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  max-height: 100vh;
+  overflow-y: auto;
 }
 
 .flow-diagram {
@@ -175,11 +188,34 @@ html, body {
   font-family: var(--font);
 }
 
-.plant-island {
-  fill: rgba(28, 35, 51, 0.35);
+.node-bg.panel {
+  fill: #1a2838;
   stroke: #4a6572;
-  stroke-width: 1.5;
-  stroke-dasharray: 8 6;
+}
+
+.hop-watt {
+  fill: var(--cyan-bright);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--font);
+  pointer-events: none;
+}
+
+.hop-watt.unmetered {
+  fill: #6e7681;
+}
+
+.unmetered-text {
+  fill: #6e7681;
+}
+
+.node-clickable {
+  cursor: pointer;
+}
+
+.node-clickable:focus {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
 }
 
 .node-bg.unmetered {
@@ -355,6 +391,13 @@ html, body {
   opacity: 0.7;
 }
 
+/* EM16 meter tap off the AC riser (not a second load path) */
+.flow-path.meter-tap {
+  stroke: #7a8f99;
+  stroke-dasharray: 3 9;
+  opacity: 0.65;
+}
+
 .flow-path.flowing {
   stroke: url(#flow-gradient);
   opacity: 0.95;
@@ -440,15 +483,90 @@ html, body {
   stroke: rgba(63, 185, 80, 0.4);
 }
 
+/* History panel */
+.history-panel {
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.history-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--cyan-bright);
+}
+
+.history-close {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.85rem;
+}
+
+.history-entity {
+  margin: 0.35rem 0;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  word-break: break-all;
+}
+
+.history-status {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.history-sparkline {
+  width: 100%;
+  height: 48px;
+  margin-bottom: 0.5rem;
+  background: var(--bg-node);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.history-table-wrap {
+  max-height: 220px;
+  overflow: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.7rem;
+}
+
+.history-table th,
+.history-table td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.35rem;
+  text-align: left;
+}
+
+.history-table tr.history-current td {
+  color: var(--cyan-bright);
+  font-style: italic;
+}
+
+.history-table th {
+  background: var(--bg-node);
+  color: var(--text-dim);
+}
+
 /* ALFa panel */
 .alfa-panel {
   background: var(--bg-panel);
-  border-left: 1px solid var(--border);
   padding: 1rem;
-  overflow-y: auto;
-  position: sticky;
-  top: 0;
-  max-height: 100vh;
+  flex: 1;
 }
 
 .alfa-panel h2 {
@@ -577,7 +695,7 @@ html, body {
     grid-template-columns: 1fr;
   }
 
-  .alfa-panel {
+  .side-panels {
     border-left: none;
     border-top: 1px solid var(--border);
   }

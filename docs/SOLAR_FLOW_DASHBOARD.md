@@ -25,8 +25,8 @@ A **Victron GX Overview**-style single-page view of this site's 24 V plant:
 |-----------|-----------|
 | **Left — sources** | T2 MPPT (live HA reporter, all BlueSolar datapoints). KU Victron chargers 2-3: **grey unmetered** (no live W; do not print 2x T2 as a reading). KU Renogy PWM: **grey unmetered** (not in HA). |
 | **Centre — storage** | Two LiTime 24 V packs: T2 (`HQ2239CQYT2`) and KU (`HQ2239JTRKU`). Jumper is not a numbered bus. |
-| **Right — loads** | KU Renogy AC path, EM16 A3 (15 Sep Sungold-AC-in caveat), six sim A/C plugs. T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
-| **Island — Sungold cart** | SPH302480A + 2x 100 Ah. **Separate plant** (not merged into T2/KU DC). Live MQTT when the sidecar is up. |
+| **Right — loads** | KU Renogy AC path (**-- W**, no HA inverter), EM16 A3 (**Sungold AC-in clamp**), six sim A/C plugs. T2 Renogy 30A RV is a **grey unmetered** dead-end (idle if no RV). |
+| **Sungold cart (AC from KU outlet)** | SPH302480A + 2x 100 Ah. **DC stays off T2/KU.** Operator (16 Sep): **AC input is plugged into a KU Renogy trailer outlet.** Draw that AC hop on the Overview (not a disconnected island). Live MQTT when the sidecar is up. |
 | **Meters — Refoss** | All EM16 A1-C6 numeric channels as **meters**, not extra loads. **Do not add A3+B2.** |
 
 Dark theme by default (matches GX). Numbers on every node: **W**, **V**, **A**, **SoC %**, MPPT
@@ -113,15 +113,23 @@ not `HA HH:MM:SS`. Numeric values stay static until a token is present.
 **static demo values**, sets `mode: demo`, and the page must be **unmistakable**: red
 **DEMO not live** badge, full-width amber banner, large watermark, `DEMO` prefix on every
 tile number, header clock **DEMO not HA** (not `HA HH:MM:SS`), and **no** wire/fan
-animation. Soak math still runs on those demo numbers for UI testing; no HA calls are
+animation. The watermark is `display: none` unless `body.demo-mode` (live snapshots must
+not show it). Author `display: flex` on `.demo-watermark` otherwise overrides HTML
+`hidden` ([hidden attribute](https://html.spec.whatwg.org/multipage/interaction.html#the-hidden-attribute)).
+Soak math still runs on those demo numbers for UI testing; no HA calls are
 made. Demo watts are **not** a live observation -- do not treat 400 W / 10 W Sungold
 load as the plant. The browser polls `GET /api/snapshot` every **2 s**.
 
-**Go live (one path, no paste):** the long-lived token lives on `.111` only
-(`deploy/secrets/home-assistant/long-lived.token`, gitignored). Copy that file onto
-this host at the same gitignored path (or
-`victron-ble2mqtt-integration/deploy/secrets/home-assistant/long-lived.token`), then
-restart `python scripts/solar_flow_server.py`. Never paste the token. Never commit it.
+**Go live (one path, no paste):** keep the long-lived token as gitignored
+`alfa-ai/deploy/secrets/home-assistant/long-lived.token` (never in git, chat, or
+`host105-ai.env`). **`.93`:** that file is already next to this clone
+(`C:\Users\gamerx\alfa-ai\deploy\secrets\home-assistant\long-lived.token`); solar-flow
+reads it as the first default path. **`.111`:** same relative path for the brain API
+mount. **`.105`:** same relative path under `/home/ansible/alfa-ai/` when solar-flow
+runs there (copy from `.93`; HA Container does not need the file).
+`~/.config/host105-ai.env` has no HA token keys.
+Optional second path: `victron-ble2mqtt-integration/deploy/secrets/home-assistant/long-lived.token`.
+Then start `python scripts/solar_flow_server.py`. Never paste the token. Never commit it.
 The proxy also reads those default paths when `HA_TOKEN_FILE` is unset
 ([pathlib `Path.read_text`](https://docs.python.org/3/library/pathlib.html#pathlib.Path.read_text)).
 `GET /api/snapshot` `mode` becomes `live` only after a successful
@@ -137,9 +145,11 @@ Keep the file mode `600` on shared hosts.
 
 Follows Victron GX Overview
 ([Cerbo GX UI](https://www.victronenergy.com/media/pg/Cerbo_GX/en/the-new-user-interface.html)):
-energy sources on the **left**, batteries in the **centre**, consumers on the **right**.
-Sungold is a **second plant** drawn as a dashed island under the two trailer buses -- not a
-third 24 V bus and not a DC hub.
+energy sources on the **left** (including **suitcase panel** tiles), batteries in the
+**centre**, consumers on the **right**. Sungold **DC** stays off T2/KU. Sungold **AC in**
+is a KU Renogy **trailer outlet** hop (operator 16 Sep; 15 Sep EM16 A3 matched Sungold
+`AC INPUT` in [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)). Click a node for HA
+recorder history via proxy `GET /api/history` (never call HA from the browser).
 
 Plant detail is from [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Live `entity_id`s
 below are from HA `.storage/core.entity_registry` on `.105` (16 Sep 2026). **Lovelace /
@@ -155,9 +165,12 @@ Charge window for Victron strings: **09:30-16:00 ET**.
 
 | Node | Live HA / display | Notes |
 |------|-------------------|-------|
+| **T2 suitcase (2 in series)** | No per-panel entity. Tile shows T2 MPPT **solar W** as the only live PV for that pair | Victron charger 1. Unmetered at the panel; meter is the MPPT. |
+| **KU Victron suitcases (2+2)** | **No entity.** Grey `--` W | Chargers 2 and 3. Do not print 2x T2 as live. |
+| **KU PWM suitcases (2)** | **No entity.** Grey `--` W | Voyager PWM. |
 | **T2 MPPT** (charger 1) | Live: `sensor.solar_controller_solar` (W), `sensor.solar_controller_charge_state`; also `battery`, `battery_charging`, `charging_power`, `load`, `load_power`, `yield_today`, `rssi`. Soak canonical `..._solar_power` / `..._battery_state` is filled from these. | Only **reporter** in MQTT. Animate PV flow when **live** solar W is numeric and > 0 (not in demo). BlueSolar fields: [monitoring](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/monitoring.html). |
 | **KU Victron** (chargers 2+3) | **No entity.** Grey tile, `--` W, dashed wire, **never** animated | Silent until Instant Readout keys ([DEVICES.md](DEVICES.md)). Do **not** display 2x T2 watts as live. |
-| **KU Renogy PWM** | **No entity** (Voyager 20A). Grey tile, `--` W, dashed wire, never animated | Unmetered into KU shunt. Shown because the operator asked for the datapoint; still not in HA. |
+| **KU Renogy PWM** | **No entity** (Voyager 20A). Grey tile, `--` W, dashed wire, never animated | Unmetered into KU shunt. |
 
 ### Storage (centre)
 
@@ -181,15 +194,46 @@ substitute. Pips and wires follow numeric V/A/W and switch ON only.
 | Node | Live HA / display | Notes |
 |------|-------------------|-------|
 | **T2 Renogy 2 kW** | **No inverter entity.** Grey `--` W. EM16 A2/B4 are **candidate** idle watts on the meter bank, not confirmed inverter W | 30A RV outlet. Idle if no RV. Do not treat A2 as a second site load. |
-| **KU Renogy 2 kW** | No inverter entity. AC path continues to the riser. Watts come from EM16 A3 when that clamp is on trailer AC | Trailer + optional RV via ATS. |
-| **EM16 A3** | `sensor.em16_a3_power` (+ `voltage`, `current`, `power_factor`, `this_month_energy`, `this_month_energy_returned`) | **10-11 Sep:** KU trailer/cluster. **15 Sep:** A3/B2 = Sungold AC-in. Static caveat on the tile. Refoss naming: [EM16 integration](https://www.home-assistant.io/integrations/refoss/). |
+| **KU Renogy 2 kW** | **No inverter entity.** Tile stays **-- W** (unmetered). Do **not** paint EM16 A3 onto this node. | Trailer + optional RV via ATS. **Operator 16 Sep:** Sungold cart **AC INPUT** cord is in a **KU Renogy outlet**. |
+| **Trailer outlet (to Sungold)** | **Unmetered** on the KU Renogy tile. Sungold AC-in hop watts: `path-ku-outlet-sg-acin` only (see below). | Not a third DC bus. Physical outlet hop; no invented KU trailer meter. |
+| **EM16 A3** | `sensor.em16_a3_power` (+ `voltage`, `current`, `power_factor`, `this_month_energy`, `this_month_energy_returned`) | **Sungold AC-in clamp** (operator 16 Sep). B2 is return -- never sum. Refoss naming: [EM16 integration](https://www.home-assistant.io/integrations/refoss/). |
 | **Sim A/C plugs 1-6** | `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_soak_load_power` | [SIM_SOAK_PLUGS.md](SIM_SOAK_PLUGS.md). Fan spins when ON. Do **not** show `input_boolean.sim_ac_plug_*_internal` as extra tiles. |
 | **Other EM16 channels** | `sensor.em16_{a1-c6}_{power,voltage,current,...}` | Meter bank only. **Never add A3+B2.** B2 labeled return of A3. C1-C6 unused CTs (~0 W). |
 
-### Sungold cart (separate island)
+### Sungold cart (AC from KU Renogy outlet; DC separate)
 
 SPH302480A LCD names: [SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md),
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf).
+**DC** of the cart (2x 100 Ah) is **not** paralleled onto T2/KU. **AC INPUT** is
+mains-side on the hybrid ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
+and on this site is the **KU Renogy outlet**, not a utility meter.
+
+Put Sungold **on the same Overview as the trailer AC path** (outlet wire from KU Renogy
+to Sungold AC-in). Do not hide it below the fold as an unrelated island. **Layout (16 Sep,
+geometry pass):** Sungold AC-in and the **trailer outlet** are separate tiles **left of the
+AC riser** (x&lt;560). Trailer is painted **after** AC-in in the SVG so its fill covers any
+overlap; Hz and EM16 sublabel must still sit **outside both fills**.
+
+| Element | Bounding box (x, y, w, h) | Notes |
+|---------|---------------------------|-------|
+| `node-sg-acin` rect fill | 400, 404, 120, 42 → **400–520 × 404–446** | Label/W/V·A inside fill |
+| `node-sg-acin` Hz + sublabel | center x=460, y=458 / y=470 | Below fill, above trailer |
+| `node-trailer-outlet` | 522, 512, 72, 36 → **522–594 × 512–548** | Down/right of AC-in labels |
+| `node-plug-6` | 700, 435, 170, 44 → **700–870 × 435–479** | Unchanged; on riser branch |
+
+Plugs stay x=700+; `path-ac-riser` (x=560, y=115–479) and `path-ac-plug-6` (y=457) stay
+clear of the AC-in tile. Do **not** restore the disconnected y=680 island.
+
+**Conductors (snap to node edges):**
+
+| Path id | `d` (SVG) | Hop label |
+|---------|-----------|-----------|
+| `path-ku-outlet-sg-acin` | `M 530 360 L 530 512 L 558 512 L 558 530 L 460 446` | `hop-path-ku-outlet-sg-acin` at (538, 475) — right of AC-in fill |
+| `path-sg-acin-inv` | `M 460 446 L 460 550 L 492 550 L 492 568` | `hop-path-sg-acin-inv` at (452, 508) — left of trailer fill |
+
+`path-ku-outlet-sg-acin` runs KU Renogy right edge (530, 360) down past AC-in, into trailer
+outlet, then into AC-in bottom (460, 446). No vertical segment through the AC-in rect.
+`path-sg-acin-inv` drops below the trailer tile before routing to SPH.
 Live MQTT `entity_id`s (unique_id in parentheses):
 
 | Tile | Live `entity_id` | unique_id |
@@ -219,49 +263,110 @@ Lovelace Solar tiles to GX fields (live REST ids):
 | Remaining battery | Cart remain % | `..._battery_soc` |
 | INPUT BATT V/A + charge state | Cart battery | `..._battery_voltage`, `_battery_current`, `_charging_power`, `_charge_state` |
 | Load active power + AC out V/A/Hz | Sungold AC out | `..._load_active_power`, `_ac_output_voltage`, `_load_current`, `_ac_output_frequency` |
-| AC INPUT V/A/Hz | Sungold AC in | `..._grid_voltage`, `_grid_current`, `_grid_frequency` |
+| AC INPUT V/A/Hz (+ W hop) | Sungold AC in | Tile V/A/Hz: `..._grid_*`. Click history + hop W: `sensor.em16_a3_power` (allowlisted); fallback display W is grid V x A when A3 is missing. |
 | Output mode / fault | SPH tile | `..._inverter_state`, `_fail_code`, `binary_sensor.sungold_sph302480a_fault_active` |
 | Refoss A1-C6 | Meter bank | `sensor.em16_*` |
 
 ### SVG conductors (snap to node edges)
 
-Plant is **two 24 V buses** plus a Sungold island, not one DC hub.
+End-to-end watt path (operator 16 Sep):
 
 ```
-T2:  BlueSolar MPPT  --wire-->  Battery 1 (HQ2239CQYT2)
-                     --wire-->  T2 Renogy (grey, unmetered, RV idle)
-KU:  chargers 2-3 (dashed, unmetered, `--` W, never animated)
-     PWM (dashed, unmetered, `--` W, never animated)
-        --wire-->  Battery 2 (HQ2239JTRKU)
-        --wire-->  KU Renogy (trailer AC)
-        --wire-->  vertical AC bus
-                    |-- EM16 A3
-                    |-- sim plugs 1-6 (one tap each)
-Sungold island (not on T2/KU DC):
-     PV --wire--> cart battery --wire--> SPH inverter --wire--> AC out
-     AC in --wire--> SPH inverter
+T2 suitcases (2) --> BlueSolar MPPT --W--> Battery 1 -- --> T2 Renogy RV (idle)
+KU suitcases (2+2, unmetered) --> chargers 2-3 --dashed--> Battery 2
+KU PWM suitcases (2, unmetered) --> Voyager --dashed--> Battery 2
+Battery 2 --> KU Renogy 2 kW --> trailer AC bus
+   |-- EM16 A3 (15 Sep: this clamp = Sungold AC-in)
+   |-- sim plugs 1-6
+   |-- trailer outlet --AC W--> Sungold AC INPUT --> SPH302480A
+                              |-- cart 2x 100 Ah (DC, not T2/KU)
+                              |-- Sungold PV panels --> SPH
+                              |-- Sungold AC OUTPUT (cart loads)
 ```
 
-| Path id | Connects |
-|---------|----------|
-| `path-t2-mppt-batt1` | MPPT right edge to Battery 1 left edge |
-| `path-t2-batt1-renogy` | Battery 1 right to T2 Renogy (idle, not animated unless a confirmed inverter W exists) |
-| `path-ku-chargers-batt2` | KU chargers 2-3 (dashed) to Battery 2 |
-| `path-ku-pwm-batt2` | KU PWM (dashed) to Battery 2 |
-| `path-ku-batt2-inverter` | Battery 2 right to KU Renogy left |
-| `path-inverter-acbus` | KU Renogy right to AC riser |
-| `path-ac-riser` | Vertical AC bus |
-| `path-ac-em16` | Riser to EM16 A3 |
-| `path-ac-plug-1` … `path-ac-plug-6` | Riser to each sim plug |
+Hop watt labels sit on each conductor (live numeric W, or `--` if unmetered).
+
+**Trailer AC bus hops** (`path-inverter-acbus`, `path-ac-riser`): sum of **sim soak plug** watts when any plug reports W; otherwise `--` (unmetered). **Do not** drive these from EM16 A3.
+
+**Sungold AC-in hop** (`path-ku-outlet-sg-acin`, `path-sg-acin-inv`): `|sensor.em16_a3_power|` when present, else Sungold `grid_voltage * grid_current`.
+
+| Path id | Connects | Hop watts |
+|---------|----------|-----------|
+| `path-t2-panels-mppt` | T2 suitcase pair to BlueSolar | T2 MPPT solar W |
+| `path-t2-mppt-batt1` | MPPT to Battery 1 | `sensor.solar_controller_charging_power` when present; else `battery_charging` x `battery` V; else solar W (unmetered split vs panels hop) |
+| `path-t2-batt1-renogy` | Battery 1 to T2 Renogy (idle) | unmetered |
+| `path-ku-panels-chargers` | KU Victron suitcase groups to chargers 2-3 (dashed) | unmetered |
+| `path-ku-chargers-batt2` | Chargers 2-3 to Battery 2 (dashed) | unmetered |
+| `path-ku-pwm-panels` | PWM suitcases to Voyager (dashed) | unmetered |
+| `path-ku-pwm-batt2` | PWM to Battery 2 (dashed) | unmetered |
+| `path-ku-batt2-inverter` | Battery 2 to KU Renogy | \|Battery 2 W\| when discharging |
+| `path-inverter-acbus` | KU Renogy to AC riser | sim plug sum or `--` |
+| `path-ac-riser` | Vertical AC bus | sim plug sum or `--` |
+| `path-ac-em16` | Riser branch to **EM16 A3 clamp tile** (Sungold AC-in meter tap) | \|A3 power\| — same clamp as `path-ku-outlet-sg-acin`; **not** a second plant load and **not** added to soak AC-bus totals |
+| `path-ac-plug-1` … `path-ac-plug-6` | Riser to each sim plug | per-plug W |
+| `path-ku-outlet-sg-acin` | **KU Renogy / trailer outlet to Sungold AC-in** | A3 or grid V x A |
+| `path-sg-pv-panels` | Sungold PV panels to SPH / cart PV tile |
 | `path-sg-pv-batt` | Sungold PV to cart battery |
-| `path-sg-batt-inv` | Cart battery to SPH inverter |
-| `path-sg-acin-inv` | Sungold AC in to SPH inverter |
-| `path-sg-inv-acout` | SPH inverter to AC out |
+| `path-sg-batt-inv` | Cart battery to SPH |
+| `path-sg-acin-inv` | Sungold AC in to SPH |
+| `path-sg-inv-acout` | SPH to AC out |
 
-Idle conductors stay visible (grey stroke). Animated cyan only in **live** mode when that
-hop has numeric W or an ON switch. Demo mode never animates. KU 2-3 and PWM stay dashed
-and never flow. T2 Renogy stays idle unless HA later grows a Renogy entity. Sungold island
-wires animate from SPH MQTT watts only (live).
+---
+
+## Click history (HA recorder)
+
+Token stays on the proxy. Browser calls **only**
+`GET /api/history?entity_id=<id>&hours=24` on localhost (the UI may request `hours=24`).
+The proxy **clamps** the window to **10 hours** (`HISTORY_HOURS_MAX` in
+`solar_flow_server.py`); that cap is a proxy policy, not HA `recorder.purge_keep_days`.
+The JSON response includes the clamped `hours` value actually fetched.
+
+The proxy allowlists plant entity ids and calls HA
+
+`GET /api/history/period/<start>?filter_entity_id=<id>&end_time=<end>&minimal_response&no_attributes`
+
+per the [REST API](https://developers.home-assistant.io/docs/api/rest/) (`filter_entity_id`
+required; `end_time`, `minimal_response`, and `no_attributes` optional). Timestamps in the
+path and `end_time` use URL-encoded ISO-8601 (`:` as `%3A`, `+` as `%2B`) as in the official
+curl sample. Click a node (cursor pointer) to fill the History aside: entity id, up to **10 h**
+of states as a simple polyline plus a short table (`last_changed`, `state`). Sungold AC-in
+click history prefers `sensor.em16_a3_power` (power-ish, allowlisted) over `grid_voltage` alone.
+Unknown ids return 400. Demo mode: history stays **unavailable** (no fake series).
+
+### Recorder required on `.105`
+
+History depends on the [Recorder](https://www.home-assistant.io/integrations/recorder/)
+integration ([History](https://www.home-assistant.io/integrations/history/) reads the same
+database). Both are enabled by default unless `default_config:` was removed from
+`/opt/homeassistant/configuration.yaml` on `.105` without adding explicit blocks.
+
+**Symptom:** proxy log `history endpoint 404` and the aside shows
+`HA recorder or history integration is not enabled` (live diagnosis Sep 2026: `.105` had
+neither `recorder` nor `history` in `GET /api/config` `components`).
+
+**Enable on `.105`** (edit `/opt/homeassistant/configuration.yaml`, then restart the HA
+container per [common tasks](https://www.home-assistant.io/common-tasks/container/)):
+
+```yaml
+recorder:
+history:
+```
+
+If `default_config:` is present, recorder and history should already load; a 404 then means
+the integration failed to start (check HA logs). After enable, wait for state changes to be
+recorded; an empty `points` array is valid when the entity has no rows in the retention
+window (default 10 days per History integration docs).
+
+### significant_changes_only
+
+The [REST history parameters](https://developers.home-assistant.io/docs/api/rest/) list
+`significant_changes_only` as an optional query flag but do not document a disable value or
+a core default on that page. The proxy does **not** send that flag.
+
+### Other failures
+
+If recorder is on but HA returns another HTTP error, the aside shows a generic
+`history fetch failed` (no token text).
 
 ---
 
@@ -274,7 +379,7 @@ wires animate from SPH MQTT watts only (live).
 | **Dashed KU 2-3 / PWM conductors** | Physical KU Victron pair and Voyager PWM exist; **no** live W. Never animated. Do **not** print 2x T2 watts. |
 | **Spinning fan** (plugs 1, 4, 5) | `switch.sim_ac_plug_*` state `on` |
 | **`prefers-reduced-motion: reduce`** | Disable line animation and fan spin; keep numeric updates |
-| **Demo mode** | Red **DEMO not live** badge, amber banner, watermark, `DEMO` prefix on numbers, no flow/fan animation |
+| **Demo mode** | Red **DEMO not live** badge, amber banner, watermark **only** when `body.demo-mode`. Live: green **live** badge, no watermark. |
 
 GX manuals do **not** publish Overview hex colors; dark charcoal + cyan is operator choice, not a Victron palette. Do **not** copy Victron logos, GX/VRM screenshots, or product bitmaps ([press assets](https://www.victronenergy.com/information/press) are for press, not this UI). Structure only: three columns, dark default, tappable-looking tiles. Title is **Solar flow**, not Cerbo / VRM / Remote Console.
 
@@ -294,21 +399,27 @@ Read-only mirror of alfa-ai `decide_soak()` — same defaults as
 | Setting key | Default entity | Role |
 |-------------|----------------|------|
 | `ha_solar_entity` | `sensor.solar_controller_solar_power` | T2 PV W. Live Lovelace is `sensor.solar_controller_solar` -- proxy copies that onto the canonical id. |
-| `ha_load_entity` | `sensor.em16_a3_power` | AC load W (see A3 caveat above) |
+| `ha_load_entity` | `sensor.sim_soak_load_power` | Plant AC load W for surplus math (sim-plug aggregate; `0` when all OFF). **16 Sep topology:** EM16 A3 is Sungold SPH AC-in on the KU Renogy trailer outlet, **not** KU trailer house load -- do **not** point soak at `sensor.em16_a3_power` while A3 is Sungold AC-in. When a real KU house clamp exists, set `ha_load_entity` to that sensor; see [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). |
 | `ha_soc_entity` | `sensor.battery_1_soc` | Display only while unsynced. Live MQTT is `sensor.battery_1_state_of_charge`. |
 | `ha_shunt_voltage_entity` | `sensor.battery_1_voltage` | Thinking text (LiTime 28.4-29.2 V nameplate). Not a SoC substitute. |
 | `ha_shunt_current_entity` | `sensor.battery_1_current` | Thinking text; +charge / -discharge. |
 | `ha_soc_unsynced` | `true` | Skip the 85% SoC gate. Victron publishes **no** voltage-to-% map. |
 | `ha_charge_state_entity` | `sensor.solar_controller_battery_state` | Must be in `float` or `absorption` to arm soak-on. Live Lovelace is `sensor.solar_controller_charge_state`. |
 | `ha_switch_allowlist` | six `switch.sim_ac_plug_*` | Plugs eligible for decisions |
-| `ha_switch_watts` | rated W per plug | Added to effective load when ON |
+| `ha_switch_watts` | rated W per plug | Rated W per ON switch (fallback when load sensor unavailable; **not** added when `ha_load_entity` is `sensor.sim_soak_load_power`) |
 
 ### Surplus math
 
 ```
-effective_load_w = (load_sensor_W or 0) + sum(rated_W for each ON plug in ha_switch_watts)
 surplus_w = solar_W - effective_load_w
 ```
+
+- **Default (`ha_load_entity` = `sensor.sim_soak_load_power`):** `effective_load_w` is the
+  aggregate sensor only (no double-count with `ha_switch_watts`). If the sensor is
+  `unavailable`, fall back to the sum of rated W for ON plugs in `ha_switch_watts`.
+- **Real plant clamp configured:** when `ha_load_entity` is a house/trailer EM16 sensor
+  (not `sensor.sim_soak_load_power`), `effective_load_w = load_sensor_W + sum(rated_W for
+  each ON plug in ha_switch_watts)`.
 
 ### Gates (thinking text)
 

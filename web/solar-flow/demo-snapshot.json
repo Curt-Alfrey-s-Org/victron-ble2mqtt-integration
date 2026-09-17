@@ -72,7 +72,7 @@
       "attributes": { "friendly_name": "[DEMO] Sim A/C plug 3 water heater (1200W rated)" }
     },
     "switch.sim_ac_plug_4": {
-      "state": "off",
+      "state": "on",
       "attributes": { "friendly_name": "[DEMO] Sim A/C plug 4 fan (130W rated)" }
     },
     "switch.sim_ac_plug_5": {
@@ -96,7 +96,7 @@
       "attributes": { "unit_of_measurement": "W" }
     },
     "sensor.sim_ac_plug_4_power": {
-      "state": "0",
+      "state": "100",
       "attributes": { "unit_of_measurement": "W" }
     },
     "sensor.sim_ac_plug_5_power": {
@@ -108,7 +108,7 @@
       "attributes": { "unit_of_measurement": "W" }
     },
     "sensor.sim_soak_load_power": {
-      "state": "180",
+      "state": "280",
       "attributes": { "unit_of_measurement": "W" }
     },
     "sensor.solar_controller_solar": {

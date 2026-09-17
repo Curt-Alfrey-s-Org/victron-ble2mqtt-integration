@@ -34,10 +34,15 @@ Sungold cart (not on T2 or KU)
 
 **Solar-flow Overview (operator 16 Sep 2026):** the local GX-style page
 ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)) now shows **data tiles** for
-Sungold, KU PWM, and both Renogy inverters. Physics is unchanged: Sungold stays a
-**separate plant**; PWM and Renogy inverters stay **unmetered** unless HA has a
-numeric entity (registry on `.105` has Sungold MQTT; **no** Renogy/PWM entities).
+Sungold, KU PWM, and both Renogy inverters. Physics is unchanged on **DC**: Sungold stays
+off T2/KU battery negatives. **AC:** operator 16 Sep -- Sungold **AC INPUT** is plugged
+into a **KU Renogy trailer outlet** (15 Sep EM16 A3 matched Sungold AC-in). PWM and Renogy
+inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
 Do not merge Sungold DC into T2/KU. Do not print 2x T2 watts as live KU Victron.
+Dashboard hop policy (16 Sep): KU Renogy tile stays **-- W**; EM16 A3 watts paint
+`path-ku-outlet-sg-acin` / Sungold AC-in only, not `path-inverter-acbus` or
+`path-ac-riser` (those are sim-plug sum or unmetered). See
+[SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
 

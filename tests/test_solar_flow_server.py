@@ -28,14 +28,18 @@ def _clear_ha_token(monkeypatch: pytest.MonkeyPatch) -> None:
 def _demo_states(
     *,
     solar: str = "400",
-    load: str = "100",
+    load: str = "280",
     soc: str = "92",
     charge: str = "absorption",
     plug_1: str = "on",
 ) -> dict[str, dict]:
     return {
         "sensor.solar_controller_solar_power": {"entity_id": "sensor.solar_controller_solar_power", "state": solar},
-        "sensor.em16_a3_power": {"entity_id": "sensor.em16_a3_power", "state": load},
+        "sensor.sim_soak_load_power": {
+            "entity_id": "sensor.sim_soak_load_power",
+            "state": load,
+        },
+        "sensor.em16_a3_power": {"entity_id": "sensor.em16_a3_power", "state": "100"},
         "sensor.battery_1_soc": {"entity_id": "sensor.battery_1_soc", "state": soc},
         "sensor.battery_1_voltage": {"entity_id": "sensor.battery_1_voltage", "state": "28.6"},
         "sensor.battery_1_current": {"entity_id": "sensor.battery_1_current", "state": "2.1"},
@@ -316,6 +320,11 @@ def test_resolve_bind_host_default_localhost(monkeypatch: pytest.MonkeyPatch) ->
     assert sfs.resolve_bind_host(args) == "127.0.0.1"
 
 
+def test_default_settings_ha_load_entity_is_sim_soak_not_em16_a3() -> None:
+    assert sfs.DEFAULT_SETTINGS["ha_load_entity"] == "sensor.sim_soak_load_power"
+    assert sfs.DEFAULT_SETTINGS["ha_load_entity"] != "sensor.em16_a3_power"
+
+
 def test_required_entity_ids_include_battery_2_and_plug_power() -> None:
     assert "sensor.battery_2_soc" in sfs.REQUIRED_ENTITY_IDS
     assert "sensor.battery_2_power" in sfs.REQUIRED_ENTITY_IDS
@@ -430,3 +439,199 @@ def test_demo_numbers_are_not_live_lovelace_table() -> None:
     assert entities["sensor.solar_controller_solar"]["state"] == "400"
     assert entities["sensor.sungold_sph302480a_load_active_power"]["state"] == "10"
     assert entities["sensor.sungold_sph302480a_load_power"]["state"] == "10"
+
+
+def test_history_rejects_unknown_entity(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        url = (
+            f"http://127.0.0.1:{port}/api/history"
+            "?entity_id=light.kitchen&hours=24"
+        )
+        try:
+            urllib.request.urlopen(url, timeout=5)
+            pytest.fail("expected HTTP 400")
+        except urllib.error.HTTPError as err:
+            assert err.code == 400
+            body = json.loads(err.read().decode("utf-8"))
+        assert body["error"] == "entity_id not allowed"
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_history_demo_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:
+    _clear_ha_token(monkeypatch)
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        url = (
+            f"http://127.0.0.1:{port}/api/history"
+            "?entity_id=sensor.solar_controller_solar&hours=24"
+        )
+        try:
+            urllib.request.urlopen(url, timeout=5)
+            pytest.fail("expected HTTP 503")
+        except urllib.error.HTTPError as err:
+            assert err.code == 503
+            body = json.loads(err.read().decode("utf-8"))
+        assert "error" in body
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_history_uses_filter_entity_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+    captured: dict[str, str] = {}
+
+    def _fake_urlopen(req, timeout=15.0):
+        captured["url"] = req.full_url
+        payload = json.dumps(
+            [[{"entity_id": "sensor.em16_a3_power", "state": "100", "last_changed": "2026-09-16T12:00:00+00:00"}]]
+        ).encode("utf-8")
+
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def read(self):
+                return payload
+
+        return _Resp()
+
+    monkeypatch.setattr(sfs, "urlopen", _fake_urlopen)
+    rows = sfs.fetch_ha_history(
+        "http://192.168.0.105:8123",
+        "unit-test-token",
+        "sensor.em16_a3_power",
+        hours=24,
+    )
+    url = captured["url"]
+    assert "filter_entity_id=sensor.em16_a3_power" in url
+    assert "minimal_response" in url
+    assert "no_attributes" in url
+    assert "end_time=" in url
+    assert "%3A" in url or "%2B" in url
+    assert "significant_changes_only" not in url
+    assert rows[0]["state"] == "100"
+
+
+def test_build_ha_history_url_caps_hours_at_ten() -> None:
+    from datetime import datetime, timezone
+    from urllib.parse import parse_qs, unquote, urlparse
+
+    url = sfs.build_ha_history_url(
+        "http://192.168.0.105:8123",
+        "sensor.solar_controller_solar",
+        hours=24,
+    )
+    assert "filter_entity_id=sensor.solar_controller_solar" in url
+    assert "hours=" not in url
+
+    parsed = urlparse(url)
+    start_raw = unquote(parsed.path.rsplit("/", 1)[-1])
+    end_raw = unquote(parse_qs(parsed.query)["end_time"][0])
+    start = datetime.fromisoformat(start_raw)
+    end = datetime.fromisoformat(end_raw)
+    delta_h = (end - start).total_seconds() / 3600.0
+    assert 9.99 <= delta_h <= 10.01
+    assert start.tzinfo is not None or start_raw.endswith("+00:00")
+    assert end.tzinfo is not None or end_raw.endswith("+00:00")
+
+
+def test_history_empty_returns_points_array(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+
+    def _empty(_base: str, _token: str, _entity_id: str, hours: int = 24):
+        return []
+
+    monkeypatch.setattr(sfs, "fetch_ha_history", _empty)
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        url = (
+            f"http://127.0.0.1:{port}/api/history"
+            "?entity_id=sensor.em16_a3_power&hours=24"
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            assert resp.headers.get("Cache-Control") == "no-store"
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["points"] == []
+        assert payload["hours"] == 10
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)
+
+
+def test_is_history_entity_allowed_prefix_em16() -> None:
+    assert sfs.is_history_entity_allowed("sensor.em16_a2_power")
+    assert not sfs.is_history_entity_allowed("light.kitchen")
+
+
+def test_build_ha_history_url_matches_official_encoding() -> None:
+    url = sfs.build_ha_history_url(
+        "http://192.168.0.105:8123",
+        "sensor.em16_a3_power",
+        hours=1,
+    )
+    assert url.startswith("http://192.168.0.105:8123/api/history/period/")
+    assert "filter_entity_id=sensor.em16_a3_power" in url
+    assert "end_time=" in url
+    assert "%3A" in url
+    assert "significant_changes_only" not in url
+
+
+def test_history_ha_404_returns_recorder_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HA_TOKEN", "unit-test-token")
+
+    def _raise_404(*_args, **_kwargs):
+        raise urllib.error.HTTPError(
+            "http://192.168.0.105:8123/api/history/period/x",
+            404,
+            "Not Found",
+            None,
+            None,
+        )
+
+    monkeypatch.setattr(sfs, "fetch_ha_history", _raise_404)
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), sfs.SolarFlowHandler)
+    _host, port = httpd.server_address
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        import urllib.request
+
+        url = (
+            f"http://127.0.0.1:{port}/api/history"
+            "?entity_id=sensor.em16_a3_power&hours=24"
+        )
+        try:
+            urllib.request.urlopen(url, timeout=5)
+            pytest.fail("expected HTTP 503")
+        except urllib.error.HTTPError as err:
+            assert err.code == 503
+            body = json.loads(err.read().decode("utf-8"))
+        assert body["error"] == sfs.HISTORY_RECORDER_DISABLED_MSG
+    finally:
+        httpd.shutdown()
+        thread.join(timeout=2)

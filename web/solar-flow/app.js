@@ -2,9 +2,13 @@
   'use strict';
 
   var POLL_MS = 2000;
+  // Browser may request hours=24; proxy clamps to 10 (see solar_flow_server.py).
+  var HISTORY_HOURS = 24;
+  var HISTORY_TABLE_ROWS = 40;
   var lastSnapshot = null;
   var proxyOnline = false;
   var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var selectedHistoryEntity = null;
 
   var ENTITY_IDS = {
     solar: 'sensor.solar_controller_solar',
@@ -159,6 +163,66 @@
       el.classList.add('flowing');
       if (reverse) el.classList.add('reverse');
     }
+  }
+
+  function setHopLabel(pathId, watts, unmetered) {
+    var el = $('hop-' + pathId);
+    if (!el) return;
+    if (unmetered || watts === null || watts === undefined) {
+      el.textContent = '-- W';
+      el.classList.add('unmetered');
+      return;
+    }
+    el.classList.remove('unmetered');
+    el.textContent = demoText(formatW(watts));
+  }
+
+  function outletHopW(entities, em16W, sgGridV, sgGridA) {
+    if (em16W !== null) {
+      return Math.abs(em16W);
+    }
+    if (sgGridV !== null && sgGridA !== null && Math.abs(sgGridA) > 0.01) {
+      return Math.abs(sgGridV * sgGridA);
+    }
+    return null;
+  }
+
+  function mpptToBattHopW(entities, solarW) {
+    var chargeW = getPowerW(entities, ENTITY_IDS.mpptChargeW);
+    if (chargeW !== null && chargeW > 0) {
+      return chargeW;
+    }
+    var mpptV = parseFloatSafe(getState(entities, ENTITY_IDS.mpptV));
+    var mpptA = parseFloatSafe(getState(entities, ENTITY_IDS.mpptA));
+    if (mpptV !== null && mpptA !== null && mpptA > 0.01) {
+      return Math.abs(mpptV * mpptA);
+    }
+    return solarW;
+  }
+
+  function updateHopLabels(opts) {
+    setHopLabel('path-t2-panels-mppt', opts.solarW, false);
+    setHopLabel('path-t2-mppt-batt1', opts.mpptBattHopW, false);
+    setHopLabel('path-t2-batt1-renogy', null, true);
+    setHopLabel('path-ku-panels-chargers', null, true);
+    setHopLabel('path-ku-chargers-batt2', null, true);
+    setHopLabel('path-ku-pwm-panels', null, true);
+    setHopLabel('path-ku-pwm-batt2', null, true);
+    setHopLabel('path-ku-batt2-inverter', opts.batt2W !== null ? Math.abs(opts.batt2W) : null, false);
+    var acW = opts.acBusW;
+    var acBusUnmetered = acW === null;
+    setHopLabel('path-inverter-acbus', acW, acBusUnmetered);
+    setHopLabel('path-ac-riser', acW, acBusUnmetered);
+    setHopLabel('path-ac-em16', opts.em16W !== null ? Math.abs(opts.em16W) : null, false);
+    for (var p = 1; p <= PLUG_COUNT; p++) {
+      setHopLabel('path-ac-plug-' + p, opts.plugWs[p], false);
+    }
+    setHopLabel('path-ku-outlet-sg-acin', opts.outletW, false);
+    setHopLabel('path-sg-pv-panels', opts.sgPvW, false);
+    setHopLabel('path-sg-pv-batt', opts.sgPvW, false);
+    setHopLabel('path-sg-batt-inv', opts.sgBattW !== null ? Math.abs(opts.sgBattW) : null, false);
+    setHopLabel('path-sg-acin-inv', opts.outletW, false);
+    setHopLabel('path-sg-inv-acout', opts.sgLoadW, false);
   }
 
   function setPlugOn(n, on) {
@@ -323,7 +387,7 @@
   }
 
   function channelNote(ch) {
-    if (ch === 'a3') return 'load meter (not a 2nd plant)';
+    if (ch === 'a3') return 'Sungold AC-in clamp';
     if (ch === 'b2') return 'return of A3; do not add';
     if (ch === 'a2' || ch === 'b4') return 'candidate T2 Renogy idle';
     if (ch.charAt(0) === 'c') return 'unused CT';
@@ -390,6 +454,9 @@
 
     var solarW = getPowerW(entities, ENTITY_IDS.solar);
     setValue('val-solar-w', formatW(solarW));
+    setValue('val-t2-panels-w', formatW(solarW));
+    setValue('val-ku-victron-panels-w', '-- W');
+    setValue('val-ku-pwm-panels-w', '-- W');
     setPip('pip-solar', !demo && solarW !== null && solarW > 0);
 
     var battState = getState(entities, ENTITY_IDS.battState);
@@ -458,9 +525,11 @@
     var totalSoak = 0;
     var hasSoak = false;
     var anyPlugOn = false;
+    var plugWs = {};
     for (var p = 1; p <= PLUG_COUNT; p++) {
       var plugOn = isSwitchOn(entities, p);
       var plugW = getPowerW(entities, 'sensor.sim_ac_plug_' + p + '_power');
+      plugWs[p] = plugW;
       setValue('val-plug-' + p + '-w', formatW(plugW));
       setPip('pip-plug-' + p, !demo && (plugOn || (plugW !== null && plugW > 0)));
       setPlugOn(p, plugOn);
@@ -478,6 +547,7 @@
     var sgPvW = getPowerW(entities, ENTITY_IDS.sgPvW);
     var sgPvV = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvV));
     var sgPvA = parseFloatSafe(getState(entities, ENTITY_IDS.sgPvA));
+    setValue('val-sg-panels-w', formatW(sgPvW));
     setValue('val-sg-pv-w', formatW(sgPvW));
     setValue('val-sg-pv-va', formatVA(sgPvV, sgPvA));
     setPip('pip-sg-pv', !demo && sgPvW !== null && sgPvW > 0);
@@ -496,9 +566,11 @@
     var sgGridV = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridV));
     var sgGridA = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridA));
     var sgGridHz = parseFloatSafe(getState(entities, ENTITY_IDS.sgGridHz));
+    var outletW = outletHopW(entities, em16W, sgGridV, sgGridA);
+    setValue('val-sg-acin-w', formatW(outletW));
     setValue('val-sg-acin-va', formatVA(sgGridV, sgGridA));
     setValue('val-sg-acin-hz', sgGridHz !== null ? formatNum(sgGridHz, 0) + ' Hz' : '-- Hz');
-    setPip('pip-sg-acin', !demo && sgGridA !== null && Math.abs(sgGridA) > 0.05);
+    setPip('pip-sg-acin', !demo && outletW !== null && outletW > 0);
 
     var sgLoadW = getPowerW(entities, ENTITY_IDS.sgLoadW);
     var sgLoadA = parseFloatSafe(getState(entities, ENTITY_IDS.sgLoadA));
@@ -526,6 +598,20 @@
     renderMetrics(ai);
     renderDecisions(ai.decisions);
 
+    var acBusW = hasSoak && totalSoak > 0 ? totalSoak : null;
+    var mpptBattHopW = mpptToBattHopW(entities, solarW);
+    updateHopLabels({
+      solarW: solarW,
+      mpptBattHopW: mpptBattHopW,
+      batt2W: batt2W,
+      em16W: em16W,
+      acBusW: acBusW,
+      plugWs: plugWs,
+      outletW: outletW,
+      sgPvW: sgPvW,
+      sgBattW: sgBattW,
+      sgLoadW: sgLoadW
+    });
     updateFlows({
       solarW: solarW,
       batt1W: batt1W,
@@ -536,11 +622,13 @@
       sgPvW: sgPvW,
       sgBattW: sgBattW,
       sgGridA: sgGridA,
+      sgGridV: sgGridV,
+      outletW: outletW,
       sgLoadW: sgLoadW
     });
     setPip(
       'pip-inverter',
-      !demo && ((em16W !== null && Math.abs(em16W) > 0) || totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0))
+      !demo && (totalSoak > 0 || anyPlugOn || (batt2W !== null && batt2W < 0) || (outletW !== null && outletW > 0))
     );
   }
 
@@ -569,12 +657,22 @@
 
   function updateFlows(opts) {
     if (isDemo()) {
+      setFlow('path-t2-panels-mppt', false, false);
       setFlow('path-t2-mppt-batt1', false, false);
       setFlow('path-t2-batt1-renogy', false, false);
+      setFlow('path-ku-panels-chargers', false, false);
+      setFlow('path-ku-chargers-batt2', false, false);
+      setFlow('path-ku-pwm-panels', false, false);
+      setFlow('path-ku-pwm-batt2', false, false);
       setFlow('path-ku-batt2-inverter', false, false);
       setFlow('path-inverter-acbus', false, false);
       setFlow('path-ac-riser', false, false);
       setFlow('path-ac-em16', false, false);
+      for (var dp = 1; dp <= PLUG_COUNT; dp++) {
+        setFlow('path-ac-plug-' + dp, false, false);
+      }
+      setFlow('path-ku-outlet-sg-acin', false, false);
+      setFlow('path-sg-pv-panels', false, false);
       setFlow('path-sg-pv-batt', false, false);
       setFlow('path-sg-batt-inv', false, false);
       setFlow('path-sg-acin-inv', false, false);
@@ -584,21 +682,195 @@
     var solarFlow = opts.solarW !== null && opts.solarW > 0;
     var batt1Charge = opts.batt1W !== null && opts.batt1W > 0;
     var batt1Discharge = opts.batt1W !== null && opts.batt1W < 0;
+    setFlow('path-t2-panels-mppt', solarFlow, false);
     setFlow('path-t2-mppt-batt1', solarFlow || batt1Charge || batt1Discharge, batt1Discharge);
     setFlow('path-t2-batt1-renogy', false, false);
 
     var batt2Discharge = opts.batt2W !== null && opts.batt2W < 0;
     var em16Flow = opts.em16W !== null && Math.abs(opts.em16W) > 0;
-    var acLoad = em16Flow || (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
-    setFlow('path-ku-batt2-inverter', batt2Discharge || acLoad, false);
-    setFlow('path-inverter-acbus', acLoad, false);
-    setFlow('path-ac-riser', acLoad, false);
+    var plugLoad = (opts.plugTotal || 0) > 0 || opts.anyPlugOn;
+    var outletFlow = opts.outletW !== null && opts.outletW > 0;
+    setFlow('path-ku-batt2-inverter', batt2Discharge || plugLoad || outletFlow, false);
+    setFlow('path-inverter-acbus', plugLoad, false);
+    setFlow('path-ac-riser', plugLoad, false);
     setFlow('path-ac-em16', em16Flow, false);
-
+    setFlow('path-ku-outlet-sg-acin', outletFlow, false);
+    setFlow('path-sg-pv-panels', opts.sgPvW !== null && opts.sgPvW > 0, false);
     setFlow('path-sg-pv-batt', opts.sgPvW !== null && opts.sgPvW > 0, false);
     setFlow('path-sg-batt-inv', opts.sgBattW !== null && Math.abs(opts.sgBattW) > 0, false);
-    setFlow('path-sg-acin-inv', opts.sgGridA !== null && Math.abs(opts.sgGridA) > 0.05, false);
+    setFlow('path-sg-acin-inv', outletFlow, false);
     setFlow('path-sg-inv-acout', opts.sgLoadW !== null && opts.sgLoadW > 0, false);
+  }
+
+  function formatHistoryTime(iso) {
+    if (!iso) return '--';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return String(iso);
+    return d.toLocaleString();
+  }
+
+  function renderSparkline(points) {
+    var poly = $('history-spark-poly');
+    if (!poly) return;
+    if (!points || points.length < 2) {
+      poly.setAttribute('points', '');
+      return;
+    }
+    var nums = [];
+    for (var i = 0; i < points.length; i++) {
+      var n = parseFloatSafe(points[i].state);
+      if (n !== null) nums.push(n);
+    }
+    if (nums.length < 2) {
+      poly.setAttribute('points', '');
+      return;
+    }
+    var min = nums[0];
+    var max = nums[0];
+    for (var j = 1; j < nums.length; j++) {
+      if (nums[j] < min) min = nums[j];
+      if (nums[j] > max) max = nums[j];
+    }
+    var span = max - min;
+    if (span < 0.001) span = 1;
+    var width = 240;
+    var height = 48;
+    var coords = [];
+    for (var k = 0; k < nums.length; k++) {
+      var x = (k / (nums.length - 1)) * width;
+      var y = height - ((nums[k] - min) / span) * (height - 4) - 2;
+      coords.push(x.toFixed(1) + ',' + y.toFixed(1));
+    }
+    poly.setAttribute('points', coords.join(' '));
+  }
+
+  function renderHistoryTable(points, currentRow) {
+    var tbody = $('history-tbody');
+    if (!tbody) return;
+    var rows = [];
+    if (currentRow) {
+      rows.push(currentRow);
+    }
+    if (points && points.length) {
+      var start = Math.max(0, points.length - HISTORY_TABLE_ROWS);
+      for (var i = points.length - 1; i >= start; i--) {
+        rows.push(points[i]);
+      }
+    }
+    if (!rows.length && !currentRow) {
+      tbody.innerHTML = '<tr><td colspan="2">no recorded history</td></tr>';
+      return;
+    }
+    var html = '';
+    var limit = Math.min(rows.length, HISTORY_TABLE_ROWS);
+    for (var r = 0; r < limit; r++) {
+      var row = rows[r];
+      var timeLabel = row.is_current ?
+        'current' :
+        formatHistoryTime(row.last_changed || row.last_updated);
+      var rowClass = row.is_current ? ' class="history-current"' : '';
+      html += '<tr' + rowClass + '><td>' + escapeHtml(timeLabel) +
+        '</td><td>' + escapeHtml(String(row.state)) + '</td></tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  function showHistoryPanel(title, entityId) {
+    var panel = $('history-panel');
+    if (!panel) return;
+    panel.hidden = false;
+    setText('history-title', title || 'History');
+    setText('history-entity-id', entityId || '');
+    selectedHistoryEntity = entityId;
+  }
+
+  function hideHistoryPanel() {
+    var panel = $('history-panel');
+    if (panel) panel.hidden = true;
+    selectedHistoryEntity = null;
+  }
+
+  function fetchHistory(entityId) {
+    var status = $('history-status');
+    if (status) status.textContent = 'loading...';
+    return fetch(
+      '/api/history?entity_id=' + encodeURIComponent(entityId) + '&hours=' + HISTORY_HOURS,
+      { method: 'GET', headers: { Accept: 'application/json' }, cache: 'no-store' }
+    ).then(function (res) {
+      return res.json().then(function (body) {
+        return { ok: res.ok, status: res.status, body: body };
+      });
+    });
+  }
+
+  function openHistoryForNode(node) {
+    var entityId = node.getAttribute('data-history-entity');
+    if (!entityId) return;
+    var title = node.getAttribute('data-history-title') || entityId;
+    showHistoryPanel(title, entityId);
+    var entities = (lastSnapshot && lastSnapshot.entities) || {};
+    var ent = getEntity(entities, entityId);
+    var currentRow = null;
+    if (ent) {
+      currentRow = {
+        state: ent.state,
+        last_changed: ent.last_changed || ent.last_updated || lastSnapshot.fetched_at,
+        is_current: true
+      };
+    }
+    if (isDemo()) {
+      if ($('history-status')) {
+        $('history-status').textContent = 'history unavailable in demo mode';
+      }
+      renderSparkline([]);
+      renderHistoryTable([], currentRow);
+      return;
+    }
+    fetchHistory(entityId)
+      .then(function (result) {
+        var statusEl = $('history-status');
+        if (!result.ok) {
+          if (statusEl) {
+            statusEl.textContent = (result.body && result.body.error) ?
+              String(result.body.error) : 'history fetch failed';
+          }
+          renderSparkline([]);
+          renderHistoryTable([], currentRow);
+          return;
+        }
+        var points = (result.body && result.body.points) || [];
+        if (statusEl) {
+          statusEl.textContent = points.length ?
+            ('last ' + result.body.hours + ' h, ' + points.length + ' points') :
+            (currentRow ? 'current snapshot only (no recorded history)' : 'no recorded history');
+        }
+        renderSparkline(points);
+        renderHistoryTable(points, currentRow);
+      })
+      .catch(function () {
+        if ($('history-status')) $('history-status').textContent = 'history fetch failed';
+        renderSparkline([]);
+        renderHistoryTable([], currentRow);
+      });
+  }
+
+  function initHistoryClicks() {
+    var nodes = document.querySelectorAll('.node-clickable[data-history-entity]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].addEventListener('click', function (ev) {
+        openHistoryForNode(ev.currentTarget);
+      });
+      nodes[i].addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          ev.preventDefault();
+          openHistoryForNode(ev.currentTarget);
+        }
+      });
+    }
+    var closeBtn = $('history-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', hideHistoryPanel);
+    }
   }
 
   function fetchSnapshot() {
@@ -635,6 +907,7 @@
   function init() {
     updateClock();
     setInterval(updateClock, 1000);
+    initHistoryClicks();
     poll();
     setInterval(poll, POLL_MS);
 

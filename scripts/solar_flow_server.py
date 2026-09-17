@@ -19,12 +19,13 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Literal
 from urllib.error import HTTPError, URLError
+from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,8 @@ _SIM_PLUG_WATTS = (
     "switch.sim_ac_plug_1=180,switch.sim_ac_plug_2=300,switch.sim_ac_plug_3=1200,"
     "switch.sim_ac_plug_4=130,switch.sim_ac_plug_5=130,switch.sim_ac_plug_6=300"
 )
+# HA template aggregate; 0 plant AC load until a real KU house EM16 channel is configured.
+_SIM_SOAK_LOAD_ENTITY = "sensor.sim_soak_load_power"
 
 DEFAULT_SETTINGS: dict[str, str] = {
     "ha_solar_soak_enabled": "true",
@@ -46,7 +49,7 @@ DEFAULT_SETTINGS: dict[str, str] = {
     "ha_switch_watts": _SIM_PLUG_WATTS,
     "ha_never_auto": "",
     "ha_solar_entity": "sensor.solar_controller_solar_power",
-    "ha_load_entity": "sensor.em16_a3_power",
+    "ha_load_entity": _SIM_SOAK_LOAD_ENTITY,
     "ha_soc_entity": "sensor.battery_1_soc",
     "ha_shunt_voltage_entity": "sensor.battery_1_voltage",
     "ha_shunt_current_entity": "sensor.battery_1_current",
@@ -152,6 +155,12 @@ SoakDecision = tuple[str, Literal["on", "off", "skip"], str]
 
 logger = logging.getLogger("solar_flow_server")
 
+# Proxy-only history window cap in hours (not HA recorder purge_keep_days).
+HISTORY_HOURS_MAX = 10
+HISTORY_RECORDER_DISABLED_MSG = (
+    "HA recorder or history integration is not enabled"
+)
+
 
 def _parse_entity_list(raw: str) -> frozenset[str]:
     if not (raw or "").strip():
@@ -221,8 +230,16 @@ def _effective_load_watts(
     load_w: float | None,
     states: dict[str, dict[str, Any]],
     watts_map: dict[str, int],
+    *,
+    load_entity: str = _SIM_SOAK_LOAD_ENTITY,
 ) -> float | None:
     sim_w = _sim_on_watts(states, watts_map)
+    if load_entity == _SIM_SOAK_LOAD_ENTITY:
+        if load_w is not None:
+            return load_w
+        if watts_map:
+            return float(sim_w)
+        return None
     if load_w is not None:
         return load_w + sim_w
     if watts_map:
@@ -289,7 +306,9 @@ def decide_soak(
     charge_row = _state_row(states, charge_e)
     watts_map = _parse_switch_watts(settings.get("ha_switch_watts", ""))
     sim_plug_w = _sim_on_watts(states, watts_map)
-    effective_load_w = _effective_load_watts(load_w, states, watts_map)
+    effective_load_w = _effective_load_watts(
+        load_w, states, watts_map, load_entity=load_e
+    )
 
     meta: dict[str, Any] = {
         "enabled": enabled,
@@ -651,6 +670,87 @@ def fetch_ha_states(base_url: str, token: str, timeout: float = 10.0) -> list[di
     return data
 
 
+def history_allowlist() -> frozenset[str]:
+    """Plant entity ids permitted for GET /api/history (exact ids only)."""
+    allowed = set(REQUIRED_ENTITY_IDS)
+    for canonical, aliases in ENTITY_ALIASES.items():
+        allowed.add(canonical)
+        allowed.update(aliases)
+    return frozenset(allowed)
+
+
+def is_history_entity_allowed(entity_id: str) -> bool:
+    if entity_id in history_allowlist():
+        return True
+    return _prefix_match(entity_id)
+
+
+def clamp_history_hours(hours: int) -> int:
+    """Proxy-only hours param; not forwarded to HA."""
+    if hours < 1:
+        return 1
+    if hours > HISTORY_HOURS_MAX:
+        return HISTORY_HOURS_MAX
+    return hours
+
+
+def build_ha_history_url(base_url: str, entity_id: str, hours: int) -> str:
+    """Build HA recorder URL with quoted ISO start/end.
+
+    Official: https://developers.home-assistant.io/docs/api/rest/
+    GET /api/history/period/{start}?filter_entity_id=...&end_time={end}&minimal_response
+    Bare flag minimal_response only; optional no_attributes.
+
+    significant_changes_only is listed on the REST page as an optional query flag with
+    no documented disable value or default. Proxy omits it.
+    """
+    window = clamp_history_hours(hours)
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=window)
+    start_iso = quote(start.isoformat(timespec="seconds"), safe="")
+    end_iso = quote(end.isoformat(timespec="seconds"), safe="")
+    return (
+        f"{base_url.rstrip('/')}/api/history/period/{start_iso}"
+        f"?filter_entity_id={entity_id}&end_time={end_iso}&minimal_response&no_attributes"
+    )
+
+
+def parse_ha_history_response(data: Any) -> list[dict[str, Any]]:
+    if not isinstance(data, list):
+        raise ValueError("HA /api/history/period did not return a JSON array")
+    if not data:
+        return []
+    first = data[0]
+    if not isinstance(first, list):
+        raise ValueError("HA history response shape unexpected")
+    rows: list[dict[str, Any]] = []
+    for row in first:
+        if isinstance(row, dict):
+            rows.append(row)
+    return rows
+
+
+def fetch_ha_history(
+    base_url: str,
+    token: str,
+    entity_id: str,
+    hours: int = 24,
+    timeout: float = 15.0,
+) -> list[dict[str, Any]]:
+    url = build_ha_history_url(base_url, entity_id, hours)
+    req = Request(
+        url,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="GET",
+    )
+    with urlopen(req, timeout=timeout) as resp:
+        payload = resp.read().decode("utf-8")
+    return parse_ha_history_response(json.loads(payload))
+
+
 def load_demo_entities() -> dict[str, dict[str, Any]]:
     raw = json.loads(DEMO_SNAPSHOT.read_text(encoding="utf-8"))
     entities = raw.get("entities")
@@ -725,11 +825,68 @@ class SolarFlowHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
-        path = self.path.split("?", 1)[0]
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/snapshot":
             self._handle_snapshot()
             return
+        if path == "/api/history":
+            self._handle_history(parsed.query)
+            return
         self._handle_static(path)
+
+    def _handle_history(self, query: str) -> None:
+        params = parse_qs(query)
+        entity_id = (params.get("entity_id") or [""])[0].strip()
+        hours_raw = (params.get("hours") or ["24"])[0].strip()
+        try:
+            hours = clamp_history_hours(int(hours_raw))
+        except ValueError:
+            hours = clamp_history_hours(24)
+
+        if not entity_id:
+            self._send_json({"error": "entity_id required"}, HTTPStatus.BAD_REQUEST)
+            return
+        if not is_history_entity_allowed(entity_id):
+            self._send_json({"error": "entity_id not allowed"}, HTTPStatus.BAD_REQUEST)
+            return
+
+        token = resolve_ha_token()
+        if not token:
+            self._send_json(
+                {"error": "history unavailable without HA token"},
+                HTTPStatus.SERVICE_UNAVAILABLE,
+            )
+            return
+
+        try:
+            rows = fetch_ha_history(ha_base_url(), token, entity_id, hours=hours)
+            self._send_json(
+                {
+                    "entity_id": entity_id,
+                    "hours": hours,
+                    "points": rows,
+                }
+            )
+        except HTTPError as exc:
+            safe = redact_secrets(str(exc), token)
+            if exc.code == HTTPStatus.NOT_FOUND:
+                logger.warning(
+                    "history endpoint 404 for %s (recorder/history not loaded): %s",
+                    entity_id,
+                    safe,
+                )
+                self._send_json(
+                    {"error": HISTORY_RECORDER_DISABLED_MSG},
+                    HTTPStatus.SERVICE_UNAVAILABLE,
+                )
+                return
+            logger.warning("history HTTP failed for %s: %s", entity_id, safe)
+            self._send_json({"error": "history fetch failed"}, HTTPStatus.BAD_GATEWAY)
+        except (URLError, TimeoutError, ValueError, json.JSONDecodeError) as exc:
+            safe = redact_secrets(str(exc), token)
+            logger.warning("history fetch failed for %s: %s", entity_id, safe)
+            self._send_json({"error": "history fetch failed"}, HTTPStatus.BAD_GATEWAY)
 
     def _handle_snapshot(self) -> None:
         token = resolve_ha_token()
