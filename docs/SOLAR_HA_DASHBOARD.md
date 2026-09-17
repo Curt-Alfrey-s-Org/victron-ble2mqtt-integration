@@ -115,10 +115,18 @@ appear:
 | Device: Sungold A/C out | `sensor.sungold_sph302480a_load_power` | `sensor.sungold_load_energy_kwh` |
 
 **Individual devices** (after Trailer A/C): add **Sungold load energy kWh**, then
-sim dump. In the picker, skip Battery charge/discharge, T2 MPPT kWh, and
+**Sim dump energy kWh**. In the picker, skip Battery charge/discharge, T2 MPPT kWh, and
 **A1 this month energy** -- those are already solar/battery sources, not loads.
 Sungold kWh uses live `sensor.sungold_sph302480a_load_power` (MQTT id
 `load_power`; friendly name still "Load active power").
+
+Energy may warn `sensor.battery_1_discharge_energy_kwh` is **unknown** while Battery 1
+is only charging (discharge watts stay `0`). The Integral helper does not leave
+`unknown` until its source changes
+([Integral data updates](https://www.home-assistant.io/integrations/integration/#data-updates)).
+That is not a bad battery config. It clears on the first T2 discharge, or after
+[Developer tools > States](https://www.home-assistant.io/docs/tools/dev-tools/)
+sets `sensor.battery_1_discharge_power` to `0` so the helper records a sample.
 
 Do **not** configure EM16 A3 as the electricity **grid**. This site is not on
 utility import. Do **not** add KU equal-share as a second solar source (double-count).
