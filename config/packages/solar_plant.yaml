@@ -155,7 +155,7 @@ sensor:
     max_sub_interval:
       minutes: 5
   - platform: integration
-    source: sensor.sungold_sph302480a_load_active_power
+    source: sensor.sungold_sph302480a_load_power
     name: Sungold load energy kWh
     unique_id: sungold_load_energy_kwh
     unit_prefix: k

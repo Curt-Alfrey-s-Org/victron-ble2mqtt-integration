@@ -112,7 +112,13 @@ appear:
 | Battery KU | charge/discharge `sensor.battery_2_*` | matching `*_energy_kwh` |
 | Device: trailer A/C | `sensor.trailer_outlet_power` (always >= 0 W) | `sensor.em16_a3_energy_kwh` |
 | Device: sim dump | `sensor.sim_dump_load_power` | `sensor.sim_dump_energy_kwh` |
-| Device: Sungold A/C out | `sensor.sungold_sph302480a_load_active_power` | `sensor.sungold_load_energy_kwh` |
+| Device: Sungold A/C out | `sensor.sungold_sph302480a_load_power` | `sensor.sungold_load_energy_kwh` |
+
+**Individual devices** (after Trailer A/C): add **Sungold load energy kWh**, then
+sim dump. In the picker, skip Battery charge/discharge, T2 MPPT kWh, and
+**A1 this month energy** -- those are already solar/battery sources, not loads.
+Sungold kWh uses live `sensor.sungold_sph302480a_load_power` (MQTT id
+`load_power`; friendly name still "Load active power").
 
 Do **not** configure EM16 A3 as the electricity **grid**. This site is not on
 utility import. Do **not** add KU equal-share as a second solar source (double-count).

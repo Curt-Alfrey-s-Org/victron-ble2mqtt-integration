@@ -103,7 +103,7 @@ views:
             name: B3 breaker
           - entity: sensor.sim_dump_load_power
             name: Sim dump
-          - entity: sensor.sungold_sph302480a_load_active_power
+          - entity: sensor.sungold_sph302480a_load_power
             name: Sungold A/C out
 
       - type: glance
@@ -165,5 +165,5 @@ views:
             name: Trailer outlet
           - entity: sensor.sim_dump_load_power
             name: Sim dump
-          - entity: sensor.sungold_sph302480a_load_active_power
+          - entity: sensor.sungold_sph302480a_load_power
             name: Sungold load

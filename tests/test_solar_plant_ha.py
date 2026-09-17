@@ -47,6 +47,8 @@ def test_package_has_riemann_integrals() -> None:
     assert "sensor.trailer_outlet_power" in sources
     assert "sensor.em16_a3_power" not in sources
     assert "sensor.sim_dump_load_power" in sources
+    assert "sensor.sungold_sph302480a_load_power" in sources
+    assert "sensor.sungold_sph302480a_load_active_power" not in sources
     for row in platforms:
         assert row["platform"] == "integration"
         assert row["method"] == "left"
