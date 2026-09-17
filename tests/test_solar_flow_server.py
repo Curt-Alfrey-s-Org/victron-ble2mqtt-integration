@@ -184,6 +184,10 @@ def test_solar_flow_web_copy_has_no_soak_or_dash_watts() -> None:
     assert "val > 0 ? '+' : ''" not in js
     assert "setWattValue('val-ku-victron-panels-w', 0)" not in js
     assert "setWattValue('val-ku-pwm-panels-w', 0)" not in js
+    assert "setFlow('path-ku-pwm-batt2'" in js
+    assert "setFlow('path-ku-mppt1-batt2'" in js
+    assert "kuShareW: kuShareW" in js
+    assert 'd="M 474 614 L 538 614"' in html
 
 
 def test_public_missing_entity_ids_omits_legacy_unique_id() -> None:

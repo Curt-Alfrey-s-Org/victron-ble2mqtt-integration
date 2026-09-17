@@ -630,8 +630,15 @@ body.demo-mode .demo-watermark {
 
 .flow-path.flowing {
   stroke: url(#flow-gradient);
+  stroke-dasharray: 8 12;
   opacity: 0.95;
   animation: flow-forward var(--flow-speed) linear infinite;
+}
+
+.flow-path.unmetered.flowing {
+  stroke: url(#flow-gradient);
+  stroke-dasharray: 8 12;
+  opacity: 0.95;
 }
 
 .flow-path.flowing.reverse {

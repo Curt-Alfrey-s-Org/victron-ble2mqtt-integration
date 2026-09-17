@@ -366,7 +366,9 @@ UI magnitude + color). **In from sources** lists inbound branch amps (**I = |P| 
 on that bus's shunt V) and **Total in A** — sum of inbound branches only; see
 [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md). Jumper: **T2→KU** (+W est.) adds
 inbound on Battery 2 only; **KU→T2** (−W est.) adds inbound on Battery 1 only.
-KU MPPT/PWM lines are **est.** from equal-share W. Loads are not inbound. SVG
+KU MPPT/PWM lines are **est.** from equal-share W. When that share is ≥ 0.5 W, the six KU
+suitcase/charger SVG hops get `.flowing` (cyan dash motion) the same as T2 — still **est.**,
+not a live Victron clamp. Loads are not inbound. SVG
 [`text`](https://www.w3.org/TR/SVG11/text.html) rows use `node-detail` / `est-label`.
 Energy sidebar may show **T2 in from sources** / **KU in from sources** totals
 (magnitude A, green when &gt; 0).
@@ -672,7 +674,8 @@ If recorder is on but HA returns another HTTP error, the aside shows a generic
 |--------|---------|
 | **Green LED / cyan flow line** | Switch ON, or **numeric** W/A flow on that hop |
 | **Grey LED / grey conductor** | Switch OFF, `unavailable` / `unknown`, or idle connected wire |
-| **KU MPPT/PWM est. tiles** | Solid cards like T2 (`#art-mppt`); subtitle **est.** — **not** dashed empty bricks. Equal-thirds W only; never animated as live Victron. Do **not** print 2× T2 watts. |
+| **KU MPPT/PWM est. tiles** | Solid cards like T2 (`#art-mppt`); subtitle **est.** — **not** dashed empty bricks. Equal-thirds W only. Do **not** print 2× T2 watts. |
+| **KU charger conductors** | Each row is two short hops that **snap to tile edges**: suitcase right `x=190` → charger left `x=254`; charger right `x=474` → Battery 2 left `x=538`. PWM uses the same geometry at `y=614` (not a stub into empty canvas). When equal-share est. W ≥ 0.5, `updateFlows` adds `.flowing` like T2 — **est. motion**, not a live Victron clamp. |
 | **Spinning fan** (`#art-fan` on `#node-vent-fan`; plugs 1, 4, 5) | Vent fan when HA fan on / speed ≥ 1; sim plugs when `switch.sim_ac_plug_*` state `on` |
 | **`prefers-reduced-motion: reduce`** | Disable line animation and fan spin; keep numeric updates |
 | **DEMO watermark** | Large red word, full page, only when snapshot `mode` is `demo` (Demo view or no-token production). Live production (`mode: live`) never shows it, even when `sim_dump_demo: true`. |

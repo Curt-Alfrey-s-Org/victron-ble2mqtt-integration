@@ -1064,6 +1064,7 @@
       batt1W: batt1W,
       batt2W: batt2W,
       jumperW: jumperW,
+      kuShareW: kuShareW,
       panelW: panelW,
       kuRenogyAcW: kuRenogyAcW,
       a3DownstreamW: a3DownstreamW,
@@ -1109,6 +1110,14 @@
     setFlow('path-t2-batt1-renogy', false, false);
     var jumperAbs = opts.jumperW !== null ? Math.abs(opts.jumperW) : 0;
     setFlow('path-t2-ku-jumper', jumperAbs >= 0.5, opts.jumperW !== null && opts.jumperW < 0);
+
+    var kuShareFlow = opts.kuShareW !== null && opts.kuShareW > 0.5;
+    setFlow('path-ku-mppt1-panels', kuShareFlow, false);
+    setFlow('path-ku-mppt1-batt2', kuShareFlow, false);
+    setFlow('path-ku-mppt2-panels', kuShareFlow, false);
+    setFlow('path-ku-mppt2-batt2', kuShareFlow, false);
+    setFlow('path-ku-pwm-panels', kuShareFlow, false);
+    setFlow('path-ku-pwm-batt2', kuShareFlow, false);
 
     var downstreamFlow = opts.a3DownstreamW !== null && opts.a3DownstreamW > 0;
     var outletFlow = opts.outletHopW !== null && opts.outletHopW > 0;
