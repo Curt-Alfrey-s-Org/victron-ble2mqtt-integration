@@ -10,6 +10,8 @@ entities. This dashboard uses **stock cards** only:
 - [Glance](https://www.home-assistant.io/dashboards/glance/)
 - [Gauge](https://www.home-assistant.io/dashboards/gauge/)
 - [History graph](https://www.home-assistant.io/dashboards/history-graph/)
+- [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
+- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/)
 - [Markdown](https://www.home-assistant.io/dashboards/markdown/)
 
@@ -155,6 +157,50 @@ install script adds `recorder:` and `history:` when missing
 [History](https://www.home-assistant.io/integrations/history/)).
 It also adds `energy:` so the Energy settings page exists
 ([Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).
+
+---
+
+## Graphs (Solar plant History + Now)
+
+The MQTT **Solar** sidebar is the full entity list. Extra live points belong on
+**Solar plant** stock cards, not as Energy grid/solar.
+
+Official cards:
+
+- [History graph](https://www.home-assistant.io/dashboards/history-graph/) -- at most
+  **eight** entities per card; group by `unit_of_measurement`
+- [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/) -- kWh helpers
+- [Glance](https://www.home-assistant.io/dashboards/glance/)
+- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- trailer A/C climate
+- [Distribution](https://www.home-assistant.io/dashboards/distribution/) -- Instant W
+
+Do **not** add these to Energy sources: shunt Ah/min/RSSI, Sungold PV/V/A/Hz/faults,
+hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
+
+### Now (extra glances)
+
+| Card | Entities |
+|------|----------|
+| Instant W distribution | T2 MPPT, KU PV est., Trailer outlet, Sim dump, Sungold load, Sungold PV |
+| T2 shunt extras | `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, `sensor.battery_1_rssi` |
+| KU shunt extras | `sensor.battery_2_state_of_charge`, `sensor.battery_2_consumed_ah`, `sensor.battery_2_remaining_minutes`, `sensor.battery_2_rssi` |
+| Sungold cart (expand) | PV W/V/A, batt V/A/SoC/temp, load W, UTI V, mode |
+| Trailer climate | `climate.417373300314` (thermostat, name Trailer A/C), `sensor.417373300314_temperature`, `sensor.417373300314_humidity` |
+| Hygrometer | `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (may be unknown) |
+
+### History (one unit per graph, max 8)
+
+| Graph | Entities (live ids) |
+|-------|---------------------|
+| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power`, `sim_dump_load_power`, `sungold_sph302480a_load_power`, `sungold_sph302480a_pv_power` |
+| Watts (chargers) | `ku_unmetered_pv_est_power`, `ku_charger_equal_share_power`, `solar_controller_charging_power`, `sungold_sph302480a_charging_power` |
+| Volts | `battery_1_voltage`, `battery_2_voltage`, `solar_controller_battery`, `sungold_sph302480a_battery_voltage`, `sungold_sph302480a_pv_voltage`, `sungold_sph302480a_grid_voltage`, `sungold_sph302480a_ac_output_voltage` |
+| Amps | `battery_1_current`, `battery_2_current`, `solar_controller_battery_charging`, `sungold_sph302480a_battery_current`, `sungold_sph302480a_pv_current`, `sungold_sph302480a_load_current`, `sungold_sph302480a_grid_current` |
+| SoC / % | `battery_1_state_of_charge`, `battery_2_state_of_charge`, `sungold_sph302480a_battery_soc`, `sensor.417373300314_humidity`, hygrometer hum/batt |
+| Temperature | `sensor.417373300314_temperature`, hygrometer tempc, Sungold batt/heatsink temps |
+| kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + trailer + Sungold load + sim dump energy helpers |
+
+`hours_to_show: 12` on history-graph. After YAML copy, dashboard three-dots **Refresh**.
 
 ---
 

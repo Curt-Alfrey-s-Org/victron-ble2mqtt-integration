@@ -78,14 +78,24 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "history-graph" in types
     assert "distribution" in types
     assert "markdown" in types
+    assert "thermostat" in types
+    assert "statistics-graph" in types
     forbidden = {"custom:", "iframe", "webpage"}
     for card in cards:
         t = card["type"]
         assert not any(t.startswith(p) for p in forbidden)
         assert "picture-elements" not in t
+        if t == "history-graph":
+            entities = card.get("entities") or []
+            assert len(entities) <= 8
     sankey = next(c for c in cards if c["type"] == "power-sankey")
     assert sankey["layout"] == "horizontal"
     assert sankey["collection_key"] == "energy_dashboard"
+    thermostat = next(c for c in cards if c["type"] == "thermostat")
+    assert thermostat["entity"] == "climate.417373300314"
+    dist = next(c for c in cards if c["type"] == "distribution")
+    dist_entities = {e["entity"] for e in dist["entities"]}
+    assert "sensor.sungold_sph302480a_pv_power" in dist_entities
 
 
 def test_docs_and_install_script_exist() -> None:
@@ -93,6 +103,9 @@ def test_docs_and_install_script_exist() -> None:
     assert "power-sankey" in text
     assert "solar_dump.py" in text
     assert "energy/save_prefs" in text
+    assert "thermostat" in text
+    assert "statistics-graph" in text
+    assert "sensor.battery_1_remaining_minutes" in text
     assert "Do **not** configure EM16 A3 as the electricity **grid**" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
