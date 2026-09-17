@@ -94,16 +94,26 @@ YAML dashboard reload after later file edits: dashboard three-dots **Refresh**
 
 ---
 
-## Energy dashboard (once, UI)
+## Energy dashboard (CLI)
 
 `power-sankey` stays empty until Energy sources exist
 ([Energy cards](https://www.home-assistant.io/dashboards/energy/)). There is no
-supported YAML for the Energy config store. In HA:
+supported YAML for the Energy config store. Home Assistant exposes
+`energy/get_prefs` and `energy/save_prefs` on the official
+[WebSocket API](https://developers.home-assistant.io/docs/api/websocket/)
+([energy websocket_api.py](https://github.com/home-assistant/core/blob/master/homeassistant/components/energy/websocket_api.py)).
 
-**Settings > Dashboards > Energy**
+From a host that can reach `.105:8123`, with a long-lived token in `HA_TOKEN`
+or `HA_TOKEN_FILE` (never commit the token):
 
-Add **power** sensors (W) and the matching **integral kWh** sensors after they
-appear:
+```bash
+python scripts/save_solar_plant_energy_prefs.py
+```
+
+That command writes the table below. It does **not** add grid, Electricity Maps,
+gas, water, A1 monthly kWh, or KU equal-share solar.
+
+Add **power** sensors (W) and the matching **integral kWh** sensors:
 
 | Energy slot | Power (W) | Energy (kWh, after integral exists) |
 |-------------|-----------|-------------------------------------|
@@ -114,11 +124,10 @@ appear:
 | Device: sim dump | `sensor.sim_dump_load_power` | `sensor.sim_dump_energy_kwh` |
 | Device: Sungold A/C out | `sensor.sungold_sph302480a_load_power` | `sensor.sungold_load_energy_kwh` |
 
-**Individual devices** (after Trailer A/C): add **Sungold load energy kWh**, then
-**Sim dump energy kWh**. In the picker, skip Battery charge/discharge, T2 MPPT kWh, and
-**A1 this month energy** -- those are already solar/battery sources, not loads.
-Sungold kWh uses live `sensor.sungold_sph302480a_load_power` (MQTT id
-`load_power`; friendly name still "Load active power").
+The script also sets display names (Trailer A/C, Sungold A/C out, Sim dump).
+Leave **grid**, Electricity Maps, gas, and water empty. Do **not** add KU
+equal-share as a second solar source (double-count). Do **not** add A1 monthly
+kWh or battery charge/discharge as individual devices.
 
 Energy may warn `sensor.battery_1_discharge_energy_kwh` is **unknown** while Battery 1
 is only charging (discharge watts stay `0`). The Integral helper does not leave
@@ -129,7 +138,7 @@ That is not a bad battery config. It clears on the first T2 discharge, or after
 sets `sensor.battery_1_discharge_power` to `0` so the helper records a sample.
 
 Do **not** configure EM16 A3 as the electricity **grid**. This site is not on
-utility import. Do **not** add KU equal-share as a second solar source (double-count).
+utility import.
 
 `sensor.em16_a3_power` is a signed CT. Integrating it made `sensor.em16_a3_energy_kwh`
 negative (`-0.02` kWh) and Energy warned that individual devices need a positive

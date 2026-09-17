@@ -92,6 +92,7 @@ def test_docs_and_install_script_exist() -> None:
     text = DOCS.read_text(encoding="utf-8")
     assert "power-sankey" in text
     assert "solar_dump.py" in text
+    assert "energy/save_prefs" in text
     assert "Do **not** configure EM16 A3 as the electricity **grid**" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
