@@ -89,6 +89,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "markdown" in types
     assert "thermostat" in types
     assert "statistics-graph" in types
+    assert "entities" in types
     forbidden = {"custom:", "iframe", "webpage"}
     for card in cards:
         t = card["type"]
@@ -130,6 +131,39 @@ def test_dashboard_uses_official_cards_only() -> None:
     )
     loss_entities = {e["entity"] for e in losses_glance["entities"]}
     assert "sensor.solar_component_losses_power" in loss_entities
+    dump_card = next(
+        c for c in cards if c.get("type") == "entities" and c.get("title") == "Sim dump plugs"
+    )
+    assert dump_card.get("show_header_toggle") is True
+    dump_ids = {e["entity"] for e in dump_card["entities"]}
+    assert dump_ids == {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
+    yaml_text = DASHBOARD.read_text(encoding="utf-8")
+    assert "input_boolean.sim_ac_plug" not in yaml_text
+    dump_hist = next(
+        c
+        for c in cards
+        if c.get("type") == "history-graph" and c.get("title") == "Sim dump plugs"
+    )
+    assert len(dump_hist["entities"]) == 6
+    dump_w = next(
+        c
+        for c in cards
+        if c.get("type") == "history-graph" and c.get("title") == "Sim dump plug W"
+    )
+    dump_w_ids = {e["entity"] for e in dump_w["entities"]}
+    assert "sensor.sim_dump_load_power" in dump_w_ids
+    assert "sensor.sim_ac_plug_3_power" in dump_w_ids
+    sungold_status = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold status"
+    )
+    status_ids = {e["entity"] for e in sungold_status["entities"]}
+    assert "sensor.sungold_sph302480a_fail_code" in status_ids
+    assert "binary_sensor.sungold_sph302480a_fault_active" in status_ids
+    t2_mppt = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 MPPT extras"
+    )
+    t2_ids = {e["entity"] for e in t2_mppt["entities"]}
+    assert "sensor.solar_controller_yield_today" in t2_ids
 
 
 def test_docs_and_install_script_exist() -> None:
@@ -144,6 +178,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "sensor.solar_component_losses_power" in text
     assert "combined_losses_w" in text
     assert "no** KU PV est" in text
+    assert "entities" in text
+    assert "switch.sim_ac_plug_1" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script

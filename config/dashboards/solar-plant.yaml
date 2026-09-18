@@ -12,7 +12,9 @@ views:
           Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump ON/OFF is alfa-ai `solar_dump.py`, not this page.
+          Dump ON/OFF is alfa-ai `solar_dump.py`. **Now** shows the six
+          sim dump switches so ticks are visible; a header toggle is
+          **manual** only.
           KU charger watts are **est.** (no live Victron KU clamps).
           Do not add A3 as utility grid.
 
@@ -113,6 +115,54 @@ views:
           - entity: sensor.sungold_sph302480a_load_power
             name: Pi4
 
+      - type: markdown
+        title: Sim dump plugs
+        content: >
+          These six [template switches](https://www.home-assistant.io/integrations/switch/)
+          are the alfa-ai dump allowlist. ON/OFF here tracks `solar_dump.py`
+          ([entities card](https://www.home-assistant.io/dashboards/entities/)).
+          The header toggle is **manual**. Names that say fan are **lab dump
+          loads**, not the trailer LED/fan or Pi4.
+
+      - type: entities
+        title: Sim dump plugs
+        show_header_toggle: true
+        entities:
+          - entity: switch.sim_ac_plug_1
+            name: 1 fan 180 W
+          - entity: switch.sim_ac_plug_2
+            name: 2 dehumidifier 300 W
+          - entity: switch.sim_ac_plug_3
+            name: 3 water heater 1200 W
+          - entity: switch.sim_ac_plug_4
+            name: 4 fan 130 W
+          - entity: switch.sim_ac_plug_5
+            name: 5 fan 130 W
+          - entity: switch.sim_ac_plug_6
+            name: 6 gaming PC 300 W
+
+      - type: glance
+        title: Sim dump plug W
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.sim_dump_load_power
+            name: Total
+          - entity: sensor.sim_ac_plug_1_power
+            name: 1
+          - entity: sensor.sim_ac_plug_2_power
+            name: 2
+          - entity: sensor.sim_ac_plug_3_power
+            name: 3
+          - entity: sensor.sim_ac_plug_4_power
+            name: 4
+          - entity: sensor.sim_ac_plug_5_power
+            name: 5
+          - entity: sensor.sim_ac_plug_6_power
+            name: 6
+
       - type: glance
         title: Conversion losses
         show_name: true
@@ -163,6 +213,50 @@ views:
             name: UTI V
           - entity: sensor.sungold_sph302480a_inverter_state
             name: Mode
+
+      - type: glance
+        title: Sungold status
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.sungold_sph302480a_charge_state
+            name: Charge
+          - entity: sensor.sungold_sph302480a_ac_output_voltage
+            name: AC out V
+          - entity: sensor.sungold_sph302480a_ac_output_frequency
+            name: AC out Hz
+          - entity: sensor.sungold_sph302480a_load_current
+            name: Load A
+          - entity: sensor.sungold_sph302480a_grid_current
+            name: AC in A
+          - entity: sensor.sungold_sph302480a_grid_frequency
+            name: AC in Hz
+          - entity: sensor.sungold_sph302480a_fail_code
+            name: Fault
+          - entity: binary_sensor.sungold_sph302480a_fault_active
+            name: Fault LED
+          - entity: sensor.sungold_sph302480a_inverter_error_flags
+            name: Error flags
+
+      - type: glance
+        title: T2 MPPT extras
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 4
+        entities:
+          - entity: sensor.solar_controller_yield_today
+            name: Yield today
+          - entity: sensor.solar_controller_charging_power
+            name: Charge W
+          - entity: sensor.solar_controller_load_power
+            name: Load W
+          - entity: sensor.solar_controller_load
+            name: Load
+          - entity: sensor.solar_controller_rssi
+            name: RSSI
 
       - type: glance
         title: T2 shunt extras
@@ -281,6 +375,62 @@ views:
             name: T2 charge
           - entity: sensor.sungold_sph302480a_charging_power
             name: Sungold charge
+
+      - type: history-graph
+        title: Watts (losses)
+        hours_to_show: 72
+        entities:
+          - entity: sensor.solar_component_losses_power
+            name: Total est.
+          - entity: sensor.t2_mppt_conversion_loss_power
+            name: T2 MPPT
+          - entity: sensor.sungold_conversion_loss_power
+            name: Sungold
+
+      - type: history-graph
+        title: Sim dump plugs
+        hours_to_show: 72
+        entities:
+          - entity: switch.sim_ac_plug_1
+            name: 1 fan
+          - entity: switch.sim_ac_plug_2
+            name: 2 dehumidifier
+          - entity: switch.sim_ac_plug_3
+            name: 3 water heater
+          - entity: switch.sim_ac_plug_4
+            name: 4 fan
+          - entity: switch.sim_ac_plug_5
+            name: 5 fan
+          - entity: switch.sim_ac_plug_6
+            name: 6 gaming PC
+
+      - type: history-graph
+        title: Sim dump plug W
+        hours_to_show: 72
+        entities:
+          - entity: sensor.sim_dump_load_power
+            name: Total
+          - entity: sensor.sim_ac_plug_1_power
+            name: 1
+          - entity: sensor.sim_ac_plug_2_power
+            name: 2
+          - entity: sensor.sim_ac_plug_3_power
+            name: 3
+          - entity: sensor.sim_ac_plug_4_power
+            name: 4
+          - entity: sensor.sim_ac_plug_5_power
+            name: 5
+          - entity: sensor.sim_ac_plug_6_power
+            name: 6
+
+      - type: history-graph
+        title: Hz
+        hours_to_show: 72
+        entities:
+          - entity: sensor.sungold_sph302480a_grid_frequency
+            name: AC in
+          - entity: sensor.sungold_sph302480a_ac_output_frequency
+            name: AC out
 
       - type: history-graph
         title: Volts
