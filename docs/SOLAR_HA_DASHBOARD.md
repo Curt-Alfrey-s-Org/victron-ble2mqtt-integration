@@ -209,7 +209,7 @@ on **History** or the intro markdown.
 | KU 24 V | KU PV est., each charger est., Batt 2 W/V/A, **Sungold A/C-in** (`trailer_outlet_power`), SoC, consumed Ah, remaining min, RSSI |
 | Sungold cart | PV W/V/A, cart batt W, batt V/A/SoC/temp, charge state, mode -- **not** Load W (that is Loads / Instant W) |
 | Sungold AC | UTI V, AC out V/Hz, load A, AC in A/Hz, fault code, fault LED, error flags |
-| Loads (not losses) | A3 hot leg, **Sungold breaker** (B3), sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) |
+| Loads (not losses) | **Trailer CT A3** (`sensor.em16_a3_power`, meter not LED/vent), **Sungold breaker** (B3), sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) |
 | **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. |
 | **Ecobee outdoor** | Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) on **Now**: `weather.417373300314` (same Overview Living Room popup). This is **outdoor ambient** (condition, temperature, humidity, wind) plus **daily** and **hourly** forecast. Do **not** invent a second outdoor sensor or SVG. `forecast_type` is required (`daily` / `hourly`). |
 | Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
@@ -218,7 +218,7 @@ on **History** or the intro markdown.
 
 | Graph | Entities (live ids) |
 |-------|---------------------|
-| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sim_dump_load_power`, `sungold_sph302480a_load_power`, `sungold_sph302480a_pv_power` |
+| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sim_dump_load_power`, `sungold_sph302480a_load_power` (label **Sungold A/C out**), `sungold_sph302480a_pv_power` |
 | Watts (chargers) | `ku_unmetered_pv_est_power`, `ku_charger_equal_share_power`, `solar_controller_charging_power`, `sungold_sph302480a_charging_power` |
 | Watts (losses) | `solar_component_losses_power`, `t2_mppt_conversion_loss_power`, `sungold_conversion_loss_power` |
 | Sim dump plugs | `switch.sim_ac_plug_1` ... `_6` (on/off) |
@@ -228,7 +228,7 @@ on **History** or the intro markdown.
 | Amps | `battery_1_current`, `battery_2_current`, `solar_controller_battery_charging`, `sungold_sph302480a_battery_current`, `sungold_sph302480a_pv_current`, `sungold_sph302480a_load_current`, `sungold_sph302480a_grid_current` |
 | SoC / % | `battery_1_state_of_charge`, `battery_2_state_of_charge`, `sungold_sph302480a_battery_soc`, Ecobee `sensor.417373300314_humidity`, trailer hygrometer hum/batt |
 | Temperature | Ecobee `sensor.417373300314_temperature`, trailer hygrometer tempc, Sungold batt/heatsink temps |
-| kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + trailer + Sungold load + sim dump energy helpers |
+| kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + Sungold A/C-in (`em16_a3_energy_kwh` from trailer outlet W) + Sungold A/C out + sim dump |
 
 `hours_to_show: 72` on history-graph ([history graph](https://www.home-assistant.io/dashboards/history-graph/); minimum 1 hour).
 `days_to_show: 7` on the kWh statistics-graph ([statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/); minimum 1 day).

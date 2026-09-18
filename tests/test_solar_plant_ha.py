@@ -142,6 +142,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     loads_names = {e["name"] for e in loads_glance["entities"]}
     assert "Sungold AC out" in loads_names
     assert "Sungold breaker" in loads_names
+    assert "Trailer CT A3" in loads_names
+    assert "A3 hot leg" not in loads_names
     assert "Pi4" not in loads_names
     ku = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "KU 24 V (est. chargers)")
     ku_names = {e["name"] for e in ku["entities"]}
@@ -158,9 +160,22 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert dump_card.get("show_header_toggle") is True
     dump_ids = {e["entity"] for e in dump_card["entities"]}
     assert dump_ids == {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
+    watts_hist = next(
+        c for c in cards if c.get("type") == "history-graph" and c.get("title") == "Watts"
+    )
+    watts_names = {e["name"] for e in watts_hist["entities"]}
+    assert "Sungold AC-in" in watts_names
+    assert "Sungold AC out" in watts_names
+    assert "Sungold load" not in watts_names
+    kwh = next(c for c in cards if c.get("type") == "statistics-graph")
+    kwh_names = {e["name"] for e in kwh["entities"]}
+    assert "Sungold AC-in" in kwh_names
+    assert "Sungold AC out" in kwh_names
+    assert "Trailer A3" not in kwh_names
     yaml_text = DASHBOARD.read_text(encoding="utf-8")
     assert "input_boolean.sim_ac_plug" not in yaml_text
     assert "LED+fan" not in yaml_text
+    assert "A3 hot leg" not in yaml_text
     dump_hist = next(
         c
         for c in cards
@@ -207,6 +222,7 @@ def test_docs_and_install_script_exist() -> None:
     assert "sensor.solar_component_losses_power" in text
     assert "combined_losses_w" in text
     assert "no** KU PV est" in text
+    assert "Trailer CT A3" in text
     assert "entities" in text
     assert "switch.sim_ac_plug_1" in text
     script = INSTALL.read_text(encoding="utf-8")

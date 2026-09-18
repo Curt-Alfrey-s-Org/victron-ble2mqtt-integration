@@ -124,7 +124,7 @@ views:
         columns: 4
         entities:
           - entity: sensor.em16_a3_power
-            name: A3 hot leg
+            name: Trailer CT A3
           - entity: sensor.em16_b3_power
             name: Sungold breaker
           - entity: sensor.sim_dump_load_power
@@ -287,7 +287,7 @@ views:
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold load
+            name: Sungold AC out
           - entity: sensor.sungold_sph302480a_pv_power
             name: Sungold PV
 
@@ -394,7 +394,7 @@ views:
           - entity: sensor.sungold_sph302480a_pv_current
             name: Sungold PV
           - entity: sensor.sungold_sph302480a_load_current
-            name: Sungold load
+            name: Sungold AC out
           - entity: sensor.sungold_sph302480a_grid_current
             name: Sungold grid
 
@@ -447,8 +447,8 @@ views:
           - entity: sensor.battery_2_discharge_energy_kwh
             name: Batt 2 discharge
           - entity: sensor.em16_a3_energy_kwh
-            name: Trailer A3
+            name: Sungold AC-in
           - entity: sensor.sungold_load_energy_kwh
-            name: Sungold load
+            name: Sungold AC out
           - entity: sensor.sim_dump_energy_kwh
             name: Sim dump
