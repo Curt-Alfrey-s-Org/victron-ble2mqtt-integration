@@ -88,6 +88,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "distribution" in types
     assert "markdown" in types
     assert "thermostat" in types
+    assert "weather-forecast" in types
     assert "statistics-graph" in types
     assert "entities" in types
     forbidden = {"custom:", "iframe", "webpage"}
@@ -104,6 +105,15 @@ def test_dashboard_uses_official_cards_only() -> None:
     thermostat = next(c for c in cards if c["type"] == "thermostat")
     assert thermostat["entity"] == "climate.417373300314"
     assert thermostat["name"] == "Ecobee"
+    weather_cards = [c for c in cards if c.get("type") == "weather-forecast"]
+    assert len(weather_cards) == 2
+    assert {c["entity"] for c in weather_cards} == {"weather.417373300314"}
+    assert {c["forecast_type"] for c in weather_cards} == {"daily", "hourly"}
+    daily = next(c for c in weather_cards if c["forecast_type"] == "daily")
+    assert daily["name"] == "Ecobee outdoor"
+    assert daily.get("show_current") is True
+    hourly = next(c for c in weather_cards if c["forecast_type"] == "hourly")
+    assert hourly.get("show_current") is False
     assert not any(c.get("type") == "glance" and c.get("title") == "Ecobee" for c in cards)
     assert not any(c.get("title") == "Trailer climate" for c in cards)
     assert not any(c.get("title") == "House climate" for c in cards)
@@ -182,6 +192,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "solar_dump.py" in text
     assert "energy/save_prefs" in text
     assert "thermostat" in text
+    assert "weather-forecast" in text
+    assert "weather.417373300314" in text
     assert "statistics-graph" in text
     assert "sensor.battery_1_remaining_minutes" in text
     assert "Do **not** configure EM16 A3 as the electricity **grid**" in text

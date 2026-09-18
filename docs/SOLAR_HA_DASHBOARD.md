@@ -13,6 +13,7 @@ entities. This dashboard uses **stock cards** only:
 - [History graph](https://www.home-assistant.io/dashboards/history-graph/)
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/)
+- [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) (`weather.417373300314` outdoor ambient + forecast)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/)
 - [Markdown](https://www.home-assistant.io/dashboards/markdown/)
 
@@ -184,7 +185,8 @@ Official cards:
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/) -- kWh helpers
 - [Glance](https://www.home-assistant.io/dashboards/glance/)
 - [Entities](https://www.home-assistant.io/dashboards/entities/) -- sim dump plug ON/OFF
-- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee (`climate.417373300314`, name **Ecobee**; not trailer)
+- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee indoor setpoint (`climate.417373300314`, name **Ecobee**; not trailer)
+- [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) -- outdoor ambient + daily/hourly forecast (`weather.417373300314`; same Overview popup)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/) -- Instant W
 
 Do **not** add these to Energy sources: shunt Ah/min/RSSI, Sungold PV/V/A/Hz/faults,
@@ -207,7 +209,8 @@ on **History** or the intro markdown.
 | Sungold cart | PV W/V/A, cart batt W, batt V/A/SoC/temp, charge state, mode -- **not** Load W (that is Loads / Instant W) |
 | Sungold AC | UTI V, AC out V/Hz, load A, AC in A/Hz, fault code, fault LED, error flags |
 | Loads (not losses) | A3/B3 CT legs, sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** outlet, not Pi4) |
-| **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy device name **Trailer A/C** is `sensor.trailer_outlet_power` (watts), not this thermostat. |
+| **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy device name **Trailer A/C** is `sensor.trailer_outlet_power` (watts), not this thermostat. |
+| **Ecobee outdoor** | Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) on **Now**: `weather.417373300314` (same Overview Living Room popup). This is **outdoor ambient** (condition, temperature, humidity, wind) plus **daily** and **hourly** forecast. Do **not** invent a second outdoor sensor or SVG. `forecast_type` is required (`daily` / `hourly`). |
 | Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
 
 ### History (one unit per graph, max 8)

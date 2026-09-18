@@ -219,6 +219,21 @@ views:
         entity: climate.417373300314
         name: Ecobee
 
+      - type: weather-forecast
+        entity: weather.417373300314
+        name: Ecobee outdoor
+        forecast_type: daily
+        show_current: true
+        show_forecast: true
+        secondary_info_attribute: humidity
+
+      - type: weather-forecast
+        entity: weather.417373300314
+        name: Ecobee outdoor hourly
+        forecast_type: hourly
+        show_current: false
+        show_forecast: true
+
       - type: glance
         title: Trailer hygrometer
         show_name: true

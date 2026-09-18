@@ -222,8 +222,12 @@ rewrite out of scope for this doc pass).
 
 **Vent fan (17 Sep):** four speeds; live speed **1** (lowest). HA entity **TODO:**
 search `fan.*` on `.105` ([REST states](https://developers.home-assistant.io/docs/api/rest/)).
-Weather strip: **TODO** `weather.*` / `climate.*` ecobee -- HA weather cards on
-Solar plant / Solar, not a custom SVG.
+Outdoor weather: stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/)
+on Solar plant Now using `weather.417373300314` (Ecobee weather; same Overview popup).
+That entity is **outdoor ambient + forecast**. `climate.417373300314` stays indoor
+setpoint only. Do not invent a second ambient sensor or SVG. Dump does **not**
+auto-toggle from forecast (alfa-ai observe/Ask ALFa read only; see
+[HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)).
 
 **Operator 18 Sep 2026:** `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
 ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)) -- **all**
