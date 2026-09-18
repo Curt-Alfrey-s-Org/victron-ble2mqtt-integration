@@ -154,6 +154,14 @@ def test_dashboard_uses_official_cards_only() -> None:
     )
     loss_entities = {e["entity"] for e in losses_glance["entities"]}
     assert "sensor.solar_component_losses_power" in loss_entities
+    dump_ctrl = next(
+        c for c in cards if c.get("type") == "entities" and c.get("title") == "Dump load HA control"
+    )
+    assert dump_ctrl.get("show_header_toggle") is False
+    dump_ctrl_ids = {
+        row.get("entity") for row in dump_ctrl["entities"] if isinstance(row, dict)
+    }
+    assert "input_boolean.dump_control_enabled" in dump_ctrl_ids
     dump_card = next(
         c for c in cards if c.get("type") == "entities" and c.get("title") == "Sim dump plugs"
     )
@@ -225,6 +233,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "Trailer CT A3" in text
     assert "entities" in text
     assert "switch.sim_ac_plug_1" in text
+    assert "input_boolean.dump_control_enabled" in text
+    assert "Dump load HA control" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script

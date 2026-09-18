@@ -25,9 +25,11 @@ Energy sources: [Home energy management](https://www.home-assistant.io/docs/ener
 
 Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
 ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)).
-Solar plant **Now** shows the six `switch.sim_ac_plug_*` so dump ticks are visible.
-A header toggle on that [entities](https://www.home-assistant.io/dashboards/entities/)
-card is **manual** only. Per-plug watts live on **History** (not a second Now glance).
+Solar plant **Now** has an [entities](https://www.home-assistant.io/dashboards/entities/)
+card **Dump load HA control** with the kill switch
+`input_boolean.dump_control_enabled` (toggle on this page; do not hunt Helpers).
+The six `switch.sim_ac_plug_*` rows are visibility (and optional manual). A header
+toggle on that plug card is **manual** only. Per-plug watts live on **History**.
 Do **not** put `input_boolean.sim_ac_plug_*_internal` on Lovelace. Do **not** add a
 second dump ticker in alfa-ai.
 

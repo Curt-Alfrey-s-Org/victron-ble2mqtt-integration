@@ -112,12 +112,12 @@ remove entities from the registry if needed.
 
 Default: package is **not** on `/opt/homeassistant` until the operator runs the install script.
 
-**Solar plant Lovelace:** `/solar-plant` **Now** has a stock
-[entities](https://www.home-assistant.io/dashboards/entities/) card
-(`show_header_toggle: true`) for `switch.sim_ac_plug_1` ... `_6`. Per-plug watts
-are on **History**, not a second Now glance ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
-That card is **visibility** (and optional manual toggle). Automatic dump ON/OFF
-comes from [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md), not alfa-ai.
+**Solar plant Lovelace:** `/solar-plant` **Now** has **Dump load HA control**
+(`input_boolean.dump_control_enabled`) on an [entities](https://www.home-assistant.io/dashboards/entities/)
+card (kill switch for automations). The six `switch.sim_ac_plug_*` rows are
+visibility (and optional manual). Per-plug watts are on **History**
+([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). Automatic dump ON/OFF comes from
+[DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md), not alfa-ai.
 
 ---
 

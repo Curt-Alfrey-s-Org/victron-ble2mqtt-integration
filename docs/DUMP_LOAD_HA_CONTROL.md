@@ -37,7 +37,7 @@ Do **not** invent PV watts from Ecobee `weather.*`. Optional later: HA
 | PV falling (cloud valley) blocks new ON | HA Derivative + Threshold `binary_sensor.dump_pv_falling` |
 | `switch.turn_on` / `turn_off` on `switch.sim_ac_plug_*` | HA automations in this package |
 | Path-loss **briefing** / NIST `ai_actions` / Ask ALFa | alfa-ai only |
-| Kill switch | HA `input_boolean.dump_control_enabled` (this package) |
+| Kill switch | HA `input_boolean.dump_control_enabled` on Solar plant **Now** (entities card) |
 
 Do **not** add a second dump ticker in alfa-ai that calls `switch.turn_on` /
 `turn_off` while this package is loaded.
@@ -79,8 +79,10 @@ The script copies `sim_dump_control.yaml` into `/opt/homeassistant/packages/` an
 restarts the `homeassistant` container
 ([HA Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
 
-Disable: turn off **Dump load HA control** (`input_boolean.dump_control_enabled`)
-in HA, or delete the package file and restart HA.
+Disable: turn off **Dump load HA control** on Solar plant **Now**
+(`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
+The same toggle is also a helper under Settings, but the dashboard is the operator
+control.
 
 Default: this package is **not** on `/opt/homeassistant` until the operator runs
 the install script.

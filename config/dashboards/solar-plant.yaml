@@ -12,8 +12,10 @@ views:
           Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump ON/OFF is Home Assistant automations (`sim_dump_control.yaml`);
-          the six switches below show ticks (header toggle is **manual**). Names that say fan
+          Dump ON/OFF is Home Assistant automations (`sim_dump_control.yaml`).
+          Use **Dump load HA control** on this page (kill switch). Off = no automatic
+          dump. On = surplus/charge automations may toggle sim plugs. The six switches
+          below show ticks (header toggle is **manual**). Names that say fan
           on dump plugs are lab dump loads, not the cargo vent or LED.
           **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus anything
           on SPH OUTPUT, including dump). **Sungold AC-in** is the trailer
@@ -131,6 +133,33 @@ views:
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
+
+      - type: markdown
+        title: Dump load
+        content: >
+          **Dump load HA control** is the kill switch for HA automations that turn
+          the sim dump plugs on and off (Threshold surplus band, charge-stage dwell,
+          min on/off timers). **Off** = automations do nothing. **On** = they may
+          toggle the six plugs below. Plug header toggle is manual only.
+          Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
+          Helpers list (backup): [Settings > Helpers](/config/helpers).
+
+      - type: entities
+        title: Dump load HA control
+        show_header_toggle: false
+        entities:
+          - entity: input_boolean.dump_control_enabled
+            name: Automations on/off
+            icon: mdi:transmission-tower-export
+            secondary_info: last-changed
+          - type: weblink
+            name: DUMP_LOAD_HA_CONTROL.md (what this does)
+            url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
+            icon: mdi:file-document-outline
+          - type: weblink
+            name: Helpers (same switch if this card is missing)
+            url: /config/helpers
+            icon: mdi:tune
 
       - type: entities
         title: Sim dump plugs

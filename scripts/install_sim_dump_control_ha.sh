@@ -10,6 +10,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HA_CONFIG_DIR="${HA_CONFIG_DIR:-/opt/homeassistant}"
 PKG_SRC="$ROOT/config/packages/sim_dump_control.yaml"
 PKG_DST="$HA_CONFIG_DIR/packages/sim_dump_control.yaml"
+DASH_SRC="$ROOT/config/dashboards/solar-plant.yaml"
+DASH_DST="$HA_CONFIG_DIR/dashboards/solar-plant.yaml"
 PLUGS_DST="$HA_CONFIG_DIR/packages/sim_dump_plugs.yaml"
 CONF="$HA_CONFIG_DIR/configuration.yaml"
 
@@ -26,6 +28,13 @@ sudo mkdir -p "$HA_CONFIG_DIR/packages"
 sudo cp "$PKG_SRC" "$PKG_DST"
 sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$PKG_DST" 2>/dev/null || true
 echo "[sim-dump-control] Installed $PKG_DST"
+if [[ -f "$DASH_SRC" && -f "$DASH_DST" ]]; then
+  sudo cp "$DASH_SRC" "$DASH_DST"
+  sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$DASH_DST" 2>/dev/null || true
+  echo "[sim-dump-control] Updated Solar plant dashboard $DASH_DST"
+elif [[ -f "$DASH_SRC" ]]; then
+  echo "[sim-dump-control] Solar plant dashboard not installed; run bash scripts/install_solar_plant_ha.sh"
+fi
 
 if [[ ! -f "$CONF" ]]; then
   echo "Missing $CONF" >&2
@@ -39,7 +48,7 @@ fi
 if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   echo "[sim-dump-control] Restarting homeassistant container (reload package) ..."
   docker restart homeassistant
-  echo "[sim-dump-control] Wait ~2 min. Kill switch: input_boolean.dump_control_enabled"
+  echo "[sim-dump-control] Open http://192.168.0.105:8123/solar-plant -- Dump load HA control"
 else
   echo "[sim-dump-control] homeassistant container not running -- start HA, then restart."
 fi
