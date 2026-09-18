@@ -12,11 +12,13 @@ views:
           Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump ON/OFF is alfa-ai `solar_dump.py`. **Now** shows the six
-          sim dump switches so ticks are visible; a header toggle is
-          **manual** only.
-          KU charger watts are **est.** (no live Victron KU clamps).
-          Do not add A3 as utility grid.
+          Dump ON/OFF is alfa-ai `solar_dump.py`; the six switches below
+          show ticks (header toggle is **manual**). Names that say fan
+          are lab dump loads, not trailer LED/fan.
+          **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus fan,
+          dehumidifier, dump on that outlet).
+          **KU PV est.** may be negative at night (balance residual, not
+          live KU solar). Do not add A3 as utility grid.
 
       - type: power-sankey
         title: Power flow
@@ -63,14 +65,26 @@ views:
             name: MPPT W
           - entity: sensor.solar_controller_charge_state
             name: Charge
+          - entity: sensor.solar_controller_charging_power
+            name: Charge W
+          - entity: sensor.solar_controller_yield_today
+            name: Yield today
+          - entity: sensor.t2_ku_jumper_power
+            name: Jumper est.
           - entity: sensor.battery_1_power
             name: Batt 1 W
           - entity: sensor.battery_1_voltage
             name: Batt 1 V
           - entity: sensor.battery_1_current
             name: Batt 1 A
-          - entity: sensor.t2_ku_jumper_power
-            name: Jumper est.
+          - entity: sensor.battery_1_state_of_charge
+            name: SoC
+          - entity: sensor.battery_1_consumed_ah
+            name: Consumed Ah
+          - entity: sensor.battery_1_remaining_minutes
+            name: Remaining min
+          - entity: sensor.battery_1_rssi
+            name: RSSI
 
       - type: glance
         title: KU 24 V (est. chargers)
@@ -91,13 +105,14 @@ views:
             name: Batt 2 A
           - entity: sensor.trailer_outlet_power
             name: LED+fan
-
-      - type: markdown
-        title: KU PV est.
-        content: >
-          **KU PV est.** may read **negative at night** — that signed residual is
-          balance estimate / component losses, not live KU solar. Charger **est.**
-          tiles split the lower bound by suitcase count only.
+          - entity: sensor.battery_2_state_of_charge
+            name: SoC
+          - entity: sensor.battery_2_consumed_ah
+            name: Consumed Ah
+          - entity: sensor.battery_2_remaining_minutes
+            name: Remaining min
+          - entity: sensor.battery_2_rssi
+            name: RSSI
 
       - type: glance
         title: Loads (not losses)
@@ -114,23 +129,6 @@ views:
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
-
-      - type: markdown
-        title: Sungold AC out
-        content: >
-          `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
-          ([SPH reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
-          -- the **whole** A/C-out outlet, not Pi4 alone. Pi4 is a few watts.
-          Fan, dehumidifier, and dump loads on that outlet add into this number.
-
-      - type: markdown
-        title: Sim dump plugs
-        content: >
-          These six [template switches](https://www.home-assistant.io/integrations/switch/)
-          are the alfa-ai dump allowlist. ON/OFF here tracks `solar_dump.py`
-          ([entities card](https://www.home-assistant.io/dashboards/entities/)).
-          The header toggle is **manual**. Names that say fan are **lab dump
-          loads**, not the trailer LED/fan or Pi4.
 
       - type: entities
         title: Sim dump plugs
@@ -150,28 +148,6 @@ views:
             name: 6 gaming PC 300 W
 
       - type: glance
-        title: Sim dump plug W
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.sim_dump_load_power
-            name: Total
-          - entity: sensor.sim_ac_plug_1_power
-            name: 1
-          - entity: sensor.sim_ac_plug_2_power
-            name: 2
-          - entity: sensor.sim_ac_plug_3_power
-            name: 3
-          - entity: sensor.sim_ac_plug_4_power
-            name: 4
-          - entity: sensor.sim_ac_plug_5_power
-            name: 5
-          - entity: sensor.sim_ac_plug_6_power
-            name: 6
-
-      - type: glance
         title: Conversion losses
         show_name: true
         show_icon: true
@@ -184,13 +160,6 @@ views:
             name: T2 MPPT
           - entity: sensor.sungold_conversion_loss_power
             name: Sungold
-
-      - type: gauge
-        entity: sensor.solar_component_losses_power
-        name: Component losses
-        min: 0
-        max: 200
-        needle: true
 
       - type: glance
         title: Sungold cart
@@ -215,22 +184,20 @@ views:
             name: Batt SoC
           - entity: sensor.sungold_sph302480a_battery_temperature
             name: Batt temp
-          - entity: sensor.sungold_sph302480a_load_power
-            name: Load W
-          - entity: sensor.sungold_sph302480a_grid_voltage
-            name: UTI V
+          - entity: sensor.sungold_sph302480a_charge_state
+            name: Charge
           - entity: sensor.sungold_sph302480a_inverter_state
             name: Mode
 
       - type: glance
-        title: Sungold status
+        title: Sungold AC
         show_name: true
         show_icon: true
         show_state: true
         columns: 4
         entities:
-          - entity: sensor.sungold_sph302480a_charge_state
-            name: Charge
+          - entity: sensor.sungold_sph302480a_grid_voltage
+            name: UTI V
           - entity: sensor.sungold_sph302480a_ac_output_voltage
             name: AC out V
           - entity: sensor.sungold_sph302480a_ac_output_frequency
@@ -248,71 +215,9 @@ views:
           - entity: sensor.sungold_sph302480a_inverter_error_flags
             name: Error flags
 
-      - type: glance
-        title: T2 MPPT extras
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.solar_controller_yield_today
-            name: Yield today
-          - entity: sensor.solar_controller_charging_power
-            name: Charge W
-          - entity: sensor.solar_controller_load_power
-            name: Load W
-          - entity: sensor.solar_controller_load
-            name: Load
-          - entity: sensor.solar_controller_rssi
-            name: RSSI
-
-      - type: glance
-        title: T2 shunt extras
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.battery_1_state_of_charge
-            name: SoC
-          - entity: sensor.battery_1_consumed_ah
-            name: Consumed Ah
-          - entity: sensor.battery_1_remaining_minutes
-            name: Remaining min
-          - entity: sensor.battery_1_rssi
-            name: RSSI
-
-      - type: glance
-        title: KU shunt extras
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.battery_2_state_of_charge
-            name: SoC
-          - entity: sensor.battery_2_consumed_ah
-            name: Consumed Ah
-          - entity: sensor.battery_2_remaining_minutes
-            name: Remaining min
-          - entity: sensor.battery_2_rssi
-            name: RSSI
-
       - type: thermostat
         entity: climate.417373300314
         name: Ecobee
-
-      - type: glance
-        title: Ecobee
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 2
-        entities:
-          - entity: sensor.417373300314_temperature
-            name: Temp
-          - entity: sensor.417373300314_humidity
-            name: Humidity
 
       - type: glance
         title: Trailer hygrometer

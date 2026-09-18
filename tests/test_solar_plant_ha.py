@@ -104,16 +104,14 @@ def test_dashboard_uses_official_cards_only() -> None:
     thermostat = next(c for c in cards if c["type"] == "thermostat")
     assert thermostat["entity"] == "climate.417373300314"
     assert thermostat["name"] == "Ecobee"
-    ecobee_glance = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Ecobee"
-    )
-    ecobee_ids = {e["entity"] for e in ecobee_glance["entities"]}
-    assert ecobee_ids == {
-        "sensor.417373300314_temperature",
-        "sensor.417373300314_humidity",
-    }
+    assert not any(c.get("type") == "glance" and c.get("title") == "Ecobee" for c in cards)
     assert not any(c.get("title") == "Trailer climate" for c in cards)
     assert not any(c.get("title") == "House climate" for c in cards)
+    assert not any(c.get("title") == "T2 MPPT extras" for c in cards)
+    assert not any(c.get("title") == "T2 shunt extras" for c in cards)
+    assert not any(c.get("title") == "KU shunt extras" for c in cards)
+    assert not any(c.get("title") == "Sim dump plug W" and c.get("type") == "glance" for c in cards)
+    assert not any(c.get("title") == "Sungold status" for c in cards)
     trailer_hygro = next(
         c for c in cards if c.get("type") == "glance" and c.get("title") == "Trailer hygrometer"
     )
@@ -160,17 +158,22 @@ def test_dashboard_uses_official_cards_only() -> None:
     dump_w_ids = {e["entity"] for e in dump_w["entities"]}
     assert "sensor.sim_dump_load_power" in dump_w_ids
     assert "sensor.sim_ac_plug_3_power" in dump_w_ids
-    sungold_status = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold status"
+    sungold_ac = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold AC"
     )
-    status_ids = {e["entity"] for e in sungold_status["entities"]}
+    status_ids = {e["entity"] for e in sungold_ac["entities"]}
     assert "sensor.sungold_sph302480a_fail_code" in status_ids
     assert "binary_sensor.sungold_sph302480a_fault_active" in status_ids
-    t2_mppt = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 MPPT extras"
-    )
-    t2_ids = {e["entity"] for e in t2_mppt["entities"]}
+    assert "sensor.sungold_sph302480a_load_power" not in status_ids
+    t2 = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 24 V")
+    t2_ids = {e["entity"] for e in t2["entities"]}
     assert "sensor.solar_controller_yield_today" in t2_ids
+    assert "sensor.battery_1_state_of_charge" in t2_ids
+    sungold_cart = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold cart"
+    )
+    cart_ids = {e["entity"] for e in sungold_cart["entities"]}
+    assert "sensor.sungold_sph302480a_load_power" not in cart_ids
 
 
 def test_docs_and_install_script_exist() -> None:

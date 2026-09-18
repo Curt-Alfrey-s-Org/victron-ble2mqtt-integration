@@ -116,10 +116,10 @@ Default: package is **not** on `/opt/homeassistant` until the operator runs the 
 
 **Solar plant Lovelace:** `/solar-plant` **Now** has a stock
 [entities](https://www.home-assistant.io/dashboards/entities/) card
-(`show_header_toggle: true`) for `switch.sim_ac_plug_1` ... `_6`, plus a glance of
-`sensor.sim_ac_plug_*_power`. History has on/off and per-plug watts graphs
-([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). That card is **visibility** (and
-optional manual toggle). Dump ticks still come from alfa-ai `solar_dump.py`.
+(`show_header_toggle: true`) for `switch.sim_ac_plug_1` ... `_6`. Per-plug watts
+are on **History**, not a second Now glance ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
+That card is **visibility** (and optional manual toggle). Dump ticks still come
+from alfa-ai `solar_dump.py`.
 
 ---
 
