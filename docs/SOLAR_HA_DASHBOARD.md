@@ -33,8 +33,8 @@ Lovelace.
 
 **Do not** add hops, SVG wires, or Node-RED for this view.
 
-Site physics (two 24 V buses, jumper estimate, A3 = trailer outlet total):
-[SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
+Site physics (two 24 V buses, jumper estimate, A3/B3 = trailer outlet feeding
+Sungold A/C-in, not LED/vent): [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
 The existing storage-mode sidebar item **Solar** (`dashboard-solar`) stays as the
 MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
@@ -60,7 +60,7 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 | entity_id | Meaning |
 |-----------|---------|
 | `sensor.t2_ku_jumper_power` | Est. `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). + = T2 to KU. |
-| `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|` |
+| `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. That clamp is the **trailer outlet / Sungold A/C-in** (SPH cord). Cargo LED (~0.01 W) and vent fan (~0.1 W) are not separately metered and must **not** be the Lovelace name. |
 | `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + trailer_outlet` |
 | `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
 | `sensor.battery_1_charge_power` / `_discharge_power` | `max(0, +/- battery_1_power)` |
@@ -134,11 +134,12 @@ Add **power** sensors (W) and the matching **integral kWh** sensors:
 | Solar | `sensor.solar_controller_solar` | `sensor.t2_mppt_energy_kwh` |
 | Battery T2 | charge `sensor.battery_1_charge_power`, discharge `sensor.battery_1_discharge_power` | matching `*_energy_kwh` |
 | Battery KU | charge/discharge `sensor.battery_2_*` | matching `*_energy_kwh` |
-| Device: trailer A/C | `sensor.trailer_outlet_power` (always >= 0 W) | `sensor.em16_a3_energy_kwh` |
+| Device: Sungold A/C-in | `sensor.trailer_outlet_power` (always >= 0 W) | `sensor.em16_a3_energy_kwh` |
 | Device: sim dump | `sensor.sim_dump_load_power` | `sensor.sim_dump_energy_kwh` |
 | Device: Sungold A/C out | `sensor.sungold_sph302480a_load_power` | `sensor.sungold_load_energy_kwh` |
 
-The script also sets display names (Trailer A/C, Sungold A/C out, Sim dump).
+The script also sets display names (Sungold A/C-in, Sungold A/C out, Sim dump).
+Energy **Sungold A/C-in** is the trailer-outlet clamp (SPH cord), not LED/vent.
 Leave **grid**, Electricity Maps, gas, and water empty. Do **not** add KU
 equal-share as a second solar source (double-count). Do **not** add A1 monthly
 kWh or battery charge/discharge as individual devices.
@@ -200,16 +201,16 @@ on **History** or the intro markdown.
 
 | Card | Entities |
 |------|----------|
-| Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; KU PV est. may be negative at night |
-| Instant W distribution | T2 MPPT, Trailer outlet (**LED+fan**), Sim dump, Sungold **AC out**, Sungold PV — **no** KU PV est. |
+| Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent); KU PV est. may be negative at night |
+| Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles |
 | Conversion losses | Glance only: total + T2 MPPT + Sungold (no second gauge) |
 | Sim dump plugs | [Entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. |
 | T2 24 V | MPPT W, charge state, charge W, yield today, jumper, Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI |
-| KU 24 V | KU PV est., each charger est., Batt 2 W/V/A, LED+fan, SoC, consumed Ah, remaining min, RSSI |
+| KU 24 V | KU PV est., each charger est., Batt 2 W/V/A, **Sungold A/C-in** (`trailer_outlet_power`), SoC, consumed Ah, remaining min, RSSI |
 | Sungold cart | PV W/V/A, cart batt W, batt V/A/SoC/temp, charge state, mode -- **not** Load W (that is Loads / Instant W) |
 | Sungold AC | UTI V, AC out V/Hz, load A, AC in A/Hz, fault code, fault LED, error flags |
-| Loads (not losses) | A3/B3 CT legs, sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** outlet, not Pi4) |
-| **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy device name **Trailer A/C** is `sensor.trailer_outlet_power` (watts), not this thermostat. |
+| Loads (not losses) | A3 hot leg, **Sungold breaker** (B3), sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) |
+| **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. |
 | **Ecobee outdoor** | Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) on **Now**: `weather.417373300314` (same Overview Living Room popup). This is **outdoor ambient** (condition, temperature, humidity, wind) plus **daily** and **hourly** forecast. Do **not** invent a second outdoor sensor or SVG. `forecast_type` is required (`daily` / `hourly`). |
 | Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
 
@@ -217,7 +218,7 @@ on **History** or the intro markdown.
 
 | Graph | Entities (live ids) |
 |-------|---------------------|
-| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power`, `sim_dump_load_power`, `sungold_sph302480a_load_power`, `sungold_sph302480a_pv_power` |
+| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sim_dump_load_power`, `sungold_sph302480a_load_power`, `sungold_sph302480a_pv_power` |
 | Watts (chargers) | `ku_unmetered_pv_est_power`, `ku_charger_equal_share_power`, `solar_controller_charging_power`, `sungold_sph302480a_charging_power` |
 | Watts (losses) | `solar_component_losses_power`, `t2_mppt_conversion_loss_power`, `sungold_conversion_loss_power` |
 | Sim dump plugs | `switch.sim_ac_plug_1` ... `_6` (on/off) |

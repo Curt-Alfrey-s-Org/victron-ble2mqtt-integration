@@ -229,6 +229,13 @@ setpoint only. Do not invent a second ambient sensor or SVG. Dump does **not**
 auto-toggle from forecast (alfa-ai observe/Ask ALFa read only; see
 [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)).
 
+**Operator 18 Sep 2026 (afternoon):** Cargo **LED** (~0.01 W) and **vent fan** on low
+(~0.1 W) are not Instant W slices. `sensor.trailer_outlet_power` (hundreds of W) is the
+trailer outlet feeding **Sungold A/C-in**. Instant W uses **Sungold A/C out** for where
+those watts are consumed (Pi4 plus anything on SPH OUTPUT). Do not put trailer-outlet W
+on Instant W next to SPH A/C out (same energy path, A/C-in vs A/C-out). Lovelace names:
+[SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
+
 **Operator 18 Sep 2026:** `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
 ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)) -- **all**
 loads on SPH A/C OUTPUT, not Pi4 alone. Pi4 is a few watts. Fan and dehumidifier on the same

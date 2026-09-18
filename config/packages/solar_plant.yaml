@@ -207,7 +207,7 @@ sensor:
     method: left
     max_sub_interval:
       minutes: 5
-  # Trailer A/C kWh: trailer_outlet_power is abs(W). Do not integrate signed
+  # Sungold A/C-in kWh: trailer_outlet_power is abs(W). Do not integrate signed
   # sensor.em16_a3_power -- Energy individual devices require a nonnegative state
   # https://www.home-assistant.io/integrations/integration/#energy
   - platform: integration

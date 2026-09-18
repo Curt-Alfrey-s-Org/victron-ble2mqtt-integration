@@ -14,9 +14,11 @@ views:
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
           Dump ON/OFF is alfa-ai `solar_dump.py`; the six switches below
           show ticks (header toggle is **manual**). Names that say fan
-          are lab dump loads, not trailer LED/fan.
-          **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus fan,
-          dehumidifier, dump on that outlet).
+          on dump plugs are lab dump loads, not the cargo vent or LED.
+          **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus anything
+          on SPH OUTPUT, including dump). **Sungold AC-in** is the trailer
+          outlet clamp (SPH cord). Cargo LED and vent fan are ~0.01 W /
+          ~0.1 W and are not tiles.
           **KU PV est.** may be negative at night (balance residual, not
           live KU solar). Do not add A3 as utility grid.
 
@@ -104,7 +106,7 @@ views:
           - entity: sensor.battery_2_current
             name: Batt 2 A
           - entity: sensor.trailer_outlet_power
-            name: LED+fan
+            name: Sungold AC-in
           - entity: sensor.battery_2_state_of_charge
             name: SoC
           - entity: sensor.battery_2_consumed_ah
@@ -124,7 +126,7 @@ views:
           - entity: sensor.em16_a3_power
             name: A3 hot leg
           - entity: sensor.em16_b3_power
-            name: B3 breaker
+            name: Sungold breaker
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
@@ -253,14 +255,12 @@ views:
         entities:
           - entity: sensor.solar_controller_solar
             name: T2 MPPT
-          - entity: sensor.trailer_outlet_power
-            name: LED+fan
-          - entity: sensor.sim_dump_load_power
-            name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
           - entity: sensor.sungold_sph302480a_pv_power
             name: Sungold PV
+          - entity: sensor.sim_dump_load_power
+            name: Sim dump
 
   - title: History
     path: history
@@ -283,7 +283,7 @@ views:
           - entity: sensor.t2_ku_jumper_power
             name: Jumper est.
           - entity: sensor.trailer_outlet_power
-            name: Trailer outlet
+            name: Sungold AC-in
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power

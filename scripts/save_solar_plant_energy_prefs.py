@@ -67,7 +67,7 @@ DEVICE_CONSUMPTION: list[dict[str, Any]] = [
     {
         "stat_consumption": "sensor.em16_a3_energy_kwh",
         "stat_rate": "sensor.trailer_outlet_power",
-        "name": "Trailer A/C",
+        "name": "Sungold A/C-in",
     },
     {
         "stat_consumption": "sensor.sungold_load_energy_kwh",

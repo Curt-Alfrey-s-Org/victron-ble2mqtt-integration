@@ -32,5 +32,8 @@ def test_energy_prefs_have_no_grid_or_ku_share_solar() -> None:
     assert "sensor.sim_dump_energy_kwh" in consumption
     rates = {row["stat_rate"] for row in payload["device_consumption"]}
     assert "sensor.trailer_outlet_power" in rates
+    names = {row["name"] for row in payload["device_consumption"]}
+    assert "Sungold A/C-in" in names
+    assert "Trailer A/C" not in names
     assert "sensor.em16_a3_power" not in rates
     assert "sensor.ku_charger_equal_share_power" not in rates

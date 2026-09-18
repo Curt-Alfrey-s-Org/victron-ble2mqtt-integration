@@ -132,15 +132,21 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.sungold_sph302480a_pv_power" in dist_entities
     assert "sensor.ku_unmetered_pv_est_power" not in dist_entities
     dist_names = {e["name"] for e in dist["entities"]}
-    assert "LED+fan" in dist_names
     assert "Sungold AC out" in dist_names
+    assert "LED+fan" not in dist_names
+    assert "sensor.trailer_outlet_power" not in dist_entities
     assert "Pi4" not in dist_names
     loads_glance = next(
         c for c in cards if c.get("type") == "glance" and c.get("title") == "Loads (not losses)"
     )
     loads_names = {e["name"] for e in loads_glance["entities"]}
     assert "Sungold AC out" in loads_names
+    assert "Sungold breaker" in loads_names
     assert "Pi4" not in loads_names
+    ku = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "KU 24 V (est. chargers)")
+    ku_names = {e["name"] for e in ku["entities"]}
+    assert "Sungold AC-in" in ku_names
+    assert "LED+fan" not in ku_names
     losses_glance = next(
         c for c in cards if c.get("type") == "glance" and c.get("title") == "Conversion losses"
     )
@@ -154,6 +160,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert dump_ids == {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
     yaml_text = DASHBOARD.read_text(encoding="utf-8")
     assert "input_boolean.sim_ac_plug" not in yaml_text
+    assert "LED+fan" not in yaml_text
     dump_hist = next(
         c
         for c in cards
