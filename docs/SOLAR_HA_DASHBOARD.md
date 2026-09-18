@@ -58,9 +58,14 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 | `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
 | `sensor.battery_1_charge_power` / `_discharge_power` | `max(0, +/- battery_1_power)` |
 | `sensor.battery_2_charge_power` / `_discharge_power` | same for Battery 2 |
+| `sensor.t2_mppt_conversion_loss_power` | T2 MPPT conversion loss: `max(0, solar - charge - load)`; skip when charge 0/missing and jumper flowing |
+| `sensor.sungold_conversion_loss_power` | Sungold `SG_loss`: `max(0, (AC_in + PV) - batt_in - AC_out)` |
+| `sensor.solar_component_losses_power` | `combined_losses_w` = T2 MPPT loss + Sungold loss ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)) |
 
 Do **not** treat KU equal-share as a live Victron watt clamp. Do **not** add A3 as
-utility grid.
+utility grid. Do **not** put `sensor.ku_unmetered_pv_est_power` on the Instant W
+distribution card — night **negative** values are balance residual / losses, not
+KU solar generation.
 
 ---
 
@@ -181,10 +186,12 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 
 | Card | Entities |
 |------|----------|
-| Instant W distribution | T2 MPPT, KU PV est., Trailer outlet, Sim dump, Sungold load, Sungold PV |
+| Instant W distribution | T2 MPPT, Trailer outlet (**LED+fan**), Sim dump, Sungold load (**Pi4**), Sungold PV — **no** KU PV est. |
+| Conversion losses | `sensor.solar_component_losses_power`, T2 MPPT loss, Sungold loss (+ gauge on total) |
 | T2 shunt extras | `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, `sensor.battery_1_rssi` |
 | KU shunt extras | `sensor.battery_2_state_of_charge`, `sensor.battery_2_consumed_ah`, `sensor.battery_2_remaining_minutes`, `sensor.battery_2_rssi` |
 | Sungold cart (expand) | PV W/V/A, batt V/A/SoC/temp, load W, UTI V, mode |
+| Loads (not losses) glance | A3/B3 CT legs, sim dump, Sungold A/C out (**Pi4**); KU glance **LED+fan** = `trailer_outlet_power` |
 | Trailer climate | `climate.417373300314` (thermostat, name Trailer A/C), `sensor.417373300314_temperature`, `sensor.417373300314_humidity` |
 | Hygrometer | `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (may be unknown) |
 

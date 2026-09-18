@@ -88,7 +88,14 @@ views:
           - entity: sensor.battery_2_current
             name: Batt 2 A
           - entity: sensor.trailer_outlet_power
-            name: Trailer A/C
+            name: LED+fan
+
+      - type: markdown
+        title: KU PV est.
+        content: >
+          **KU PV est.** may read **negative at night** — that signed residual is
+          balance estimate / component losses, not live KU solar. Charger **est.**
+          tiles split the lower bound by suitcase count only.
 
       - type: glance
         title: Loads (not losses)
@@ -104,7 +111,28 @@ views:
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold A/C out
+            name: Pi4
+
+      - type: glance
+        title: Conversion losses
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 3
+        entities:
+          - entity: sensor.solar_component_losses_power
+            name: Total est.
+          - entity: sensor.t2_mppt_conversion_loss_power
+            name: T2 MPPT
+          - entity: sensor.sungold_conversion_loss_power
+            name: Sungold
+
+      - type: gauge
+        entity: sensor.solar_component_losses_power
+        name: Component losses
+        min: 0
+        max: 200
+        needle: true
 
       - type: glance
         title: Sungold cart
@@ -203,14 +231,12 @@ views:
         entities:
           - entity: sensor.solar_controller_solar
             name: T2 MPPT
-          - entity: sensor.ku_unmetered_pv_est_power
-            name: KU PV est.
           - entity: sensor.trailer_outlet_power
-            name: Trailer A/C
+            name: LED+fan
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold load
+            name: Pi4
           - entity: sensor.sungold_sph302480a_pv_power
             name: Sungold PV
 

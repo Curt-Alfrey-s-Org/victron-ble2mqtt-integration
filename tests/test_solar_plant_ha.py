@@ -36,6 +36,15 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "sensor.trailer_outlet_power" in ku["state"]
     assert by_id["sensor.battery_1_charge_power"]["device_class"] == "power"
     assert by_id["sensor.battery_1_discharge_power"]["device_class"] == "power"
+    losses = by_id["sensor.solar_component_losses_power"]
+    assert losses["device_class"] == "power"
+    assert "sensor.t2_mppt_conversion_loss_power" in losses["state"]
+    assert "sensor.sungold_conversion_loss_power" in losses["state"]
+    t2_loss = by_id["sensor.t2_mppt_conversion_loss_power"]
+    assert "sensor.solar_controller_charging_power" in t2_loss["state"]
+    assert "| max" in t2_loss["state"]
+    sg_loss = by_id["sensor.sungold_conversion_loss_power"]
+    assert "sensor.sungold_sph302480a_charging_power" in sg_loss["state"]
 
 
 def test_package_has_riemann_integrals() -> None:
@@ -96,6 +105,15 @@ def test_dashboard_uses_official_cards_only() -> None:
     dist = next(c for c in cards if c["type"] == "distribution")
     dist_entities = {e["entity"] for e in dist["entities"]}
     assert "sensor.sungold_sph302480a_pv_power" in dist_entities
+    assert "sensor.ku_unmetered_pv_est_power" not in dist_entities
+    dist_names = {e["name"] for e in dist["entities"]}
+    assert "LED+fan" in dist_names
+    assert "Pi4" in dist_names
+    losses_glance = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Conversion losses"
+    )
+    loss_entities = {e["entity"] for e in losses_glance["entities"]}
+    assert "sensor.solar_component_losses_power" in loss_entities
 
 
 def test_docs_and_install_script_exist() -> None:
@@ -107,6 +125,9 @@ def test_docs_and_install_script_exist() -> None:
     assert "statistics-graph" in text
     assert "sensor.battery_1_remaining_minutes" in text
     assert "Do **not** configure EM16 A3 as the electricity **grid**" in text
+    assert "sensor.solar_component_losses_power" in text
+    assert "combined_losses_w" in text
+    assert "no** KU PV est" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script

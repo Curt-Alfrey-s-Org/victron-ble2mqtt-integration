@@ -87,6 +87,80 @@ template:
         availability: "{{ is_number(states('sensor.battery_2_power')) }}"
         state: "{{ [-(states('sensor.battery_2_power') | float(0)), 0] | max }}"
 
+      # Conversion losses only (docs/SOLAR_POWER_BALANCE.md combined_losses_w).
+      # T2 MPPT: solar_W - charge_W - load_W; skip when charge 0/missing and jumper flowing.
+      - name: T2 MPPT conversion loss
+        unique_id: t2_mppt_conversion_loss_power
+        default_entity_id: sensor.t2_mppt_conversion_loss_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.solar_controller_solar')) }}"
+        state: >-
+          {% set solar = states('sensor.solar_controller_solar') | float(0) %}
+          {% set charge = states('sensor.solar_controller_charging_power') | float(0)
+             if is_number(states('sensor.solar_controller_charging_power')) else none %}
+          {% set load = states('sensor.solar_controller_load_power') | float(0)
+             if is_number(states('sensor.solar_controller_load_power')) else 0 %}
+          {% set batt1 = states('sensor.battery_1_power') | float(0)
+             if is_number(states('sensor.battery_1_power')) else none %}
+          {% set jumper = (solar - batt1) if batt1 is not none else none %}
+          {% set jumper_flowing = jumper is not none and (jumper | abs) >= 1 %}
+          {% if charge is not none and (charge > 0.5 or not jumper_flowing) %}
+            {% set mppt_out = charge + load %}
+            {{ [solar - mppt_out, 0] | max }}
+          {% else %}
+            0
+          {% endif %}
+
+      # Sungold: SG_loss = (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out (nonnegative).
+      - name: Sungold conversion loss
+        unique_id: sungold_conversion_loss_power
+        default_entity_id: sensor.sungold_conversion_loss_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.sungold_sph302480a_grid_voltage'))
+             or is_number(states('sensor.sungold_sph302480a_load_power')) }}
+        state: >-
+          {% set gv = states('sensor.sungold_sph302480a_grid_voltage') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_grid_voltage')) else none %}
+          {% set ga = states('sensor.sungold_sph302480a_grid_current') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_grid_current')) else none %}
+          {% set sg_load = states('sensor.sungold_sph302480a_load_power') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_load_power')) else none %}
+          {% set sg_ac_in = ((gv * ga) | abs) if gv is not none and ga is not none else none %}
+          {% if sg_ac_in is none or sg_ac_in < 0.5 %}
+            {% if sg_load is not none and (sg_load | abs) >= 0.5 %}
+              {% set sg_ac_in = sg_load | abs %}
+            {% endif %}
+          {% endif %}
+          {% set sg_pv = states('sensor.sungold_sph302480a_pv_power') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_pv_power')) else 0 %}
+          {% set sg_batt = states('sensor.sungold_sph302480a_charging_power') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_charging_power')) else none %}
+          {% if sg_ac_in is not none and (sg_batt is not none or sg_load is not none) %}
+            {% set sg_in = sg_ac_in + sg_pv %}
+            {% set sg_out = (sg_batt | default(0, true)) + (sg_load | default(0, true)) %}
+            {{ [sg_in - sg_out, 0] | max }}
+          {% else %}
+            0
+          {% endif %}
+
+      - name: Solar component losses
+        unique_id: solar_component_losses_power
+        default_entity_id: sensor.solar_component_losses_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.t2_mppt_conversion_loss_power'))
+             and is_number(states('sensor.sungold_conversion_loss_power')) }}
+        state: >-
+          {{ (states('sensor.t2_mppt_conversion_loss_power') | float(0))
+             + (states('sensor.sungold_conversion_loss_power') | float(0)) }}
+
 sensor:
   - platform: integration
     source: sensor.solar_controller_solar
