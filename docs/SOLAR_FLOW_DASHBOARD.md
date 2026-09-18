@@ -7,7 +7,7 @@
 ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)) at
 `http://192.168.0.105:8123/solar-plant`.
 
-Dump ON/OFF stays in alfa-ai `solar_dump.py` (HA REST, not this page).
+Dump ON/OFF is Home Assistant ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)), not this page.
 Site physics: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
 
 On `.105`, after `git pull`:

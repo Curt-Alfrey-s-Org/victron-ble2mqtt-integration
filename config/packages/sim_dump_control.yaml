@@ -1,0 +1,187 @@
+# Dump-load CONTROL (HA owns on/off). Opt-in package for Home Assistant on .105.
+# Requires sim_dump_plugs.yaml (switch.sim_ac_plug_*).
+# Official:
+#   https://www.home-assistant.io/docs/configuration/packages/
+#   https://www.home-assistant.io/docs/automation/yaml/
+#   https://www.home-assistant.io/integrations/threshold/
+#   https://www.home-assistant.io/docs/automation/trigger/
+#   https://www.home-assistant.io/integrations/timer/
+#   https://www.home-assistant.io/integrations/derivative/
+#   https://www.home-assistant.io/integrations/template/
+#   https://www.home-assistant.io/integrations/switch/
+# Victron 1-minute re-bulk:
+#   https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html
+
+input_boolean:
+  dump_control_enabled:
+    name: Dump load HA control
+    icon: mdi:transmission-tower-export
+
+timer:
+  dump_min_on:
+    name: Dump min on dwell
+    duration: "00:10:00"
+    restore: true
+  dump_min_off:
+    name: Dump min off dwell
+    duration: "00:05:00"
+    restore: true
+
+template:
+  - sensor:
+      - name: Dump surplus
+        unique_id: dump_surplus_w
+        default_entity_id: sensor.dump_surplus_w
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set solar_live = states('sensor.solar_controller_solar') %}
+          {% set solar_canon = states('sensor.solar_controller_solar_power') %}
+          {% set solar = solar_live if is_number(solar_live) else solar_canon %}
+          {% set load = states('sensor.sim_dump_load_power') %}
+          {% set losses = states('sensor.solar_component_losses_power') %}
+          {% if not is_number(solar) %}
+            {{ none }}
+          {% else %}
+            {{ (solar | float(0)) - (load | float(0)) - (losses | float(0)) }}
+          {% endif %}
+  - binary_sensor:
+      - name: Dump charge ok
+        unique_id: dump_charge_ok
+        default_entity_id: binary_sensor.dump_charge_ok
+        state: >
+          {% set a = states('sensor.solar_controller_charge_state') | lower %}
+          {% set b = states('sensor.solar_controller_battery_state') | lower %}
+          {{ a in ['absorption', 'float'] or b in ['absorption', 'float'] }}
+
+sensor:
+  - platform: derivative
+    source: sensor.dump_surplus_w
+    name: Dump surplus derivative
+    unique_id: dump_surplus_derivative
+    round: 1
+    unit_time: min
+    time_window: "00:15:00"
+
+binary_sensor:
+  - platform: threshold
+    entity_id: sensor.dump_surplus_w
+    name: Dump surplus high
+    upper: 125
+    hysteresis: 75
+  - platform: threshold
+    entity_id: sensor.dump_surplus_derivative
+    name: Dump PV falling
+    lower: 0
+    hysteresis: 5
+
+automation dump_load:
+  - id: sim_dump_turn_on
+    alias: Dump load turn on
+    description: ON after surplus high and charge ok each hold 1 minute; not while PV falling or min-off timer active.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_surplus_high
+        to: "on"
+        for: "00:01:00"
+      - trigger: state
+        entity_id: binary_sensor.dump_charge_ok
+        to: "on"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+      - condition: state
+        entity_id: binary_sensor.dump_surplus_high
+        state: "on"
+        for:
+          minutes: 1
+      - condition: state
+        entity_id: binary_sensor.dump_charge_ok
+        state: "on"
+        for:
+          minutes: 1
+      - condition: not
+        conditions:
+          - condition: state
+            entity_id: binary_sensor.dump_pv_falling
+            state: "on"
+      - condition: state
+        entity_id: timer.dump_min_off
+        state: idle
+    actions:
+      - action: switch.turn_on
+        target:
+          entity_id:
+            - switch.sim_ac_plug_1
+            - switch.sim_ac_plug_2
+            - switch.sim_ac_plug_3
+            - switch.sim_ac_plug_4
+            - switch.sim_ac_plug_5
+            - switch.sim_ac_plug_6
+      - action: timer.start
+        target:
+          entity_id: timer.dump_min_on
+
+  - id: sim_dump_turn_off_surplus
+    alias: Dump load turn off surplus
+    description: OFF when surplus helper stays off 1 minute, after min-on dwell.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_surplus_high
+        to: "off"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+      - condition: state
+        entity_id: timer.dump_min_on
+        state: idle
+    actions:
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - switch.sim_ac_plug_1
+            - switch.sim_ac_plug_2
+            - switch.sim_ac_plug_3
+            - switch.sim_ac_plug_4
+            - switch.sim_ac_plug_5
+            - switch.sim_ac_plug_6
+      - action: timer.start
+        target:
+          entity_id: timer.dump_min_off
+
+  - id: sim_dump_turn_off_bulk
+    alias: Dump load turn off bulk
+    description: Battery wins. Charge not absorption/float for 1 minute (Victron re-bulk scale) turns dumps off even during min-on.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_charge_ok
+        to: "off"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - action: switch.turn_off
+        target:
+          entity_id:
+            - switch.sim_ac_plug_1
+            - switch.sim_ac_plug_2
+            - switch.sim_ac_plug_3
+            - switch.sim_ac_plug_4
+            - switch.sim_ac_plug_5
+            - switch.sim_ac_plug_6
+      - action: timer.cancel
+        target:
+          entity_id: timer.dump_min_on
+      - action: timer.start
+        target:
+          entity_id: timer.dump_min_off

@@ -4,7 +4,7 @@
 #           https://www.home-assistant.io/integrations/integration/
 #           https://www.home-assistant.io/docs/configuration/packages/
 # Physics: docs/SOLAR_POWER_BALANCE.md (jumper est., KU equal-share est.)
-# Dump actuation stays in alfa-ai solar_dump.py -- this package is read-only sensors.
+# This package is read-only sensors. Dump on/off is sim_dump_control.yaml.
 
 template:
   - sensor:

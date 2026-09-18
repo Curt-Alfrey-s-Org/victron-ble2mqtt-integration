@@ -17,7 +17,7 @@ def test_retired_doc_and_uninstall_script() -> None:
     stub = (ROOT / "docs" / "SOLAR_FLOW_DASHBOARD.md").read_text(encoding="utf-8")
     assert "Retired" in stub
     assert "SOLAR_HA_DASHBOARD.md" in stub
-    assert "solar_dump.py" in stub
+    assert "DUMP_LOAD_HA_CONTROL.md" in stub
     script = (ROOT / "scripts" / "uninstall_solar_flow.sh").read_text(encoding="utf-8")
     assert "disable --now" in script
     assert "solar-flow.service" in script

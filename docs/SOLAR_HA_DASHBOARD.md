@@ -23,13 +23,13 @@ Template sensors: [Template](https://www.home-assistant.io/integrations/template
 Watt-hours from watts: [Integral (Riemann)](https://www.home-assistant.io/integrations/integration/).
 Energy sources: [Home energy management](https://www.home-assistant.io/docs/energy/).
 
-Dump ON/OFF stays in alfa-ai `solar_dump.py` (deterministic). Solar plant **Now**
-shows the six allowlisted `switch.sim_ac_plug_*` so an operator can see dump
-ticks. A header toggle on that [entities](https://www.home-assistant.io/dashboards/entities/)
-card is **manual** only -- it is not the dump controller. Per-plug watts live on
-**History** (not a second Now glance). Do **not** add HA automations that steal
-dump from the brain. Do **not** put `input_boolean.sim_ac_plug_*_internal` on
-Lovelace.
+Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
+([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)).
+Solar plant **Now** shows the six `switch.sim_ac_plug_*` so dump ticks are visible.
+A header toggle on that [entities](https://www.home-assistant.io/dashboards/entities/)
+card is **manual** only. Per-plug watts live on **History** (not a second Now glance).
+Do **not** put `input_boolean.sim_ac_plug_*_internal` on Lovelace. Do **not** add a
+second dump ticker in alfa-ai.
 
 **Do not** add hops, SVG wires, or Node-RED for this view.
 

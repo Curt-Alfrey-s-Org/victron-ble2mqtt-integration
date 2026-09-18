@@ -12,8 +12,8 @@ views:
           Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump ON/OFF is alfa-ai `solar_dump.py`; the six switches below
-          show ticks (header toggle is **manual**). Names that say fan
+          Dump ON/OFF is Home Assistant automations (`sim_dump_control.yaml`);
+          the six switches below show ticks (header toggle is **manual**). Names that say fan
           on dump plugs are lab dump loads, not the cargo vent or LED.
           **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus anything
           on SPH OUTPUT, including dump). **Sungold AC-in** is the trailer

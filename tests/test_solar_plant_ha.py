@@ -211,7 +211,7 @@ def test_dashboard_uses_official_cards_only() -> None:
 def test_docs_and_install_script_exist() -> None:
     text = DOCS.read_text(encoding="utf-8")
     assert "power-sankey" in text
-    assert "solar_dump.py" in text
+    assert "sim_dump_control.yaml" in text
     assert "energy/save_prefs" in text
     assert "thermostat" in text
     assert "weather-forecast" in text

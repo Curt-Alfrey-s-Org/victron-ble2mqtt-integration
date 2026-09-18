@@ -30,9 +30,9 @@ Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https:/
 | **Is not** | Real Shelly hardware, MQTT sidecar, cloud APIs, or Lovelace scraping |
 | **Is not** | Loaded until the operator copies the package onto `.105` and restarts HA |
 
-Load control policy (allowlist, auto-actuate, kill switches) lives in alfa-ai:
-[HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)
-(sibling: `../alfa-ai/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md`).
+Dump **on/off**, surplus hysteresis, and charge-stage dwell live in Home Assistant:
+[DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). alfa-ai observes and audits; it
+does not run a second dump ticker.
 
 Dump loads are fed from **Sungold AC out** (SPH INV OUTPUT), not KU Renogy:
 [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
@@ -98,16 +98,14 @@ The script:
 curl -fsS -H "Authorization: Bearer <token>" http://127.0.0.1:8123/api/states/switch.sim_ac_plug_1
 ```
 
-3. In alfa-ai **Admin -> AI Actions -> Settings**, add allowlist (example):
+3. Install HA dump **control** (Threshold + charge `for:` + automations):
 
-```
-switch.sim_ac_plug_1,switch.sim_ac_plug_2,switch.sim_ac_plug_3,switch.sim_ac_plug_4,switch.sim_ac_plug_5,switch.sim_ac_plug_6
+```bash
+bash scripts/install_sim_dump_control_ha.sh
 ```
 
-Keep `ha_solar_dump_auto_actuate=false` until you want the dump-load ticker to toggle sim loads
-(allowlist still required). When HA is enabled on the brain (`ALFA_AI_HOME_ASSISTANT_ENABLED=1`
-+ token file), Ask ALFa `ha_switch_on` / `ha_switch_off` auto-actuate without Approve; see
-alfa-ai [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md).
+See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). Do not also enable an alfa-ai
+dump ticker that calls `switch.turn_on` / `turn_off`.
 
 **Disable / remove:** delete `/opt/homeassistant/packages/sim_dump_plugs.yaml`, restart HA,
 remove entities from the registry if needed.
@@ -118,30 +116,19 @@ Default: package is **not** on `/opt/homeassistant` until the operator runs the 
 [entities](https://www.home-assistant.io/dashboards/entities/) card
 (`show_header_toggle: true`) for `switch.sim_ac_plug_1` ... `_6`. Per-plug watts
 are on **History**, not a second Now glance ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
-That card is **visibility** (and optional manual toggle). Dump ticks still come
-from alfa-ai `solar_dump.py`.
+That card is **visibility** (and optional manual toggle). Automatic dump ON/OFF
+comes from [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md), not alfa-ai.
 
 ---
 
-## alfa-ai REST control (brain on `.111`)
+## alfa-ai (observe only)
 
-alfa-ai calls HA on `.105` ([REST API](https://developers.home-assistant.io/docs/api/rest/)):
-
-```http
-POST /api/services/switch/turn_on
-Content-Type: application/json
-Authorization: Bearer <long-lived token>
-
-{"entity_id": "switch.sim_ac_plug_1"}
-```
-
-```http
-POST /api/services/switch/turn_off
-{"entity_id": "switch.sim_ac_plug_1"}
-```
+The brain on `.111` may **read** these switches via HA REST for audit. Dump
+**actuation** is [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). Do not run a
+second ticker that POSTs `switch.turn_on` / `turn_off`.
 
 Template switches run `input_boolean.turn_on` / `turn_off` internally; power sensors
-update from the same internal state. See [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md).
+update from the same internal state.
 
 ---
 
@@ -149,9 +136,12 @@ update from the same internal state. See [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_
 
 | File | Role |
 |------|------|
-| `config/packages/sim_dump_plugs.yaml` | Tracked HA package (source of truth) |
-| `scripts/install_sim_dump_plugs_ha.sh` | Copy + packages include + container restart |
-| `tests/test_sim_dump_plugs.py` | Entity id / watt table validation |
+| `config/packages/sim_dump_plugs.yaml` | Tracked HA plug entities |
+| `config/packages/sim_dump_control.yaml` | HA dump on/off (Threshold, dwell, automations) |
+| `scripts/install_sim_dump_plugs_ha.sh` | Copy plugs package + restart |
+| `scripts/install_sim_dump_control_ha.sh` | Copy control package + restart |
+| `tests/test_sim_dump_plugs.py` | Plug entity contract |
+| `tests/test_sim_dump_control.py` | Control package contract |
 
 ---
 
