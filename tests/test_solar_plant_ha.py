@@ -102,6 +102,22 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert sankey["collection_key"] == "energy_dashboard"
     thermostat = next(c for c in cards if c["type"] == "thermostat")
     assert thermostat["entity"] == "climate.417373300314"
+    assert thermostat["name"] == "Ecobee"
+    ecobee_glance = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Ecobee"
+    )
+    ecobee_ids = {e["entity"] for e in ecobee_glance["entities"]}
+    assert ecobee_ids == {
+        "sensor.417373300314_temperature",
+        "sensor.417373300314_humidity",
+    }
+    assert not any(c.get("title") == "Trailer climate" for c in cards)
+    assert not any(c.get("title") == "House climate" for c in cards)
+    trailer_hygro = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Trailer hygrometer"
+    )
+    hygro_ids = {e["entity"] for e in trailer_hygro["entities"]}
+    assert "sensor.thermo_hygrometer_caaf6f_h5072_75_tempc" in hygro_ids
     dist = next(c for c in cards if c["type"] == "distribution")
     dist_entities = {e["entity"] for e in dist["entities"]}
     assert "sensor.sungold_sph302480a_pv_power" in dist_entities

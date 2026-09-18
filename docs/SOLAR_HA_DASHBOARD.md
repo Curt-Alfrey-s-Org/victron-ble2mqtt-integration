@@ -176,7 +176,7 @@ Official cards:
   **eight** entities per card; group by `unit_of_measurement`
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/) -- kWh helpers
 - [Glance](https://www.home-assistant.io/dashboards/glance/)
-- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- trailer A/C climate
+- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee (`climate.417373300314`, name **Ecobee**; not trailer)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/) -- Instant W
 
 Do **not** add these to Energy sources: shunt Ah/min/RSSI, Sungold PV/V/A/Hz/faults,
@@ -192,8 +192,8 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 | KU shunt extras | `sensor.battery_2_state_of_charge`, `sensor.battery_2_consumed_ah`, `sensor.battery_2_remaining_minutes`, `sensor.battery_2_rssi` |
 | Sungold cart (expand) | PV W/V/A, batt V/A/SoC/temp, load W, UTI V, mode |
 | Loads (not losses) glance | A3/B3 CT legs, sim dump, Sungold A/C out (**Pi4**); KU glance **LED+fan** = `trailer_outlet_power` |
-| Trailer climate | `climate.417373300314` (thermostat, name Trailer A/C), `sensor.417373300314_temperature`, `sensor.417373300314_humidity` |
-| Hygrometer | `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (may be unknown) |
+| **Ecobee** | House thermostat (not trailer). Glance [title](https://www.home-assistant.io/dashboards/glance/) **Ecobee** with `sensor.417373300314_temperature` / `_humidity`. Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314`. Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Climate `current_temperature` is an attribute on `climate.*` ([Climate entity](https://developers.home-assistant.io/docs/core/entity/climate/)); this dashboard uses the dedicated sensors. Energy device name **Trailer A/C** is `sensor.trailer_outlet_power` (watts), not this thermostat. |
+| Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
 
 ### History (one unit per graph, max 8)
 
@@ -203,8 +203,8 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 | Watts (chargers) | `ku_unmetered_pv_est_power`, `ku_charger_equal_share_power`, `solar_controller_charging_power`, `sungold_sph302480a_charging_power` |
 | Volts | `battery_1_voltage`, `battery_2_voltage`, `solar_controller_battery`, `sungold_sph302480a_battery_voltage`, `sungold_sph302480a_pv_voltage`, `sungold_sph302480a_grid_voltage`, `sungold_sph302480a_ac_output_voltage` |
 | Amps | `battery_1_current`, `battery_2_current`, `solar_controller_battery_charging`, `sungold_sph302480a_battery_current`, `sungold_sph302480a_pv_current`, `sungold_sph302480a_load_current`, `sungold_sph302480a_grid_current` |
-| SoC / % | `battery_1_state_of_charge`, `battery_2_state_of_charge`, `sungold_sph302480a_battery_soc`, `sensor.417373300314_humidity`, hygrometer hum/batt |
-| Temperature | `sensor.417373300314_temperature`, hygrometer tempc, Sungold batt/heatsink temps |
+| SoC / % | `battery_1_state_of_charge`, `battery_2_state_of_charge`, `sungold_sph302480a_battery_soc`, Ecobee `sensor.417373300314_humidity`, trailer hygrometer hum/batt |
+| Temperature | Ecobee `sensor.417373300314_temperature`, trailer hygrometer tempc, Sungold batt/heatsink temps |
 | kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + trailer + Sungold load + sim dump energy helpers |
 
 `hours_to_show: 72` on history-graph ([history graph](https://www.home-assistant.io/dashboards/history-graph/); minimum 1 hour).

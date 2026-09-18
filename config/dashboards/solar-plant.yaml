@@ -198,10 +198,10 @@ views:
 
       - type: thermostat
         entity: climate.417373300314
-        name: Trailer A/C
+        name: Ecobee
 
       - type: glance
-        title: Trailer climate
+        title: Ecobee
         show_name: true
         show_icon: true
         show_state: true
@@ -213,7 +213,7 @@ views:
             name: Humidity
 
       - type: glance
-        title: Hygrometer
+        title: Trailer hygrometer
         show_name: true
         show_icon: true
         show_state: true
@@ -331,7 +331,7 @@ views:
           - entity: sensor.sungold_sph302480a_battery_soc
             name: Sungold SoC
           - entity: sensor.417373300314_humidity
-            name: Trailer humidity
+            name: Ecobee humidity
           - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
             name: Hygrometer hum
           - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
@@ -342,7 +342,7 @@ views:
         hours_to_show: 72
         entities:
           - entity: sensor.417373300314_temperature
-            name: Trailer temp
+            name: Ecobee temp
           - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
             name: Hygrometer temp
           - entity: sensor.sungold_sph302480a_battery_temperature
