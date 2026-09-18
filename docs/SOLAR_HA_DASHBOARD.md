@@ -110,6 +110,29 @@ YAML dashboard reload after later file edits: dashboard three-dots **Refresh**
 
 ---
 
+## Display precision (tenths)
+
+Numeric tiles use Home Assistant **display precision**, not rounded MQTT payloads.
+That is the same control as **Settings > Devices & services > Entities >
+Display precision**. The user override lives in
+`options.sensor.display_precision` (and `options.number.display_precision`)
+on the entity registry
+([WebSocket entity registry](https://developers.home-assistant.io/docs/api/websocket/),
+[MQTT suggested_display_precision](https://www.home-assistant.io/integrations/sensor.mqtt/#suggested_display_precision)).
+MQTT `suggested_display_precision` is only a default; Refoss and other
+integrations can still show hundredths until the user override is `1`.
+
+Site default: **tenths** (`1`) on every `sensor` and `number` entity except
+`timestamp` / `date` / `enum`. Change individuals afterward in the entity UI.
+Stop the `homeassistant` container before writing `.storage`
+([Container common tasks](https://www.home-assistant.io/common-tasks/container/)):
+
+```bash
+bash scripts/apply_ha_display_precision.sh
+```
+
+---
+
 ## Energy dashboard (CLI)
 
 `power-sankey` stays empty until Energy sources exist

@@ -54,9 +54,14 @@ You need **two** things per device:
    (impossible volts/amps/watts). If HA shows Battery 1 at hundreds of volts
    while the MPPT is ~26 V, re-copy the key from the app.
 
-Home Assistant cards for current, voltage, and power use **one decimal**
-(`suggested_display_precision: 1` on MQTT discovery — [MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/#suggested_display_precision)).
-Energy (Wh) and percent sensors are unchanged.
+Home Assistant shows numeric sensors at **tenths** (`display_precision: 1` in
+the entity registry — same as the entity **Display precision** UI). MQTT
+Victron discovery still sets
+[`suggested_display_precision: 1`](https://www.home-assistant.io/integrations/sensor.mqtt/#suggested_display_precision)
+for A/V/W; the registry override covers Refoss, Sungold, templates, energy, and
+percent. Apply on `.105` with HA stopped: `bash scripts/apply_ha_display_precision.sh`
+([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). Change individuals later in
+the entity UI.
 
 MQTT discovery `name` strings follow VictronConnect readout wording
 ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html),
