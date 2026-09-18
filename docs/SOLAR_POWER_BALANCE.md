@@ -200,7 +200,7 @@ lower bound above.
 ```
 SG_AC_in   = utiHopW(SG_grid V×A, SG_load_active_power)   # passthrough; do NOT use A3
 SG_batt_in = Sungold battery input power       # LCD INPUT BATT KW (Boost charge = charging)
-SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (includes Pi4 ~5 W live)
+SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (total A/C-out outlet)
 SG_PV      = Sungold PV output power
 trailer_outlet_W = |EM16 B3| if B3 >= 0.5 W else |EM16 A3|
 vent_fan_W = max(0, trailer_outlet_W - utiHopW)   # sibling on KU trailer outlet; load not loss
@@ -225,8 +225,12 @@ search `fan.*` on `.105` ([REST states](https://developers.home-assistant.io/doc
 Weather strip: **TODO** `weather.*` / `climate.*` ecobee -- HA weather cards on
 Solar plant / Solar, not a custom SVG.
 
-**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio; ~5 W
-via `sensor.sungold_sph302480a_load_active_power`). Cargo-trailer **vent fan** shares the
+**Operator 18 Sep 2026:** `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
+([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)) -- **all**
+loads on SPH A/C OUTPUT, not Pi4 alone. Pi4 is a few watts. Fan and dehumidifier on the same
+outlet add into that reading. Night ~5 W was Pi4-only.
+
+**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio). Cargo-trailer **vent fan** shares the
 **KU Renogy trailer outlet** with Sungold UTI (UTI tile in **Sungold cart lane**). EM16 A3
 is that hot-leg **total** — **not** Sungold-only. Do not force A3 = SPH A/C in. Do not
 use A3 as `ha_load_entity`.

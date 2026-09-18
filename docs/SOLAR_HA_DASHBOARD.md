@@ -193,7 +193,7 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 
 | Card | Entities |
 |------|----------|
-| Instant W distribution | T2 MPPT, Trailer outlet (**LED+fan**), Sim dump, Sungold load (**Pi4**), Sungold PV — **no** KU PV est. |
+| Instant W distribution | T2 MPPT, Trailer outlet (**LED+fan**), Sim dump, Sungold **AC out** (total INV OUTPUT LOAD KW), Sungold PV — **no** KU PV est. |
 | Conversion losses | `sensor.solar_component_losses_power`, T2 MPPT loss, Sungold loss (+ gauge on total) |
 | Sim dump plugs | [Entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Glance `sensor.sim_ac_plug_*_power`. Lab names (fan / dehumidifier / water heater / gaming PC) are **dump loads**, not trailer LED/fan or Pi4. |
 | T2 MPPT extras | `sensor.solar_controller_yield_today`, `charging_power`, `load_power`, `load`, `rssi` |
@@ -201,7 +201,7 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 | KU shunt extras | `sensor.battery_2_state_of_charge`, `sensor.battery_2_consumed_ah`, `sensor.battery_2_remaining_minutes`, `sensor.battery_2_rssi` |
 | Sungold cart (expand) | PV W/V/A, batt V/A/SoC/temp, load W, UTI V, mode |
 | Sungold status | Charge state, AC out V/Hz, AC in A/Hz, load A, fault code, fault active, error flags |
-| Loads (not losses) glance | A3/B3 CT legs, sim dump, Sungold A/C out (**Pi4**); KU glance **LED+fan** = `trailer_outlet_power` |
+| Loads (not losses) glance | A3/B3 CT legs, sim dump, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** outlet, not Pi4). KU glance **LED+fan** = `trailer_outlet_power`. |
 | **Ecobee** | House thermostat (not trailer). Glance [title](https://www.home-assistant.io/dashboards/glance/) **Ecobee** with `sensor.417373300314_temperature` / `_humidity`. Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314`. Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Climate `current_temperature` is an attribute on `climate.*` ([Climate entity](https://developers.home-assistant.io/docs/core/entity/climate/)); this dashboard uses the dedicated sensors. Energy device name **Trailer A/C** is `sensor.trailer_outlet_power` (watts), not this thermostat. |
 | Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
 

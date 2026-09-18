@@ -113,7 +113,15 @@ views:
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
-            name: Pi4
+            name: Sungold AC out
+
+      - type: markdown
+        title: Sungold AC out
+        content: >
+          `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
+          ([SPH reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
+          -- the **whole** A/C-out outlet, not Pi4 alone. Pi4 is a few watts.
+          Fan, dehumidifier, and dump loads on that outlet add into this number.
 
       - type: markdown
         title: Sim dump plugs
@@ -330,7 +338,7 @@ views:
           - entity: sensor.sim_dump_load_power
             name: Sim dump
           - entity: sensor.sungold_sph302480a_load_power
-            name: Pi4
+            name: Sungold AC out
           - entity: sensor.sungold_sph302480a_pv_power
             name: Sungold PV
 

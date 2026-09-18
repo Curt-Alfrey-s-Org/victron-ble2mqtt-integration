@@ -125,7 +125,14 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.ku_unmetered_pv_est_power" not in dist_entities
     dist_names = {e["name"] for e in dist["entities"]}
     assert "LED+fan" in dist_names
-    assert "Pi4" in dist_names
+    assert "Sungold AC out" in dist_names
+    assert "Pi4" not in dist_names
+    loads_glance = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Loads (not losses)"
+    )
+    loads_names = {e["name"] for e in loads_glance["entities"]}
+    assert "Sungold AC out" in loads_names
+    assert "Pi4" not in loads_names
     losses_glance = next(
         c for c in cards if c.get("type") == "glance" and c.get("title") == "Conversion losses"
     )
