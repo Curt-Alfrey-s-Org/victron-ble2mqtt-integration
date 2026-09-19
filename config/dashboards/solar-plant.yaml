@@ -139,8 +139,13 @@ views:
         content: >
           **Dump load HA control** is the kill switch for HA automations that turn
           the sim dump plugs on and off (Threshold surplus band, charge-stage dwell,
-          min on/off timers). **Off** = automations do nothing. **On** = they may
-          toggle the six plugs below. Plug header toggle is manual only.
+          min on/off timers, staged plug add). **Off** = automations do nothing.
+          **On** = they may add one plug, wait for that plug's live watt sensor,
+          then add another only if surplus, inverter headroom, and batteries still
+          allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
+          on INV OUTPUT plus cart battery amps. Plug watts come from the smart
+          plug power entity (set on each row), not a typed rating. Never all six
+          at once. Plug header toggle is manual only.
           Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
           Helpers list (backup): [Settings > Helpers](/config/helpers).
 
@@ -152,6 +157,34 @@ views:
             name: Automations on/off
             icon: mdi:transmission-tower-export
             secondary_info: last-changed
+          - entity: input_number.dump_ac_limit_t2_w
+            name: T2 AC limit
+          - entity: input_number.dump_ac_limit_ku_w
+            name: KU AC limit
+          - entity: input_number.dump_ac_limit_sph_w
+            name: SPH AC limit
+          - entity: input_number.dump_max_discharge_t2_w
+            name: T2 max batt discharge
+          - entity: input_number.dump_max_discharge_ku_w
+            name: KU max batt discharge
+          - entity: input_number.dump_max_discharge_sph_w
+            name: SPH max batt discharge
+          - entity: binary_sensor.dump_batt_t2_ok
+            name: T2 batt ok
+          - entity: binary_sensor.dump_batt_ku_ok
+            name: KU batt ok
+          - entity: binary_sensor.dump_batt_sph_ok
+            name: SPH batt ok
+          - entity: sensor.battery_1_power
+            name: T2 shunt W
+          - entity: sensor.battery_2_power
+            name: KU shunt W
+          - entity: sensor.sungold_sph302480a_load_power
+            name: SPH AC out
+          - entity: sensor.dump_next_plug
+            name: Next plug that fits
+          - entity: sensor.dump_surplus_w
+            name: Dump surplus
           - type: weblink
             name: DUMP_LOAD_HA_CONTROL.md (what this does)
             url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
@@ -166,17 +199,53 @@ views:
         show_header_toggle: true
         entities:
           - entity: switch.sim_ac_plug_1
-            name: 1 fan 180 W
+            name: Plug 1
+          - entity: sensor.sim_ac_plug_1_power
+            name: 1 live W
+          - entity: input_text.dump_plug_1_power_entity
+            name: 1 power sensor
+          - entity: input_select.dump_plug_1_inverter
+            name: 1 inverter
           - entity: switch.sim_ac_plug_2
-            name: 2 dehumidifier 300 W
+            name: Plug 2
+          - entity: sensor.sim_ac_plug_2_power
+            name: 2 live W
+          - entity: input_text.dump_plug_2_power_entity
+            name: 2 power sensor
+          - entity: input_select.dump_plug_2_inverter
+            name: 2 inverter
           - entity: switch.sim_ac_plug_3
-            name: 3 water heater 1200 W
+            name: Plug 3
+          - entity: sensor.sim_ac_plug_3_power
+            name: 3 live W
+          - entity: input_text.dump_plug_3_power_entity
+            name: 3 power sensor
+          - entity: input_select.dump_plug_3_inverter
+            name: 3 inverter
           - entity: switch.sim_ac_plug_4
-            name: 4 fan 130 W
+            name: Plug 4
+          - entity: sensor.sim_ac_plug_4_power
+            name: 4 live W
+          - entity: input_text.dump_plug_4_power_entity
+            name: 4 power sensor
+          - entity: input_select.dump_plug_4_inverter
+            name: 4 inverter
           - entity: switch.sim_ac_plug_5
-            name: 5 fan 130 W
+            name: Plug 5
+          - entity: sensor.sim_ac_plug_5_power
+            name: 5 live W
+          - entity: input_text.dump_plug_5_power_entity
+            name: 5 power sensor
+          - entity: input_select.dump_plug_5_inverter
+            name: 5 inverter
           - entity: switch.sim_ac_plug_6
-            name: 6 gaming PC 300 W
+            name: Plug 6
+          - entity: sensor.sim_ac_plug_6_power
+            name: 6 live W
+          - entity: input_text.dump_plug_6_power_entity
+            name: 6 power sensor
+          - entity: input_select.dump_plug_6_inverter
+            name: 6 inverter
 
       - type: glance
         title: Conversion losses

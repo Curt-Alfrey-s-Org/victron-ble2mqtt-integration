@@ -1,21 +1,26 @@
-# Simulated A/C dump-load plugs (FAKE loads for alfa-ai)
+# Dump-load plugs (template now, Shelly power when purchased)
 
-**Status (2026-09-17):** Six **simulated** Shelly-like switches in Home Assistant. No
-physical smart plugs. Used to exercise alfa-ai solar dump-load decisions and manual
-`switch.turn_on` / `turn_off` before wiring real dump loads on **Sungold AC out**.
+**Status (2026-09-19):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
+watt rating.** Staging uses each plug's **live power sensor**. Until a real
+smart plug is added, power is unknown while ON and HA turns that probe off
+after 15 s (fail closed).
 
-**Hosts:** Home Assistant Container on **`.105:8123`**. alfa-ai brain on **`.111`**
-controls plugs via the official HA REST API ([REST API](https://developers.home-assistant.io/docs/api/rest/)).
+**Hardware when purchased:** official [Shelly](https://www.home-assistant.io/integrations/shelly/)
+plug (local switch + `power` sensor). Do not invent a custom watt protocol.
+
+**Hosts:** Home Assistant Container on **`.105:8123`**. alfa-ai on **`.111`**
+observes via HA REST ([REST API](https://developers.home-assistant.io/docs/api/rest/)).
 Do **not** use `POST /api/states` to control loads -- always service calls.
 
 Official HA manuals (RULE #1):
 
-- [Template integration](https://www.home-assistant.io/integrations/template/) (`unique_id`, `default_entity_id`)
+- [Template integration](https://www.home-assistant.io/integrations/template/)
 - [Input boolean](https://www.home-assistant.io/integrations/input_boolean/)
+- [Input text](https://www.home-assistant.io/integrations/input_text/) (`dump_plug_N_power_entity`)
 - [Switch domain](https://www.home-assistant.io/integrations/switch/)
-- [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/) (split YAML into `packages/`)
-- [Home Assistant Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container) (`docker restart homeassistant` after package changes)
-- [Customizing entities](https://www.home-assistant.io/docs/configuration/customizing-devices/) (entity_id changes in UI; no documented in-place `unique_id` rename API)
+- [Shelly](https://www.home-assistant.io/integrations/shelly/) (power measurement needs reachable SNTP on the device)
+- [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/)
+- [Home Assistant Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container)
 
 Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf).
 
@@ -25,17 +30,14 @@ Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https:/
 
 | | |
 |---|---|
-| **Is** | HA YAML package: `input_boolean` internal state + **template switches** + template power sensors |
-| **Is** | Companion watts: rated W when ON, `unknown`/none when OFF (never the string `"off"`) |
-| **Is not** | Real Shelly hardware, MQTT sidecar, cloud APIs, or Lovelace scraping |
+| **Is** | HA YAML: `input_boolean` + template switches + live power templates |
+| **Is** | Power = the mapped Shelly (or other HA) power sensor while ON; `0` while OFF |
+| **Is not** | A typed watt rating, MQTT sidecar, or Lovelace scraping |
 | **Is not** | Loaded until the operator copies the package onto `.105` and restarts HA |
 
-Dump **on/off**, surplus hysteresis, and charge-stage dwell live in Home Assistant:
-[DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). alfa-ai observes and audits; it
-does not run a second dump ticker.
-
-Dump loads are fed from **Sungold AC out** (SPH INV OUTPUT), not KU Renogy:
-[SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
+Dump **on/off** and staged add live in [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
+HA waits for live watts before adding another plug. Inverter assignment is
+`input_select.dump_plug_N_inverter`.
 
 ---
 
@@ -43,40 +45,38 @@ Dump loads are fed from **Sungold AC out** (SPH INV OUTPUT), not KU Renogy:
 
 Use **`switch.sim_ac_plug_*`** in alfa-ai Settings -- **not** `input_boolean.*`.
 
-| entity_id (allowlist) | Device name | Rated W |
-|-----------------------|-------------|---------|
-| `switch.sim_ac_plug_1` | Sim A/C plug 1 fan | 180 |
-| `switch.sim_ac_plug_2` | Sim A/C plug 2 dehumidifier | 300 |
-| `switch.sim_ac_plug_3` | Sim A/C plug 3 water heater | 1200 |
-| `switch.sim_ac_plug_4` | Sim A/C plug 4 fan | 130 |
-| `switch.sim_ac_plug_5` | Sim A/C plug 5 fan | 130 |
-| `switch.sim_ac_plug_6` | Sim A/C plug 6 gaming PC | 300 |
+| entity_id | Role |
+|-----------|------|
+| `switch.sim_ac_plug_1` ... `_6` | Dump switch (template until hardware) |
+| `sensor.sim_ac_plug_N_power` | Live watts while ON (from mapped power entity) |
+| `sensor.sim_dump_load_power` | Sum of numeric plug power sensors |
+| `input_text.dump_plug_N_power_entity` | HA `entity_id` of that plug's power sensor (empty until hardware) |
 
 Internal helpers (do **not** allowlist): `input_boolean.sim_ac_plug_N_internal`.
 
-Power sensors (template):
+---
 
-| entity_id | When ON | When OFF |
-|-----------|---------|----------|
-| `sensor.sim_ac_plug_1_power` ... `sensor.sim_ac_plug_6_power` | Rated W (number) | none / unknown |
-| `sensor.sim_dump_load_power` | Sum of ON plug watts | `0` when all OFF |
+## When you buy smart plugs (one path)
 
-Each switch has pinned `unique_id` + `default_entity_id` so slugs stay `sim_ac_plug_1`
-through `_6` (no `_2` suffix drift). The aggregate sensor `unique_id` is
-`sim_dump_load_power` (was `sim_soak_load_power`). Changing `unique_id` registers a
-**new** entity ([template unique_id](https://www.home-assistant.io/integrations/template/));
-HA has no documented in-place unique_id rename. After reinstall, remove leftover
-`sensor.sim_soak_load_power` in **Settings > Entities** if it remains. alfa-ai
-`solar_dump.py` still reads the leftover entity_id until that cleanup.
+1. Add the device with the official [Shelly](https://www.home-assistant.io/integrations/shelly/)
+   integration (**Settings → Devices & services → Add integration → Shelly**).
+2. Confirm the device Web UI SNTP server is reachable (Shelly docs: required for
+   power measurement).
+3. For slot N: remove that slot's **template** switch from
+   `config/packages/sim_dump_plugs.yaml` (HA cannot have two entities with the
+   same `entity_id`), reinstall the package, then in **Settings → Entities**
+   rename the Shelly switch to `switch.sim_ac_plug_N`
+   ([customizing entities](https://www.home-assistant.io/docs/configuration/customizing-devices/)).
+4. On Solar plant, set **N power sensor** to the Shelly power `entity_id`
+   (example shape `sensor.shellyplusplug_..._power` -- use the id HA assigned).
+5. HA dump staging then uses that live watt reading. Ask ALFa inspects the same
+   sensors.
 
 ---
 
 ## Enable on `.105` only (one path)
 
-**Prerequisites:** HA Container running with config at `/opt/homeassistant`
-(this repo's `docker-compose.homeassistant.yml` on `.105`).
-
-1. On **`.105`**, in the victron checkout (e.g. `/home/ansible/victron-ble2mqtt-integration`):
+**Prerequisites:** HA Container running with config at `/opt/homeassistant`.
 
 ```bash
 cd /home/ansible/victron-ble2mqtt-integration
@@ -84,51 +84,15 @@ git pull --ff-only origin main
 bash scripts/install_sim_dump_plugs_ha.sh
 ```
 
-The script:
-
-- Copies `config/packages/sim_dump_plugs.yaml` to `/opt/homeassistant/packages/`
-- Removes leftover `/opt/homeassistant/packages/sim_soak_plugs.yaml` if present
-- Ensures `configuration.yaml` includes `packages: !include_dir_named packages`
-  ([packages doc](https://www.home-assistant.io/docs/configuration/packages/))
-- Runs `docker restart homeassistant` ([HA Container restart](https://www.home-assistant.io/installation/linux#install-home-assistant-container))
-
-2. After HA is back (~2 min), verify:
-
-```bash
-curl -fsS -H "Authorization: Bearer <token>" http://127.0.0.1:8123/api/states/switch.sim_ac_plug_1
-```
-
-3. Install HA dump **control** (Threshold + charge `for:` + automations):
-
-```bash
-bash scripts/install_sim_dump_control_ha.sh
-```
-
-See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). Do not also enable an alfa-ai
-dump ticker that calls `switch.turn_on` / `turn_off`.
-
-**Disable / remove:** delete `/opt/homeassistant/packages/sim_dump_plugs.yaml`, restart HA,
-remove entities from the registry if needed.
-
-Default: package is **not** on `/opt/homeassistant` until the operator runs the install script.
-
-**Solar plant Lovelace:** `/solar-plant` **Now** has **Dump load HA control**
-(`input_boolean.dump_control_enabled`) on an [entities](https://www.home-assistant.io/dashboards/entities/)
-card (kill switch for automations). The six `switch.sim_ac_plug_*` rows are
-visibility (and optional manual). Per-plug watts are on **History**
-([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)). Automatic dump ON/OFF comes from
-[DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md), not alfa-ai.
+Then dump control: `bash scripts/install_sim_dump_control_ha.sh`.
+See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
 
 ---
 
-## alfa-ai (observe only)
+## alfa-ai (observe)
 
-The brain on `.111` may **read** these switches via HA REST for audit. Dump
-**actuation** is [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md). Do not run a
-second ticker that POSTs `switch.turn_on` / `turn_off`.
-
-Template switches run `input_boolean.turn_on` / `turn_off` internally; power sensors
-update from the same internal state.
+The brain may **read** these switches and power sensors via HA REST. Dump
+**actuation** is [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
 
 ---
 
@@ -136,8 +100,8 @@ update from the same internal state.
 
 | File | Role |
 |------|------|
-| `config/packages/sim_dump_plugs.yaml` | Tracked HA plug entities |
-| `config/packages/sim_dump_control.yaml` | HA dump on/off (Threshold, dwell, automations) |
+| `config/packages/sim_dump_plugs.yaml` | Switches + live power mapping |
+| `config/packages/sim_dump_control.yaml` | HA dump on/off + wait-for-watts |
 | `scripts/install_sim_dump_plugs_ha.sh` | Copy plugs package + restart |
 | `scripts/install_sim_dump_control_ha.sh` | Copy control package + restart |
 | `tests/test_sim_dump_plugs.py` | Plug entity contract |
@@ -148,14 +112,13 @@ update from the same internal state.
 ## Tests
 
 ```bash
-python -m pytest tests/test_sim_dump_plugs.py -q
+python -m pytest tests/test_sim_dump_plugs.py tests/test_sim_dump_control.py -q
 ```
 
 ---
 
 ## Related
 
-- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- HA Solar plant (canonical)
-- [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md)
-- [ALFA_CLUSTER_INTEGRATION.md](ALFA_CLUSTER_INTEGRATION.md)
+- [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)
+- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)
 - alfa-ai [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md)

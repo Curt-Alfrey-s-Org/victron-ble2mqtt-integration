@@ -30,7 +30,20 @@ def _load() -> dict:
 
 def test_docs_and_install_exist() -> None:
     assert DOCS.is_file()
-    assert "Home Assistant owns dump-load" in DOCS.read_text(encoding="utf-8")
+    docs = DOCS.read_text(encoding="utf-8")
+    assert "Home Assistant owns dump-load" in docs
+    assert "dump_ac_limit_t2_w" in docs
+    assert "dump_batt_t2_ok" in docs
+    assert "dump_plug_N_power_entity" in docs
+    assert "dump_plug_N_inverter" in docs
+    assert "dump_plug_N_watts" not in docs
+    assert "sensor.battery_1_power" in docs
+    assert "sensor.battery_2_power" in docs
+    assert "sensor.sungold_sph302480a_load_power" in docs
+    assert "You do **not** type the wattage" in docs
+    assert "ha_set_number" in docs
+    assert "2000" in docs
+    assert "sensor.dump_next_plug" in docs
     assert INSTALL.is_file()
     text = INSTALL.read_text(encoding="utf-8")
     assert "sim_dump_control.yaml" in text
@@ -41,6 +54,22 @@ def test_docs_and_install_exist() -> None:
 def test_kill_switch_and_timers() -> None:
     data = _load()
     assert "dump_control_enabled" in (data.get("input_boolean") or {})
+    numbers = data.get("input_number") or {}
+    for key in ("dump_ac_limit_t2_w", "dump_ac_limit_ku_w", "dump_ac_limit_sph_w"):
+        ac_limit = numbers[key]
+        assert ac_limit["initial"] == 2000
+        assert ac_limit["unit_of_measurement"] == "W"
+        assert ac_limit["min"] == 500
+        assert ac_limit["max"] == 4000
+    assert numbers["dump_max_discharge_t2_w"]["initial"] == 0
+    assert numbers["dump_max_discharge_ku_w"]["initial"] == 0
+    assert numbers["dump_max_discharge_sph_w"]["initial"] == 50
+    assert "dump_plug_1_watts" not in numbers
+    selects = data.get("input_select") or {}
+    for n in range(1, 7):
+        sel = selects[f"dump_plug_{n}_inverter"]
+        assert sel["options"] == ["T2", "KU", "SPH"]
+        assert sel["initial"] == "SPH"
     timers = data.get("timer") or {}
     assert timers["dump_min_on"]["duration"] == "00:10:00"
     assert timers["dump_min_off"]["duration"] == "00:05:00"
@@ -57,9 +86,31 @@ def test_surplus_template_and_charge_ok() -> None:
     surplus = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_surplus_w")
     assert "sensor.solar_controller_solar" in surplus["state"]
     assert "sensor.sim_dump_load_power" in surplus["state"]
+    nxt = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_next_plug")
+    nxt_state = nxt["state"]
+    assert "sensor.sim_ac_plug_1_power" in nxt_state
+    assert "sensor.dump_plug_1_last_w" in nxt_state
+    assert "input_number.dump_plug_1_watts" not in nxt_state
+    assert "input_number.dump_ac_limit_t2_w" in nxt_state
+    assert "input_number.dump_ac_limit_ku_w" in nxt_state
+    assert "input_number.dump_ac_limit_sph_w" in nxt_state
+    assert "sensor.battery_1_power" in nxt_state
+    assert "sensor.battery_2_power" in nxt_state
+    assert "sensor.sungold_sph302480a_load_power" in nxt_state
+    assert "binary_sensor.dump_batt_t2_ok" in nxt_state
+    assert "binary_sensor.dump_batt_ku_ok" in nxt_state
+    assert "binary_sensor.dump_batt_sph_ok" in nxt_state
+    assert "sensor.dump_surplus_w" in nxt_state
     charge = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_charge_ok")
     assert "absorption" in charge["state"]
     assert "float" in charge["state"]
+    t2_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_t2_ok")
+    assert "sensor.battery_1_power" in t2_ok["state"]
+    ku_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_ku_ok")
+    assert "sensor.battery_2_power" in ku_ok["state"]
+    sph_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_sph_ok")
+    assert "sensor.sungold_sph302480a_battery_current" in sph_ok["state"]
+    assert "sensor.sungold_sph302480a_battery_voltage" in sph_ok["state"]
 
 
 def test_threshold_hysteresis_200_50() -> None:
@@ -85,19 +136,46 @@ def test_automations_use_switch_services_and_dwell() -> None:
         "sim_dump_turn_on",
         "sim_dump_turn_off_surplus",
         "sim_dump_turn_off_bulk",
+        "sim_dump_turn_off_batt_t2",
+        "sim_dump_turn_off_batt_ku",
+        "sim_dump_turn_off_batt_sph",
     }
     on = by_id["sim_dump_turn_on"]
     off_s = by_id["sim_dump_turn_off_surplus"]
     off_b = by_id["sim_dump_turn_off_bulk"]
-    for auto in (on, off_s, off_b):
+    off_batt = (
+        by_id["sim_dump_turn_off_batt_t2"],
+        by_id["sim_dump_turn_off_batt_ku"],
+        by_id["sim_dump_turn_off_batt_sph"],
+    )
+    for auto in (on, off_s, off_b) + off_batt:
         for trig in auto["triggers"]:
             if trig.get("trigger") == "state":
                 assert trig.get("for") == "00:01:00"
-    on_action = on["actions"][0]
-    assert on_action["action"] == "switch.turn_on"
-    assert on_action["target"]["entity_id"] == PLUGS
+    on_repeat = on["actions"][0]["repeat"]
+    on_seq = on_repeat["sequence"]
+    seq_txt = str(on_seq)
+    assert "wait_template" in seq_txt
+    assert "dump plug reported no live watts" in seq_txt
+    turn_on = next(a for a in on_seq if a.get("action") == "switch.turn_on")
+    assert "{{ target }}" in str(turn_on["target"]["entity_id"])
+    assert PLUGS != turn_on["target"]["entity_id"]
+    while_t = " ".join(str(c) for c in on_repeat["while"])
+    assert "dump_next_plug" in while_t
+    assert "repeat.index" in while_t
+    assert any(a.get("delay") == 1 for a in on_seq)
+    assert any(
+        a.get("action") == "timer.start"
+        and a.get("target", {}).get("entity_id") == "timer.dump_min_on"
+        for a in on_seq
+    )
     assert off_s["actions"][0]["action"] == "switch.turn_off"
     assert off_b["actions"][0]["action"] == "switch.turn_off"
     assert any(
         a.get("action") == "timer.cancel" for a in off_b["actions"]
     ), "bulk off must cancel min-on timer"
+    assert by_id["sim_dump_turn_off_batt_t2"]["triggers"][0]["entity_id"] == (
+        "binary_sensor.dump_batt_t2_ok"
+    )
+    ku_each = by_id["sim_dump_turn_off_batt_ku"]["actions"][0]["repeat"]["for_each"]
+    assert any(item.get("select") == "input_select.dump_plug_3_inverter" for item in ku_each)

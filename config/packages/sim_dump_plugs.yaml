@@ -1,27 +1,64 @@
-# Simulated A/C dump-load plugs (FAKE) -- opt-in package for Home Assistant on .105
-# alfa-ai allowlist uses switch.sim_ac_plug_* (template), not input_boolean.*
-# Official: https://www.home-assistant.io/integrations/template/
-#           https://www.home-assistant.io/integrations/input_boolean/
-#           https://www.home-assistant.io/docs/configuration/packages/
+# Dump-load plugs -- template switches until real power-reporting smart plugs.
+# When hardware is added (official Shelly integration), rename the device switch
+# to switch.sim_ac_plug_N and set input_text.dump_plug_N_power_entity to that
+# device's power sensor. HA dump staging uses live watts, not typed ratings.
+# Official:
+#   https://www.home-assistant.io/integrations/template/
+#   https://www.home-assistant.io/integrations/input_boolean/
+#   https://www.home-assistant.io/integrations/input_text/
+#   https://www.home-assistant.io/docs/configuration/packages/
+#   https://www.home-assistant.io/integrations/shelly/
 # unique_id + default_entity_id: https://www.home-assistant.io/integrations/template/
 
 input_boolean:
   sim_ac_plug_1_internal:
-    name: Sim A/C plug 1 fan (internal)
+    name: Dump plug 1 (internal)
   sim_ac_plug_2_internal:
-    name: Sim A/C plug 2 dehumidifier (internal)
+    name: Dump plug 2 (internal)
   sim_ac_plug_3_internal:
-    name: Sim A/C plug 3 water heater (internal)
+    name: Dump plug 3 (internal)
   sim_ac_plug_4_internal:
-    name: Sim A/C plug 4 fan (internal)
+    name: Dump plug 4 (internal)
   sim_ac_plug_5_internal:
-    name: Sim A/C plug 5 fan (internal)
+    name: Dump plug 5 (internal)
   sim_ac_plug_6_internal:
-    name: Sim A/C plug 6 gaming PC (internal)
+    name: Dump plug 6 (internal)
+
+input_text:
+  dump_plug_1_power_entity:
+    name: Plug 1 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
+  dump_plug_2_power_entity:
+    name: Plug 2 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
+  dump_plug_3_power_entity:
+    name: Plug 3 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
+  dump_plug_4_power_entity:
+    name: Plug 4 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
+  dump_plug_5_power_entity:
+    name: Plug 5 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
+  dump_plug_6_power_entity:
+    name: Plug 6 live power entity
+    max: 64
+    pattern: "^$|^sensor\\.[a-z0-9_]+$"
+    icon: mdi:flash
 
 template:
   - switch:
-      - name: Sim A/C plug 1 fan
+      - name: Dump plug 1
         unique_id: sim_ac_plug_1
         default_entity_id: switch.sim_ac_plug_1
         state: "{{ is_state('input_boolean.sim_ac_plug_1_internal', 'on') }}"
@@ -33,7 +70,7 @@ template:
           - action: input_boolean.turn_off
             target:
               entity_id: input_boolean.sim_ac_plug_1_internal
-      - name: Sim A/C plug 2 dehumidifier
+      - name: Dump plug 2
         unique_id: sim_ac_plug_2
         default_entity_id: switch.sim_ac_plug_2
         state: "{{ is_state('input_boolean.sim_ac_plug_2_internal', 'on') }}"
@@ -45,7 +82,7 @@ template:
           - action: input_boolean.turn_off
             target:
               entity_id: input_boolean.sim_ac_plug_2_internal
-      - name: Sim A/C plug 3 water heater
+      - name: Dump plug 3
         unique_id: sim_ac_plug_3
         default_entity_id: switch.sim_ac_plug_3
         state: "{{ is_state('input_boolean.sim_ac_plug_3_internal', 'on') }}"
@@ -57,7 +94,7 @@ template:
           - action: input_boolean.turn_off
             target:
               entity_id: input_boolean.sim_ac_plug_3_internal
-      - name: Sim A/C plug 4 fan
+      - name: Dump plug 4
         unique_id: sim_ac_plug_4
         default_entity_id: switch.sim_ac_plug_4
         state: "{{ is_state('input_boolean.sim_ac_plug_4_internal', 'on') }}"
@@ -69,7 +106,7 @@ template:
           - action: input_boolean.turn_off
             target:
               entity_id: input_boolean.sim_ac_plug_4_internal
-      - name: Sim A/C plug 5 fan
+      - name: Dump plug 5
         unique_id: sim_ac_plug_5
         default_entity_id: switch.sim_ac_plug_5
         state: "{{ is_state('input_boolean.sim_ac_plug_5_internal', 'on') }}"
@@ -81,7 +118,7 @@ template:
           - action: input_boolean.turn_off
             target:
               entity_id: input_boolean.sim_ac_plug_5_internal
-      - name: Sim A/C plug 6 gaming PC
+      - name: Dump plug 6
         unique_id: sim_ac_plug_6
         default_entity_id: switch.sim_ac_plug_6
         state: "{{ is_state('input_boolean.sim_ac_plug_6_internal', 'on') }}"
@@ -94,77 +131,107 @@ template:
             target:
               entity_id: input_boolean.sim_ac_plug_6_internal
   - sensor:
-      - name: Sim A/C plug 1 fan power
+      - name: Dump plug 1 power
         unique_id: sim_ac_plug_1_power
         default_entity_id: sensor.sim_ac_plug_1_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_1_internal', 'on') %}
-            180
+          {% if is_state('switch.sim_ac_plug_1', 'on') %}
+            {% set src = states('input_text.dump_plug_1_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
-      - name: Sim A/C plug 2 dehumidifier power
+      - name: Dump plug 2 power
         unique_id: sim_ac_plug_2_power
         default_entity_id: sensor.sim_ac_plug_2_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_2_internal', 'on') %}
-            300
+          {% if is_state('switch.sim_ac_plug_2', 'on') %}
+            {% set src = states('input_text.dump_plug_2_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
-      - name: Sim A/C plug 3 water heater power
+      - name: Dump plug 3 power
         unique_id: sim_ac_plug_3_power
         default_entity_id: sensor.sim_ac_plug_3_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_3_internal', 'on') %}
-            1200
+          {% if is_state('switch.sim_ac_plug_3', 'on') %}
+            {% set src = states('input_text.dump_plug_3_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
-      - name: Sim A/C plug 4 fan power
+      - name: Dump plug 4 power
         unique_id: sim_ac_plug_4_power
         default_entity_id: sensor.sim_ac_plug_4_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_4_internal', 'on') %}
-            130
+          {% if is_state('switch.sim_ac_plug_4', 'on') %}
+            {% set src = states('input_text.dump_plug_4_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
-      - name: Sim A/C plug 5 fan power
+      - name: Dump plug 5 power
         unique_id: sim_ac_plug_5_power
         default_entity_id: sensor.sim_ac_plug_5_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_5_internal', 'on') %}
-            130
+          {% if is_state('switch.sim_ac_plug_5', 'on') %}
+            {% set src = states('input_text.dump_plug_5_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
-      - name: Sim A/C plug 6 gaming PC power
+      - name: Dump plug 6 power
         unique_id: sim_ac_plug_6_power
         default_entity_id: sensor.sim_ac_plug_6_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
         state: >
-          {% if is_state('input_boolean.sim_ac_plug_6_internal', 'on') %}
-            300
+          {% if is_state('switch.sim_ac_plug_6', 'on') %}
+            {% set src = states('input_text.dump_plug_6_power_entity') | trim %}
+            {% if src and is_number(states(src)) %}
+              {{ states(src) | float }}
+            {% else %}
+              {{ none }}
+            {% endif %}
           {% else %}
-            {{ none }}
+            0
           {% endif %}
       - name: Sim dump load power
         unique_id: sim_dump_load_power
@@ -174,10 +241,10 @@ template:
         state_class: measurement
         state: >
           {% set ns = namespace(total=0) %}
-          {% if is_state('input_boolean.sim_ac_plug_1_internal', 'on') %}{% set ns.total = ns.total + 180 %}{% endif %}
-          {% if is_state('input_boolean.sim_ac_plug_2_internal', 'on') %}{% set ns.total = ns.total + 300 %}{% endif %}
-          {% if is_state('input_boolean.sim_ac_plug_3_internal', 'on') %}{% set ns.total = ns.total + 1200 %}{% endif %}
-          {% if is_state('input_boolean.sim_ac_plug_4_internal', 'on') %}{% set ns.total = ns.total + 130 %}{% endif %}
-          {% if is_state('input_boolean.sim_ac_plug_5_internal', 'on') %}{% set ns.total = ns.total + 130 %}{% endif %}
-          {% if is_state('input_boolean.sim_ac_plug_6_internal', 'on') %}{% set ns.total = ns.total + 300 %}{% endif %}
+          {% for n in [1, 2, 3, 4, 5, 6] %}
+            {% set p = states('sensor.sim_ac_plug_' ~ n ~ '_power') %}
+            {% if is_number(p) %}
+              {% set ns.total = ns.total + (p | float) %}
+            {% endif %}
+          {% endfor %}
           {{ ns.total }}

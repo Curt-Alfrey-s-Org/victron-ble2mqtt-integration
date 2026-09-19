@@ -162,12 +162,24 @@ def test_dashboard_uses_official_cards_only() -> None:
         row.get("entity") for row in dump_ctrl["entities"] if isinstance(row, dict)
     }
     assert "input_boolean.dump_control_enabled" in dump_ctrl_ids
+    assert "input_number.dump_ac_limit_t2_w" in dump_ctrl_ids
+    assert "input_number.dump_ac_limit_ku_w" in dump_ctrl_ids
+    assert "input_number.dump_ac_limit_sph_w" in dump_ctrl_ids
+    assert "binary_sensor.dump_batt_t2_ok" in dump_ctrl_ids
+    assert "sensor.battery_1_power" in dump_ctrl_ids
+    assert "sensor.battery_2_power" in dump_ctrl_ids
+    assert "sensor.sungold_sph302480a_load_power" in dump_ctrl_ids
     dump_card = next(
         c for c in cards if c.get("type") == "entities" and c.get("title") == "Sim dump plugs"
     )
     assert dump_card.get("show_header_toggle") is True
     dump_ids = {e["entity"] for e in dump_card["entities"]}
-    assert dump_ids == {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
+    expected_plugs = {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
+    expected_inv = {f"input_select.dump_plug_{n}_inverter" for n in range(1, 7)}
+    expected_power = {f"sensor.sim_ac_plug_{n}_power" for n in range(1, 7)}
+    expected_src = {f"input_text.dump_plug_{n}_power_entity" for n in range(1, 7)}
+    assert dump_ids == expected_plugs | expected_inv | expected_power | expected_src
+    assert not any("dump_plug_" in e and e.endswith("_watts") for e in dump_ids)
     watts_hist = next(
         c for c in cards if c.get("type") == "history-graph" and c.get("title") == "Watts"
     )
