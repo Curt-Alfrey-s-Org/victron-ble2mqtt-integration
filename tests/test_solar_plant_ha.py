@@ -83,7 +83,6 @@ def test_dashboard_uses_official_cards_only() -> None:
     types = {c["type"] for c in cards}
     assert "power-sankey" in types
     assert "glance" in types
-    assert "grid" in types
     assert "vertical-stack" in types
     assert "history-graph" in types
     assert "distribution" in types
@@ -94,6 +93,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "entities" in types
     assert "gauge" not in types
     assert "horizontal-stack" not in types
+    assert "grid" not in types
     forbidden = {"custom:", "iframe", "webpage"}
     for card in cards:
         t = card["type"]
@@ -155,11 +155,12 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert not any(c.get("title") == "Conversion losses" for c in cards)
     now_view = data["views"][0]
     assert not any(c.get("type") == "gauge" for c in _all_cards(now_view["cards"]))
-    grid = next(c for c in now_view["cards"] if c.get("type") == "grid")
-    assert grid["columns"] == 2
-    assert grid.get("square") is False
-    grid_titles = [c.get("title") for c in grid["cards"]]
-    assert grid_titles == ["T2 24 V", "KU 24 V (est. chargers)"]
+    assert not any(c.get("type") == "grid" for c in now_view["cards"])
+    now_titles = [c.get("title") for c in now_view["cards"] if c.get("type") == "glance"]
+    assert now_titles == ["T2 24 V", "KU 24 V (est. chargers)", "Sungold"]
+    for title in ("T2 24 V", "KU 24 V (est. chargers)", "Sungold"):
+        card = next(c for c in now_view["cards"] if c.get("title") == title)
+        assert card["columns"] == 3
     stacks = [c.get("title") for c in now_view["cards"] if c.get("type") == "vertical-stack"]
     assert stacks == ["Dump", "House"]
 

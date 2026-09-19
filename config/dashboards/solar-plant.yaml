@@ -43,75 +43,72 @@ views:
           - entity: sensor.sim_dump_load_power
             name: Sim dump
 
-      - type: grid
-        columns: 2
-        square: false
-        cards:
-          - type: glance
-            title: T2 24 V
-            show_name: true
-            show_icon: true
-            show_state: true
-            columns: 4
-            entities:
-              - entity: sensor.solar_controller_solar
-                name: MPPT W
-              - entity: sensor.solar_controller_charge_state
-                name: Charge
-              - entity: sensor.solar_controller_charging_power
-                name: Charge W
-              - entity: sensor.solar_controller_yield_today
-                name: Yield today
-              - entity: sensor.t2_ku_jumper_power
-                name: Jumper est.
-              - entity: sensor.battery_1_power
-                name: Batt 1 W
-              - entity: sensor.battery_1_voltage
-                name: Batt 1 V
-              - entity: sensor.battery_1_current
-                name: Batt 1 A
-              - entity: sensor.battery_1_state_of_charge
-                name: SoC
-              - entity: sensor.battery_1_consumed_ah
-                name: Consumed Ah
-              - entity: sensor.battery_1_remaining_minutes
-                name: Remaining min
-              - entity: sensor.battery_1_rssi
-                name: RSSI
-              - entity: sensor.t2_mppt_conversion_loss_power
-                name: MPPT loss
-          - type: glance
-            title: KU 24 V (est. chargers)
-            show_name: true
-            show_icon: true
-            show_state: true
-            columns: 4
-            entities:
-              - entity: sensor.ku_unmetered_pv_est_power
-                name: KU PV est.
-              - entity: sensor.ku_charger_equal_share_power
-                name: KU share est.
-              - entity: sensor.battery_2_power
-                name: Batt 2 W
-              - entity: sensor.battery_2_voltage
-                name: Batt 2 V
-              - entity: sensor.battery_2_current
-                name: Batt 2 A
-              - entity: sensor.battery_2_state_of_charge
-                name: SoC
-              - entity: sensor.battery_2_consumed_ah
-                name: Consumed Ah
-              - entity: sensor.battery_2_remaining_minutes
-                name: Remaining min
-              - entity: sensor.battery_2_rssi
-                name: RSSI
+      - type: glance
+        title: T2 24 V
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 3
+        entities:
+          - entity: sensor.solar_controller_solar
+            name: MPPT W
+          - entity: sensor.solar_controller_charge_state
+            name: Charge
+          - entity: sensor.solar_controller_charging_power
+            name: Charge W
+          - entity: sensor.solar_controller_yield_today
+            name: Yield today
+          - entity: sensor.t2_ku_jumper_power
+            name: Jumper est.
+          - entity: sensor.battery_1_power
+            name: Batt 1 W
+          - entity: sensor.battery_1_voltage
+            name: Batt 1 V
+          - entity: sensor.battery_1_current
+            name: Batt 1 A
+          - entity: sensor.battery_1_state_of_charge
+            name: SoC
+          - entity: sensor.battery_1_consumed_ah
+            name: Consumed Ah
+          - entity: sensor.battery_1_remaining_minutes
+            name: Remaining min
+          - entity: sensor.battery_1_rssi
+            name: RSSI
+          - entity: sensor.t2_mppt_conversion_loss_power
+            name: MPPT loss
+
+      - type: glance
+        title: KU 24 V (est. chargers)
+        show_name: true
+        show_icon: true
+        show_state: true
+        columns: 3
+        entities:
+          - entity: sensor.ku_unmetered_pv_est_power
+            name: KU PV est.
+          - entity: sensor.ku_charger_equal_share_power
+            name: KU share est.
+          - entity: sensor.battery_2_power
+            name: Batt 2 W
+          - entity: sensor.battery_2_voltage
+            name: Batt 2 V
+          - entity: sensor.battery_2_current
+            name: Batt 2 A
+          - entity: sensor.battery_2_state_of_charge
+            name: SoC
+          - entity: sensor.battery_2_consumed_ah
+            name: Consumed Ah
+          - entity: sensor.battery_2_remaining_minutes
+            name: Remaining min
+          - entity: sensor.battery_2_rssi
+            name: RSSI
 
       - type: glance
         title: Sungold
         show_name: true
         show_icon: true
         show_state: true
-        columns: 4
+        columns: 3
         entities:
           - entity: sensor.sungold_sph302480a_pv_power
             name: PV W
@@ -294,7 +291,6 @@ views:
             show_name: true
             show_icon: true
             show_state: true
-            columns: 3
             entities:
               - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
                 name: Temp

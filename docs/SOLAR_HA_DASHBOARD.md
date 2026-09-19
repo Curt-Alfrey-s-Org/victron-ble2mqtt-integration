@@ -7,8 +7,7 @@ Home Assistant already holds the Victron, shunt, Refoss, Sungold, and sim-dump
 entities. This dashboard uses **stock cards** only:
 
 - [Energy cards](https://www.home-assistant.io/dashboards/energy/) (`power-sankey`)
-- [Glance](https://www.home-assistant.io/dashboards/glance/)
-- [Grid](https://www.home-assistant.io/dashboards/grid/) (`columns: 2`, `square: false` for T2 | KU)
+- [Glance](https://www.home-assistant.io/dashboards/glance/) (`columns` set so names and watts fit; omitting it uses `min(entity count, 5)` in the [glance card](https://github.com/home-assistant/frontend/blob/dev/src/panels/lovelace/cards/hui-glance-card.ts) and ellipsizes)
 - [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/) (dump, house)
 - [Entities](https://www.home-assistant.io/dashboards/entities/) (sim dump plug switches)
 - [History graph](https://www.home-assistant.io/dashboards/history-graph/)
@@ -223,8 +222,12 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 
 Group **T2 with T2**, **KU with KU**, **Sungold with Sungold**, dump with dump,
 house climate with house climate. Do **not** put a gauge row of the same watts
-that already sit in those glances. [Grid](https://www.home-assistant.io/dashboards/grid/)
-holds T2 | KU (`square: false`). [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/)
+that already sit in those glances. T2 and KU are **sibling** [glance](https://www.home-assistant.io/dashboards/glance/)
+cards so [masonry](https://www.home-assistant.io/dashboards/masonry/) can size each box.
+Do **not** wrap them in a [grid](https://www.home-assistant.io/dashboards/grid/) (`columns: 2`):
+that packs both into **one** masonry column and glance `text-overflow: ellipsis` clips
+`Jumper est.` / watts (`hui-glance-card.ts`). Glance `columns: 3` (not omitted: omit =
+`min(n, 5)`). [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/)
 holds dump and house so masonry cannot split those groups.
 
 **Instant W** is the only mixed-bus pie (live clamps + dump). Bus detail watts
