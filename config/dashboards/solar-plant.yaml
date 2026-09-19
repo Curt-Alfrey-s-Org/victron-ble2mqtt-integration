@@ -13,8 +13,11 @@ views:
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
           Dump ON/OFF is Home Assistant automations (`sim_dump_control.yaml`).
+          Victron float + re-bulk voltage (not surplus watts). Dumps off when
+          solar stops so packs stay 95%+. Brain / Ask ALFa observe and may
+          write helpers; they do not own on/off.
           Use **Dump load HA control** on this page (kill switch). Off = no automatic
-          dump. On = surplus/charge automations may toggle sim plugs. The six switches
+          dump. On = float + solar-present automations may toggle sim plugs. The six switches
           below show ticks (header toggle is **manual**). Names that say fan
           on dump plugs are lab dump loads, not the cargo vent or LED.
           **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus anything
@@ -184,6 +187,42 @@ views:
                 name: Automations on/off
                 icon: mdi:transmission-tower-export
                 secondary_info: last-changed
+              - entity: input_boolean.dump_soc_unsynced
+                name: SoC unsynced (skip 95% gate)
+              - entity: input_number.dump_float_t2_v
+                name: T2 float V
+              - entity: input_number.dump_rebulk_t2_v
+                name: T2 re-bulk V
+              - entity: input_number.dump_float_ku_v
+                name: KU float V
+              - entity: input_number.dump_rebulk_ku_v
+                name: KU re-bulk V
+              - entity: input_number.dump_float_sph_v
+                name: SPH float V
+              - entity: input_number.dump_rebulk_sph_v
+                name: SPH re-bulk V
+              - entity: input_number.dump_min_solar_w
+                name: Min solar W (day vs night)
+              - entity: input_number.dump_min_soc_percent
+                name: Min SoC % (when synced)
+              - entity: binary_sensor.dump_charge_float
+                name: MPPT float
+              - entity: binary_sensor.dump_solar_present
+                name: Solar present
+              - entity: binary_sensor.dump_soc_ok
+                name: SoC ok
+              - entity: binary_sensor.dump_v_float_t2
+                name: T2 float hold
+              - entity: binary_sensor.dump_v_rebulk_t2
+                name: T2 re-bulk
+              - entity: binary_sensor.dump_v_float_ku
+                name: KU float hold
+              - entity: binary_sensor.dump_v_rebulk_ku
+                name: KU re-bulk
+              - entity: binary_sensor.dump_v_float_sph
+                name: SPH float hold
+              - entity: binary_sensor.dump_v_rebulk_sph
+                name: SPH re-bulk
               - entity: input_number.dump_ac_limit_t2_w
                 name: T2 AC limit
               - entity: input_number.dump_ac_limit_ku_w

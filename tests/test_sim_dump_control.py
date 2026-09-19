@@ -46,6 +46,10 @@ def test_docs_and_install_exist() -> None:
     assert "sensor.dump_next_plug" in docs
     assert "sim_dump_turn_off_unknown_watts" in docs
     assert "Already-ON leftover" in docs
+    assert "dump_charge_float" in docs
+    assert "dump_solar_present" in docs
+    assert "dump_rebulk" in docs
+    assert "95%" in docs
     assert INSTALL.is_file()
     text = INSTALL.read_text(encoding="utf-8")
     assert "sim_dump_control.yaml" in text
@@ -66,7 +70,13 @@ def test_kill_switch_and_timers() -> None:
     assert numbers["dump_max_discharge_t2_w"]["initial"] == 0
     assert numbers["dump_max_discharge_ku_w"]["initial"] == 0
     assert numbers["dump_max_discharge_sph_w"]["initial"] == 50
+    assert numbers["dump_float_t2_v"]["initial"] == 27.0
+    assert numbers["dump_rebulk_t2_v"]["initial"] == 26.8
+    assert numbers["dump_min_solar_w"]["initial"] == 50
+    assert numbers["dump_min_soc_percent"]["initial"] == 95
     assert "dump_plug_1_watts" not in numbers
+    booleans = data.get("input_boolean") or {}
+    assert booleans["dump_soc_unsynced"].get("initial") is True
     selects = data.get("input_select") or {}
     for n in range(1, 7):
         sel = selects[f"dump_plug_{n}_inverter"]
@@ -102,10 +112,21 @@ def test_surplus_template_and_charge_ok() -> None:
     assert "binary_sensor.dump_batt_t2_ok" in nxt_state
     assert "binary_sensor.dump_batt_ku_ok" in nxt_state
     assert "binary_sensor.dump_batt_sph_ok" in nxt_state
-    assert "sensor.dump_surplus_w" in nxt_state
+    assert "binary_sensor.dump_charge_float" in nxt_state
+    assert "binary_sensor.dump_solar_present" in nxt_state
+    assert "binary_sensor.dump_v_float_t2" in nxt_state
+    assert "binary_sensor.dump_v_rebulk_t2" in nxt_state
+    assert "last_w <= surplus" not in nxt_state
     charge = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_charge_ok")
     assert "absorption" in charge["state"]
     assert "float" in charge["state"]
+    flt = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_charge_float")
+    assert "float" in flt["state"]
+    assert "absorption" not in flt["state"]
+    solar = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_solar_present")
+    assert "input_number.dump_min_solar_w" in solar["state"]
+    rebulk = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_v_rebulk_t2")
+    assert "input_number.dump_rebulk_t2_v" in rebulk["state"]
     t2_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_t2_ok")
     assert "sensor.battery_1_power" in t2_ok["state"]
     ku_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_ku_ok")
@@ -136,25 +157,42 @@ def test_automations_use_switch_services_and_dwell() -> None:
     by_id = {a["id"]: a for a in autos}
     assert set(by_id) == {
         "sim_dump_turn_on",
-        "sim_dump_turn_off_surplus",
+        "sim_dump_turn_off_solar_gone",
         "sim_dump_turn_off_bulk",
+        "sim_dump_turn_off_rebulk_t2",
+        "sim_dump_turn_off_rebulk_ku",
+        "sim_dump_turn_off_rebulk_sph",
         "sim_dump_turn_off_batt_t2",
         "sim_dump_turn_off_batt_ku",
         "sim_dump_turn_off_batt_sph",
         "sim_dump_turn_off_unknown_watts",
     }
     on = by_id["sim_dump_turn_on"]
-    off_s = by_id["sim_dump_turn_off_surplus"]
+    off_s = by_id["sim_dump_turn_off_solar_gone"]
     off_b = by_id["sim_dump_turn_off_bulk"]
     off_batt = (
         by_id["sim_dump_turn_off_batt_t2"],
         by_id["sim_dump_turn_off_batt_ku"],
         by_id["sim_dump_turn_off_batt_sph"],
     )
-    for auto in (on, off_s, off_b) + off_batt:
+    off_rebulk = (
+        by_id["sim_dump_turn_off_rebulk_t2"],
+        by_id["sim_dump_turn_off_rebulk_ku"],
+        by_id["sim_dump_turn_off_rebulk_sph"],
+    )
+    for auto in (off_s, off_b) + off_batt + off_rebulk:
         for trig in auto["triggers"]:
             if trig.get("trigger") == "state":
                 assert trig.get("for") == "00:01:00"
+    on_state_trigs = [
+        t for t in on["triggers"] if t.get("trigger") == "state" and t.get("entity_id") != "sensor.dump_next_plug"
+    ]
+    assert {t["entity_id"] for t in on_state_trigs} == {
+        "binary_sensor.dump_charge_float",
+        "binary_sensor.dump_solar_present",
+    }
+    for trig in on_state_trigs:
+        assert trig.get("for") == "00:01:00"
     unk = by_id["sim_dump_turn_off_unknown_watts"]
     unk_by_id = {t.get("id"): t for t in unk["triggers"]}
     assert unk_by_id["unknown_dwell"]["trigger"] == "template"
@@ -182,6 +220,9 @@ def test_automations_use_switch_services_and_dwell() -> None:
     assert PLUGS != turn_on["target"]["entity_id"]
     while_t = " ".join(str(c) for c in on_repeat["while"])
     assert "dump_next_plug" in while_t
+    assert "dump_charge_float" in while_t
+    assert "dump_solar_present" in while_t
+    assert "dump_surplus_high" not in while_t
     assert "repeat.index" in while_t
     assert any(a.get("delay") == 1 for a in on_seq)
     assert any(
@@ -192,10 +233,16 @@ def test_automations_use_switch_services_and_dwell() -> None:
     assert off_s["actions"][0]["action"] == "switch.turn_off"
     assert off_b["actions"][0]["action"] == "switch.turn_off"
     assert any(
+        a.get("action") == "timer.cancel" for a in off_s["actions"]
+    ), "solar-gone off must cancel min-on timer"
+    assert any(
         a.get("action") == "timer.cancel" for a in off_b["actions"]
     ), "bulk off must cancel min-on timer"
     assert by_id["sim_dump_turn_off_batt_t2"]["triggers"][0]["entity_id"] == (
         "binary_sensor.dump_batt_t2_ok"
+    )
+    assert by_id["sim_dump_turn_off_rebulk_t2"]["triggers"][0]["entity_id"] == (
+        "binary_sensor.dump_v_rebulk_t2"
     )
     ku_each = by_id["sim_dump_turn_off_batt_ku"]["actions"][0]["repeat"]["for_each"]
     assert any(item.get("select") == "input_select.dump_plug_3_inverter" for item in ku_each)

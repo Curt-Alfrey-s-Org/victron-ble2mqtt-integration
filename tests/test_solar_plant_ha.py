@@ -172,6 +172,12 @@ def test_dashboard_uses_official_cards_only() -> None:
         row.get("entity") for row in dump_ctrl["entities"] if isinstance(row, dict)
     }
     assert "input_boolean.dump_control_enabled" in dump_ctrl_ids
+    assert "input_boolean.dump_soc_unsynced" in dump_ctrl_ids
+    assert "input_number.dump_float_t2_v" in dump_ctrl_ids
+    assert "input_number.dump_rebulk_t2_v" in dump_ctrl_ids
+    assert "input_number.dump_min_solar_w" in dump_ctrl_ids
+    assert "binary_sensor.dump_charge_float" in dump_ctrl_ids
+    assert "binary_sensor.dump_solar_present" in dump_ctrl_ids
     assert "input_number.dump_ac_limit_t2_w" in dump_ctrl_ids
     assert "input_number.dump_ac_limit_ku_w" in dump_ctrl_ids
     assert "input_number.dump_ac_limit_sph_w" in dump_ctrl_ids

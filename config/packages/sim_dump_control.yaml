@@ -1,5 +1,7 @@
 # Dump-load CONTROL (HA owns on/off). Opt-in package for Home Assistant on .105.
 # Requires sim_dump_plugs.yaml (switch.sim_ac_plug_*).
+# Victron float hold then staged ON; solar-gone and re-bulk OFF (1 minute).
+# Surplus watts (dump_surplus_w) are briefing only -- not the ON/OFF trigger.
 # Official:
 #   https://www.home-assistant.io/docs/configuration/packages/
 #   https://www.home-assistant.io/docs/automation/yaml/
@@ -25,6 +27,10 @@ input_boolean:
   dump_control_enabled:
     name: Dump load HA control
     icon: mdi:transmission-tower-export
+  dump_soc_unsynced:
+    name: Dump SoC unsynced
+    icon: mdi:battery-unknown
+    initial: true
 
 input_number:
   dump_ac_limit_t2_w:
@@ -81,6 +87,78 @@ input_number:
     unit_of_measurement: W
     mode: box
     icon: mdi:battery-minus
+  dump_float_t2_v:
+    name: T2 float volts
+    min: 26.0
+    max: 29.5
+    step: 0.05
+    initial: 27.0
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_rebulk_t2_v:
+    name: T2 re-bulk volts
+    min: 25.5
+    max: 29.0
+    step: 0.05
+    initial: 26.8
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_float_ku_v:
+    name: KU float volts
+    min: 26.0
+    max: 29.5
+    step: 0.05
+    initial: 27.0
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_rebulk_ku_v:
+    name: KU re-bulk volts
+    min: 25.5
+    max: 29.0
+    step: 0.05
+    initial: 26.8
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_float_sph_v:
+    name: SPH float volts
+    min: 26.0
+    max: 29.5
+    step: 0.05
+    initial: 27.0
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_rebulk_sph_v:
+    name: SPH re-bulk volts
+    min: 25.5
+    max: 29.0
+    step: 0.05
+    initial: 26.8
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:sine-wave
+  dump_min_solar_w:
+    name: Dump min solar
+    min: 0
+    max: 500
+    step: 10
+    initial: 50
+    unit_of_measurement: W
+    mode: box
+    icon: mdi:solar-power
+  dump_min_soc_percent:
+    name: Dump min SoC
+    min: 80
+    max: 100
+    step: 1
+    initial: 95
+    unit_of_measurement: "%"
+    mode: box
+    icon: mdi:battery-90
 
 input_select:
   dump_plug_1_inverter:
@@ -174,8 +252,6 @@ template:
             ('switch.sim_ac_plug_5', 'sensor.sim_ac_plug_5_power', 'sensor.dump_plug_5_last_w', 'input_select.dump_plug_5_inverter'),
             ('switch.sim_ac_plug_6', 'sensor.sim_ac_plug_6_power', 'sensor.dump_plug_6_last_w', 'input_select.dump_plug_6_inverter'),
           ] %}
-          {% set surplus = states('sensor.dump_surplus_w') | float(-1)
-             if is_number(states('sensor.dump_surplus_w')) else none %}
           {% set lim_t2 = states('input_number.dump_ac_limit_t2_w') | float(2000) %}
           {% set lim_ku = states('input_number.dump_ac_limit_ku_w') | float(2000) %}
           {% set lim_sph = states('input_number.dump_ac_limit_sph_w') | float(2000) %}
@@ -212,7 +288,20 @@ template:
             'KU': is_state('binary_sensor.dump_batt_ku_ok', 'on'),
             'SPH': is_state('binary_sensor.dump_batt_sph_ok', 'on'),
           } %}
-          {% if surplus is none or ns.blocked %}
+          {% set vfloat = {
+            'T2': is_state('binary_sensor.dump_v_float_t2', 'on'),
+            'KU': is_state('binary_sensor.dump_v_float_ku', 'on'),
+            'SPH': is_state('binary_sensor.dump_v_float_sph', 'on'),
+          } %}
+          {% set vrebulk = {
+            'T2': is_state('binary_sensor.dump_v_rebulk_t2', 'on'),
+            'KU': is_state('binary_sensor.dump_v_rebulk_ku', 'on'),
+            'SPH': is_state('binary_sensor.dump_v_rebulk_sph', 'on'),
+          } %}
+          {% if ns.blocked
+             or not is_state('binary_sensor.dump_solar_present', 'on')
+             or not is_state('binary_sensor.dump_charge_float', 'on')
+             or not is_state('binary_sensor.dump_soc_ok', 'on') %}
             none
           {% else %}
             {% set pick = namespace(eid='none', probe='none') %}
@@ -225,8 +314,9 @@ template:
             {% endfor %}
             {% for sort_w, eid, sel, last_w in built.rows | sort %}
               {% set bus = states(sel) %}
-              {% if is_state(eid, 'off') and batt.get(bus, False) %}
-                {% if last_w is not none and last_w <= surplus and last_w <= head.get(bus, -1) %}
+              {% if is_state(eid, 'off') and batt.get(bus, False)
+                 and vfloat.get(bus, False) and not vrebulk.get(bus, False) %}
+                {% if last_w is not none and last_w <= head.get(bus, -1) %}
                   {% if pick.eid == 'none' %}
                     {% set pick.eid = eid %}
                   {% endif %}
@@ -243,6 +333,8 @@ template:
           t2_pack_w: "{{ states('sensor.battery_1_power') | float(0) if is_number(states('sensor.battery_1_power')) else none }}"
           ku_pack_w: "{{ states('sensor.battery_2_power') | float(0) if is_number(states('sensor.battery_2_power')) else none }}"
           dump_load_w: "{{ states('sensor.sim_dump_load_power') | float(0) if is_number(states('sensor.sim_dump_load_power')) else 0 }}"
+          charge_float: "{{ is_state('binary_sensor.dump_charge_float', 'on') }}"
+          solar_present: "{{ is_state('binary_sensor.dump_solar_present', 'on') }}"
   - trigger:
       - trigger: state
         entity_id: sensor.sim_ac_plug_1_power
@@ -367,6 +459,75 @@ template:
           {% else %}
             {{ false }}
           {% endif %}
+      - name: Dump charge float
+        unique_id: dump_charge_float
+        default_entity_id: binary_sensor.dump_charge_float
+        state: >
+          {% set a = states('sensor.solar_controller_charge_state') | lower %}
+          {% set b = states('sensor.solar_controller_battery_state') | lower %}
+          {{ a == 'float' or b == 'float' }}
+      - name: Dump solar present
+        unique_id: dump_solar_present
+        default_entity_id: binary_sensor.dump_solar_present
+        state: >
+          {% set s = states('sensor.solar_controller_solar') %}
+          {% set s2 = states('sensor.solar_controller_solar_power') %}
+          {% set pv = s if is_number(s) else s2 %}
+          {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
+          {{ is_number(pv) and (pv | float) >= minw }}
+      - name: Dump SoC ok
+        unique_id: dump_soc_ok
+        default_entity_id: binary_sensor.dump_soc_ok
+        state: >
+          {% if is_state('input_boolean.dump_soc_unsynced', 'on') %}
+            {{ true }}
+          {% else %}
+            {% set s = states('sensor.battery_1_state_of_charge') %}
+            {% set m = states('input_number.dump_min_soc_percent') | float(95) %}
+            {{ is_number(s) and (s | float) >= m }}
+          {% endif %}
+      - name: Dump T2 float hold
+        unique_id: dump_v_float_t2
+        default_entity_id: binary_sensor.dump_v_float_t2
+        state: >
+          {% set v = states('sensor.battery_1_voltage') %}
+          {% set fl = states('input_number.dump_float_t2_v') %}
+          {{ is_number(v) and is_number(fl) and (v | float) >= (fl | float) }}
+      - name: Dump T2 re-bulk
+        unique_id: dump_v_rebulk_t2
+        default_entity_id: binary_sensor.dump_v_rebulk_t2
+        state: >
+          {% set v = states('sensor.battery_1_voltage') %}
+          {% set rb = states('input_number.dump_rebulk_t2_v') %}
+          {{ is_number(v) and is_number(rb) and (v | float) <= (rb | float) }}
+      - name: Dump KU float hold
+        unique_id: dump_v_float_ku
+        default_entity_id: binary_sensor.dump_v_float_ku
+        state: >
+          {% set v = states('sensor.battery_2_voltage') %}
+          {% set fl = states('input_number.dump_float_ku_v') %}
+          {{ is_number(v) and is_number(fl) and (v | float) >= (fl | float) }}
+      - name: Dump KU re-bulk
+        unique_id: dump_v_rebulk_ku
+        default_entity_id: binary_sensor.dump_v_rebulk_ku
+        state: >
+          {% set v = states('sensor.battery_2_voltage') %}
+          {% set rb = states('input_number.dump_rebulk_ku_v') %}
+          {{ is_number(v) and is_number(rb) and (v | float) <= (rb | float) }}
+      - name: Dump SPH float hold
+        unique_id: dump_v_float_sph
+        default_entity_id: binary_sensor.dump_v_float_sph
+        state: >
+          {% set v = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set fl = states('input_number.dump_float_sph_v') %}
+          {{ is_number(v) and is_number(fl) and (v | float) >= (fl | float) }}
+      - name: Dump SPH re-bulk
+        unique_id: dump_v_rebulk_sph
+        default_entity_id: binary_sensor.dump_v_rebulk_sph
+        state: >
+          {% set v = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set rb = states('input_number.dump_rebulk_sph_v') %}
+          {{ is_number(v) and is_number(rb) and (v | float) <= (rb | float) }}
 
 sensor:
   - platform: derivative
@@ -392,31 +553,36 @@ binary_sensor:
 automation dump_load:
   - id: sim_dump_turn_on
     alias: Dump load turn on
-    description: Stage one plug, wait for live watts, then decide if another fits.
+    description: Victron float hold. Stage one plug, wait for live watts, then another while the bus stays above re-bulk.
     mode: single
     triggers:
       - trigger: state
-        entity_id: binary_sensor.dump_surplus_high
+        entity_id: binary_sensor.dump_charge_float
         to: "on"
         for: "00:01:00"
       - trigger: state
-        entity_id: binary_sensor.dump_charge_ok
+        entity_id: binary_sensor.dump_solar_present
         to: "on"
         for: "00:01:00"
+      - trigger: state
+        entity_id: sensor.dump_next_plug
     conditions:
       - condition: state
         entity_id: input_boolean.dump_control_enabled
         state: "on"
       - condition: state
-        entity_id: binary_sensor.dump_surplus_high
+        entity_id: binary_sensor.dump_charge_float
         state: "on"
         for:
           minutes: 1
       - condition: state
-        entity_id: binary_sensor.dump_charge_ok
+        entity_id: binary_sensor.dump_solar_present
         state: "on"
         for:
           minutes: 1
+      - condition: state
+        entity_id: binary_sensor.dump_soc_ok
+        state: "on"
       - condition: not
         conditions:
           - condition: state
@@ -425,14 +591,19 @@ automation dump_load:
       - condition: state
         entity_id: timer.dump_min_off
         state: idle
+      - condition: template
+        value_template: "{{ states('sensor.dump_next_plug').startswith('switch.sim_ac_plug_') }}"
     actions:
       - repeat:
           while:
             - condition: state
-              entity_id: binary_sensor.dump_surplus_high
+              entity_id: binary_sensor.dump_charge_float
               state: "on"
             - condition: state
-              entity_id: binary_sensor.dump_charge_ok
+              entity_id: binary_sensor.dump_solar_present
+              state: "on"
+            - condition: state
+              entity_id: binary_sensor.dump_soc_ok
               state: "on"
             - condition: not
               conditions:
@@ -466,32 +637,29 @@ automation dump_load:
             - if:
                 - condition: template
                   value_template: >
-                    {{ is_state('binary_sensor.dump_surplus_high', 'off')
-                       or not is_state('binary_sensor.dump_charge_ok', 'on')
+                    {{ not is_state('binary_sensor.dump_charge_float', 'on')
+                       or not is_state('binary_sensor.dump_solar_present', 'on')
                        or is_state('binary_sensor.dump_pv_falling', 'on') }}
               then:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ target }}"
-                - stop: live plug load exceeded surplus or charge
+                - stop: left float, solar gone, or PV falling
             - delay: 1
 
-  - id: sim_dump_turn_off_surplus
-    alias: Dump load turn off surplus
-    description: OFF when surplus helper stays off 1 minute, after min-on dwell.
+  - id: sim_dump_turn_off_solar_gone
+    alias: Dump load turn off solar gone
+    description: PV below dump_min_solar_w for 1 minute (weather or end of day). Cancel min-on so dumps are not night loads (95%+ leftover).
     mode: single
     triggers:
       - trigger: state
-        entity_id: binary_sensor.dump_surplus_high
+        entity_id: binary_sensor.dump_solar_present
         to: "off"
         for: "00:01:00"
     conditions:
       - condition: state
         entity_id: input_boolean.dump_control_enabled
         state: "on"
-      - condition: state
-        entity_id: timer.dump_min_on
-        state: idle
     actions:
       - action: switch.turn_off
         target:
@@ -502,6 +670,9 @@ automation dump_load:
             - switch.sim_ac_plug_4
             - switch.sim_ac_plug_5
             - switch.sim_ac_plug_6
+      - action: timer.cancel
+        target:
+          entity_id: timer.dump_min_on
       - action: timer.start
         target:
           entity_id: timer.dump_min_off
@@ -535,6 +706,117 @@ automation dump_load:
       - action: timer.start
         target:
           entity_id: timer.dump_min_off
+
+  - id: sim_dump_turn_off_rebulk_t2
+    alias: Dump load turn off T2 re-bulk
+    description: T2 bus voltage at or below dump_rebulk_t2_v for 1 minute (Victron LiFePO4 24 V offset). Turn off T2 plugs even during min-on.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_v_rebulk_t2
+        to: "on"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - repeat:
+          for_each:
+            - plug: switch.sim_ac_plug_1
+              select: input_select.dump_plug_1_inverter
+            - plug: switch.sim_ac_plug_2
+              select: input_select.dump_plug_2_inverter
+            - plug: switch.sim_ac_plug_3
+              select: input_select.dump_plug_3_inverter
+            - plug: switch.sim_ac_plug_4
+              select: input_select.dump_plug_4_inverter
+            - plug: switch.sim_ac_plug_5
+              select: input_select.dump_plug_5_inverter
+            - plug: switch.sim_ac_plug_6
+              select: input_select.dump_plug_6_inverter
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state(repeat.item.select, 'T2') }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ repeat.item.plug }}"
+
+  - id: sim_dump_turn_off_rebulk_ku
+    alias: Dump load turn off KU re-bulk
+    description: KU bus voltage at or below dump_rebulk_ku_v for 1 minute. Turn off KU plugs even during min-on.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_v_rebulk_ku
+        to: "on"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - repeat:
+          for_each:
+            - plug: switch.sim_ac_plug_1
+              select: input_select.dump_plug_1_inverter
+            - plug: switch.sim_ac_plug_2
+              select: input_select.dump_plug_2_inverter
+            - plug: switch.sim_ac_plug_3
+              select: input_select.dump_plug_3_inverter
+            - plug: switch.sim_ac_plug_4
+              select: input_select.dump_plug_4_inverter
+            - plug: switch.sim_ac_plug_5
+              select: input_select.dump_plug_5_inverter
+            - plug: switch.sim_ac_plug_6
+              select: input_select.dump_plug_6_inverter
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state(repeat.item.select, 'KU') }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ repeat.item.plug }}"
+
+  - id: sim_dump_turn_off_rebulk_sph
+    alias: Dump load turn off SPH re-bulk
+    description: SPH cart voltage at or below dump_rebulk_sph_v for 1 minute. Turn off SPH plugs even during min-on.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_v_rebulk_sph
+        to: "on"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - repeat:
+          for_each:
+            - plug: switch.sim_ac_plug_1
+              select: input_select.dump_plug_1_inverter
+            - plug: switch.sim_ac_plug_2
+              select: input_select.dump_plug_2_inverter
+            - plug: switch.sim_ac_plug_3
+              select: input_select.dump_plug_3_inverter
+            - plug: switch.sim_ac_plug_4
+              select: input_select.dump_plug_4_inverter
+            - plug: switch.sim_ac_plug_5
+              select: input_select.dump_plug_5_inverter
+            - plug: switch.sim_ac_plug_6
+              select: input_select.dump_plug_6_inverter
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state(repeat.item.select, 'SPH') }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ repeat.item.plug }}"
 
   - id: sim_dump_turn_off_batt_t2
     alias: Dump load turn off T2 battery

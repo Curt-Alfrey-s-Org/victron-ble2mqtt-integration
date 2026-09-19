@@ -1,9 +1,18 @@
 # Dump-load control in Home Assistant
 
-Home Assistant owns dump-load **on/off**, **hysteresis**, and **charge-stage dwell**.
-alfa-ai does **not** toggle these switches from its ticker. The brain may still
-**observe** HA states, keep the cluster watt-ledger for Ask ALFa, and write
-`ai_actions` audit rows.
+Home Assistant owns dump-load **on/off**. The program follows Victron's charge
+cycle, not a PV-minus-load watt band. In **float**, the MPPT already throttles to
+match load; a 20 W "surplus" is normal. Dump then **claims leftover PV** by adding
+plugs until bus voltage approaches **re-bulk**, then sheds so the packs stay full
+when the sun stops (weather or end of day). Target: **95%+ SoC remaining** after
+PV is gone -- dumps must not run as night loads.
+
+alfa-ai does **not** toggle these switches from its ticker. The brain **observes**
+HA states, keeps the watt-ledger for Ask ALFa, and may write dump **helpers**
+(float/re-bulk volts, AC caps, inverter assign) immediately.
+
+This site: LiTime 24 V 230 Ah on T2 and KU ([product](https://www.litime.com/products/24v-230ah-truck-lithium-battery)
+charge **28.8 V +/- 0.4 V**). SPH cart is a separate LiTime 24 V pair.
 
 Official manuals (RULE #1):
 
@@ -32,23 +41,31 @@ Do **not** invent PV watts from Ecobee `weather.*`. Optional later: HA
 
 ---
 
-## What HA owns vs what the brain owns
+## What HA owns vs what Ask ALFa / the brain owns
+
+Victron [BlueSolar operation](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html):
+bulk fills, absorption holds CV (~**28.4 V** on Victron lithium / LiTime 28.4-29.2 V),
+float **holds** Vfloat (Victron LiFePO4 default **27.0 V** on 24 V). Re-bulk when
+`Vbat < (Vfloat - 0.1 V)` for **12 V**, **multiply by two on 24 V** (offset **0.2 V**
+-> **26.8 V** if float is 27.0 V) for **one minute**. Morningstar
+[Diversion §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf):
+divert excess **after** the battery is served. Confirm float on the T2 MPPT in
+VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 
 | Job | Owner |
 |-----|--------|
-| Sim plug entities | HA package [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) |
-| Surplus band (ON above ~200 W, OFF below ~50 W) | HA Threshold on `sensor.dump_surplus_w` |
-| Charge stage must stay `absorption`/`float` before ON; leave that pair before OFF | HA `binary_sensor.dump_charge_ok` + state `for: 00:01:00` (Victron 1 minute) |
-| Min ON 10 min / min OFF 5 min | HA `timer.dump_min_on` / `timer.dump_min_off` |
-| PV falling (cloud valley) blocks new ON | HA Derivative + Threshold `binary_sensor.dump_pv_falling` |
-| `switch.turn_on` / `turn_off` on `switch.sim_ac_plug_*` | HA automations in this package |
-| How many plugs, and which ones | HA staged ON: one plug, **wait for live watts**, then another only if surplus / inverter headroom / batteries still allow it |
-| Which inverter feeds each sim dump | HA `input_select.dump_plug_N_inverter` (`T2` / `KU` / `SPH`) on Solar plant |
-| Per-inverter AC watt cap | HA `input_number.dump_ac_limit_t2_w` / `_ku_w` / `_sph_w` (default **2000** W each) |
-| Live load on each inverter | T2/KU: SmartShunt `sensor.battery_1_power` / `sensor.battery_2_power` (negative = pack supplying the inverter). SPH: `sensor.sungold_sph302480a_load_power` (LCD INV OUTPUT) plus cart battery V×A. Do **not** type a watt rating for a random plug-in. |
-| Battery must not be discharging | HA `binary_sensor.dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` from live shunt / SPH V×A. Do not add that bus's dumps; turn that bus's plugs off after 1 minute even during min-on |
-| Path-loss **briefing** / Ask ALFa helper writes | alfa-ai observes meters and may write dump helpers immediately via HA REST (`input_number.set_value` / `input_select.select_option`). HA automations still own dump switch on/off. |
-| Kill switch | HA `input_boolean.dump_control_enabled` on Solar plant **Now** (entities card) |
+| Kill switch | HA `input_boolean.dump_control_enabled` |
+| `switch.turn_on` / `turn_off` | HA automations only |
+| **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
+| **How many** plugs (claim leftover PV) | HA staged ON: one plug, wait for **live watts**, then another while that bus stays above re-bulk, batt ok, inverter headroom |
+| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min; bus voltage **<= re-bulk helper** 1 min; MPPT leaves absorb/float 1 min; `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; plug ON with unknown watts 15 s |
+| Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
+| Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
+| SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
+| Inverter caps, plug->bus, live meters, fail-closed unknown W | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; live plug `dump_plug_N_power_entity` |
+| Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
+| Tune helpers, inspect meters | Ask ALFa `ha_set_number` / `ha_select_option` / `ha_get_states` (no Approve). **Never** dump-actuate standing night loads. |
+| Surplus W (`sensor.dump_surplus_w`) | Briefing only. **Not** the ON/OFF trigger. |
 
 Do **not** add a second dump ticker in alfa-ai that calls `switch.turn_on` /
 `turn_off` while this package is loaded.
@@ -67,63 +84,36 @@ Depends on:
 PV watts: live MQTT id `sensor.solar_controller_solar`, with fallback
 `sensor.solar_controller_solar_power`. Charge stage: live
 `sensor.solar_controller_charge_state`, with fallback
-`sensor.solar_controller_battery_state`.
+`sensor.solar_controller_battery_state`. Bus volts: `sensor.battery_1_voltage` /
+`sensor.battery_2_voltage` / `sensor.sungold_sph302480a_battery_voltage`.
 
-Threshold math ([Threshold](https://www.home-assistant.io/integrations/threshold/)
-upper + hysteresis): `upper: 125`, `hysteresis: 75` so the helper turns **on** when
-surplus > 200 W and **off** when surplus < 50 W.
+`sensor.dump_surplus_w` remains for the watt-ledger. It is **not** the dump ON
+trigger (float throttles PV watts to the load).
 
-### Staged ON (do not slam the inverter)
+### Victron float hold then staged ON
 
-HA never turns all six on in one action. Each ON cycle adds **one** plug, then
-reads that plug's **live watt sensor** before considering another
-([repeat while](https://www.home-assistant.io/docs/scripts/#repeat-a-group-of-actions),
-[wait_template](https://www.home-assistant.io/docs/scripts/#wait-for-a-template)):
+**Bulk / absorb:** dump stays **off**. The pack is still being served (CV ~28.4-28.8 V).
 
-1. Site budget = remaining `sensor.dump_surplus_w` (PV minus **live** dump-plug
-   watts minus path losses). `sensor.sim_dump_load_power` is the sum of numeric
-   `sensor.sim_ac_plug_N_power` values.
-2. Each plug is assigned to **one** inverter (`T2` / `KU` / `SPH`) via
-   `input_select.dump_plug_N_inverter`. Default **SPH**.
-3. That inverter's **live** loading:
-   - **T2 / KU Renogy:** SmartShunt `sensor.battery_1_power` / `sensor.battery_2_power`.
-     Headroom = AC cap minus **live** watts of ON dump plugs on that bus minus
-     `max(0, -shunt_W)`.
-     [SmartShunt operation 5.2](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html).
-   - **SPH:** `sensor.sungold_sph302480a_load_power` plus SPH-assigned dump-plug
-     live watts.
-4. Battery ok (`dump_batt_*_ok`) as before.
-5. `sensor.dump_next_plug` picks an off plug whose **last measured watts**
-   (`sensor.dump_plug_N_last_w`) still fit surplus and headroom. If a plug has
-   never reported watts, HA may **probe** it only while every already-ON plug
-   has a numeric power reading.
-6. `switch.turn_on`, start `timer.dump_min_on`, wait up to 15 s for
-   `sensor.sim_ac_plug_N_power` to be numeric. No reading: that plug turns **off**
-   ([stop](https://www.home-assistant.io/docs/scripts/#stopping-a-script-sequence)).
-   If surplus/charge/PV-falling fails after the reading, that plug turns off.
-7. Stop when no off plug fits, or surplus/charge is no longer ok, or PV is falling.
+**Float:** MPPT **holds** Vfloat (~27.0-27.4 V on this plant). HA may add dumps:
 
-Until a real smart-plug power entity is set on
-`input_text.dump_plug_N_power_entity`, a probe has no live watts and will turn
-off after the wait. That is fail-closed, not a typed rating.
+1. `binary_sensor.dump_charge_float` on for 1 min (T2 MPPT `float`).
+2. `binary_sensor.dump_solar_present` on (PV >= `dump_min_solar_w`).
+3. That plug's bus `dump_v_float_*` on for 1 min (shunt/cart V >= float helper).
+4. `dump_soc_unsynced` off **and** SoC < `dump_min_soc_percent` (95) blocks T2/KU add.
+   While unsynced, skip SoC (float voltage is the full-enough gate)
+   ([SmartShunt 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
+5. `sensor.dump_next_plug` picks an **off** plug on a bus that is still in the
+   float band, batt ok, and inverter headroom. **Do not** require last_w <= surplus W.
+6. One `switch.turn_on`, wait up to 15 s for live plug watts; fail-closed off if none.
+7. After the reading: if that bus hit re-bulk, solar gone, not float, batt discharging,
+   or PV falling, turn that plug off and stop. Else delay 1 s and try another.
 
-**Already-ON leftover (required):** the staged-ON wait only runs after a **new**
-`switch.turn_on`. Plugs that are already on with unknown watts (old slam-all-on,
-or HA restart while sim templates are ON) never hit that wait, and surplus stays
-high because unknown watts do not add to `sensor.sim_dump_load_power`. Automation
-`sim_dump_turn_off_unknown_watts` fail-closes those plugs:
+That is how leftover PV is claimed: add until voltage sags toward re-bulk or the
+inverter is full -- not until a 200 W surplus helper trips.
 
-- [Template trigger](https://www.home-assistant.io/docs/automation/trigger/#template-trigger)
-  `for: 00:00:15` when any dump switch is `on` and that plug's power sensor is
-  not numeric.
-- [Home Assistant start](https://www.home-assistant.io/triggers/homeassistant/)
-  and [automation_reloaded](https://www.home-assistant.io/docs/configuration/events/)
-  ([event trigger](https://www.home-assistant.io/triggers/event/)), then
-  [delay](https://www.home-assistant.io/docs/scripts/#delay) 15 s, so leftover
-  ON plugs are checked after a container restart or automation reload.
-- Each ON plug with non-numeric live watts is turned **off** even during min-on
-  ([switch.turn_off](https://www.home-assistant.io/integrations/switch/)); min-on
-  is cancelled (same as bulk). Kill switch off = automations do nothing.
+Until a Shelly power entity is mapped, a probe has no live watts and turns off
+after 15 s. Already-ON leftover unknown watts also turn off
+(`sim_dump_turn_off_unknown_watts`).
 
 Hardware when purchased: official [Shelly](https://www.home-assistant.io/integrations/shelly/)
 plug (local power sensor). See [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md).
@@ -133,20 +123,18 @@ SPH nameplate is **3000 W**; raise **SPH AC limit** only if dumps are on that
 inverter and you want the higher cap. Do not set a helper above the inverter
 that feeds those plugs.
 
-SoC is **not** a dump gate while SmartShunt SoC is unsynchronised
-([operation 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-Charge stage + signed watts/amps are the battery-served checks. Morningstar
-diversion is excess **after** the battery is served
-([§6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf)).
+SoC is **not** a dump-on gate while `dump_soc_unsynced` is on. Float voltage is
+the battery-served check. After PV stops, dumps go off so overnight use is the
+house/inverter, not dump plugs (95%+ leftover if the day reached float).
 
-Turn-**off**:
+Turn-**off** (Victron 1 minute except unknown-watts 15 s):
 
-- All six: surplus low (after min-on) or T2 MPPT leaves absorption/float (battery
-  wins, cancels min-on).
-- **That inverter only:** its `dump_batt_*_ok` stays off 1 minute (discharging
-  beyond the helper). Plugs on the other inverters stay as they are.
-- **That plug:** ON with non-numeric live watts for 15 s (failed probe or
-  leftover already-on). Even during min-on; cancels min-on.
+- **All six:** `dump_solar_present` off 1 min (weather / end of day) -- cancels
+  min-on. This is the 95%+ after solar stops rule.
+- **All six:** T2 MPPT leaves absorption/float 1 min (bulk / night).
+- **That inverter only:** bus voltage <= re-bulk helper 1 min, or `dump_batt_*_ok`
+  off 1 min (pack supplying the inverter).
+- **That plug:** ON with non-numeric live watts 15 s (fail-closed / leftover).
 
 ### Any load on any inverter (live meters)
 
@@ -167,9 +155,9 @@ Dump-plug watts are the **smart plug power sensor** (via
 `input_text.dump_plug_N_power_entity` → `sensor.sim_ac_plug_N_power`). There is
 no typed rating helper.
 
-Ask ALFa may **observe** shunt/SPH/plug power (`ha_get_states` / `ha_dump_tick`)
-and write AC-cap / inverter helpers (`ha_set_number` / `ha_select_option`)
-immediately. It does not invent plug watts.
+Ask ALFa may **observe** shunt/SPH/plug power and voltage (`ha_get_states` /
+`ha_dump_tick`) and write float/re-bulk/AC-cap/inverter helpers immediately.
+It does not invent plug watts and does not own dump on/off.
 
 ---
 

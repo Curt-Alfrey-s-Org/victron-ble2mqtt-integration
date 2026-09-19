@@ -24,7 +24,8 @@ Watt-hours from watts: [Integral (Riemann)](https://www.home-assistant.io/integr
 Energy sources: [Home energy management](https://www.home-assistant.io/docs/energy/).
 
 Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
-([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)).
+([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)): Victron **float hold** then
+staged plugs; **solar-gone / re-bulk** off so packs stay 95%+ after PV stops.
 Solar plant **Now** has an [entities](https://www.home-assistant.io/dashboards/entities/)
 card **Dump load HA control** with the kill switch
 `input_boolean.dump_control_enabled` (toggle on this page; do not hunt Helpers).
