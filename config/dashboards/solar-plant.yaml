@@ -62,7 +62,7 @@ views:
           - entity: sensor.solar_controller_yield_today
             name: Yield today
           - entity: sensor.t2_ku_jumper_power
-            name: Jumper est.
+            name: Jumper to KU
           - entity: sensor.battery_1_power
             name: Batt 1 W
           - entity: sensor.battery_1_voltage
@@ -91,6 +91,8 @@ views:
             name: KU PV est.
           - entity: sensor.ku_charger_equal_share_power
             name: KU share est.
+          - entity: sensor.t2_ku_jumper_power
+            name: Jumper from T2
           - entity: sensor.battery_2_power
             name: Batt 2 W
           - entity: sensor.battery_2_voltage

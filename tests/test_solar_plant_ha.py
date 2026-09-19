@@ -147,10 +147,12 @@ def test_dashboard_uses_official_cards_only() -> None:
     ku_names = {e["name"] for e in ku["entities"]}
     ku_ids = {e["entity"] for e in ku["entities"]}
     assert "KU share est." in ku_names
+    assert "Jumper from T2" in ku_names
     assert "Each charger est." not in ku_names
     assert "Sungold AC-in" not in ku_names
     assert "LED+fan" not in ku_names
     assert "sensor.ku_charger_equal_share_power" in ku_ids
+    assert "sensor.t2_ku_jumper_power" in ku_ids
     assert "sensor.trailer_outlet_power" not in ku_ids
     assert not any(c.get("title") == "Conversion losses" for c in cards)
     now_view = data["views"][0]
@@ -245,9 +247,11 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "Pi4" not in sungold_names
     t2 = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 24 V")
     t2_ids = {e["entity"] for e in t2["entities"]}
+    t2_names = {e["name"] for e in t2["entities"]}
     assert "sensor.solar_controller_yield_today" in t2_ids
     assert "sensor.battery_1_state_of_charge" in t2_ids
     assert "sensor.t2_mppt_conversion_loss_power" in t2_ids
+    assert "Jumper to KU" in t2_names
     assert not any(c.get("title") == "Sungold cart" for c in cards)
     assert not any(c.get("title") == "Sungold AC" for c in cards)
 
@@ -273,6 +277,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "Dump load HA control" in text
     assert "KU share est." in text
     assert "Do **not** put Sungold A/C-in here" in text
+    assert "Jumper from T2" in text
+    assert "Do **not** add a second inverted jumper sensor" in text
     assert "Gauges (PV)" not in text
     assert "Gauges (batteries)" not in text
     script = INSTALL.read_text(encoding="utf-8")
