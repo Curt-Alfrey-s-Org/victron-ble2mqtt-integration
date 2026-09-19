@@ -1,6 +1,6 @@
 # 24 V solar -- watt in vs watt out
 
-**Dates of log:** 10 Sep 2026, **11 Sep 2026**, and **15 Sep 2026** (America/New_York).  
+**Dates of log:** 10 Sep 2026, **11 Sep 2026**, **15 Sep 2026**, and **18-19 Sep 2026** (America/New_York).  
 **Solar charging window (this site, 11 Sep):** **09:30-16:00 ET only.** Outside that window the arrays are not charging; the two Renogy inverters run from their LiTimes (and the batt jumper, if it is sharing). Do not treat a 16:00+ MPPT watt reading as a full-day average.  
 **Meters:** Home Assistant **Solar** (Victron BLE + Sungold USB Modbus via Pi4 MQTT on `.105`) and **Refoss** EM16.  
 **HA host:** alfa-ai [HOMEASSISTANT_105_OPERATOR.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOMEASSISTANT_105_OPERATOR.md).  
@@ -59,6 +59,7 @@ starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. Do **not** use
 `ha_load_entity`. See [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.
+**19 Sep 2026:** operator leaves the damaged suitcases in the array (see [Suitcase panel condition](#suitcase-panel-condition-operator-2026-09-19)).
 
 | Piece | Bus | Role |
 |-------|-----|------|
@@ -77,6 +78,23 @@ Eight suitcase panels total: **6** on the three Victron chargers, **2** on the P
 | EM16 A2 / B4 | unconfirmed | **~73 / 72 W** at 14:10-14:53; **0.0 W** at 16:11 and **15 Sep 15:53**. Candidate: **T2 Renogy idle** (no RV). Do not add to A3. |
 | EM16 C1-C6 | unused CTs | **15 Sep:** ~2.0 V / 0 A / 0 W. Empty channels, not loads. |
 | Sungold SPH302480A | cart | Emergency dolly. **2x 24 V 100 Ah LiTime in parallel.** USB sidecar on ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)). Not on T2/KU DC. **15 Sep** AC-in vs battery-in vs AC-out is the loss close. |
+
+### Suitcase panel condition (operator, 2026-09-19)
+
+**Leave them in.** 18 Sep HA history on the only live Victron clamp (T2, two 200 W suitcases in series, **400 W STC**) did **not** show that string dragged to a dead-panel floor. PWM and KU Victron stay unmetered, so this is not proof those other panels are lossless.
+
+| Condition | Where | Stay in array? |
+|-----------|--------|----------------|
+| Tempered glass shattered; laminate/film still sealed (water stays out) | Cargo-trailer suitcase | **Yes** (19 Sep) |
+| Unfold/setup in sun, panel ran hot, burning smell; operator was in front of it (shadow vs coincidence unknown) | One **PWM** Voyager suitcase (KU, two suitcases in series on the ground) | **Yes** (19 Sep) |
+
+**18 Sep 2026 HA** ([REST history](https://developers.home-assistant.io/docs/api/rest/)): `sensor.solar_controller_solar` peak **356 W** (89% of 400 W STC), Instant Readout `sensor.solar_controller_yield_today` peak **1670 Wh**. Riemann `sensor.t2_mppt_energy_kwh` ended **1.4 kWh** (not the same counter as Victron yield). Charge-window rule still **09:30-16:00 ET**. Do **not** treat 356 W as a cracked-panel derate; heat and incidence already eat that gap on a healthy pair.
+
+KU `sensor.ku_unmetered_pv_est_power` peaked **897 W** that day. That is **batt2 - jumper + trailer outlet**, not a PWM or KU MPPT clamp. Equal-share tiles split it by suitcase count. A ~10% miss vs "2x T2 + 0.81 T2" is **not** a cracked-glass watt.
+
+PWM remains **not in HA**. Victron PWM holds the array near battery voltage, not MPP ([Which solar charge controller: PWM or MPPT?](https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf)). Renogy 200 W suitcase kits include junction-box bypass diodes to limit hot spots ([200 W suitcase](https://www.renogy.com/products/200w-12v-n-type-portable-solar-panel-suitcase-kit-with-20a-pwm-controller)). Standing in the beam or unfolding while one wing is still covered can still heat a substring; smell means that event happened. Setup: unfold fully, step out of the beam, then connect.
+
+Do **not** invent a site derate from these two panels. Revisit only if T2 peak/yield collapses vs a sister clear day, or if the PWM wing stays hotter than its twin after a full unfold with nobody in front.
 
 ### Parallel jumper (T2 RV unused)
 

@@ -277,6 +277,11 @@ Multi-day energy in HA is `sensor.t2_mppt_energy_kwh` (Riemann integral, `state_
 Days before recorder existed are not in HA; VictronConnect **History** on the charger still holds
 the last 30 daily yield bars.
 
+**18 Sep 2026 T2** (two 200 W suitcases, 400 W STC): peak **356 W**, yield today **1670 Wh**.
+Damaged suitcases (shattered cargo-trailer glass with film still sealed; PWM wing hot-spot
+on unfold) stay in the array -- [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md#suitcase-panel-condition-operator-2026-09-19).
+PWM is still unmetered; do not read T2 as a PWM clamp.
+
 ---
 
 ## Retired SVG (`:8765`)
