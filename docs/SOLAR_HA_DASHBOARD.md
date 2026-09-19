@@ -14,6 +14,7 @@ entities. This dashboard uses **stock cards** only:
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/)
 - [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) (`weather.417373300314` outdoor ambient + forecast)
+- [Picture](https://www.home-assistant.io/dashboards/picture/) (NWS KMRX standard radar loop)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/)
 - [Markdown](https://www.home-assistant.io/dashboards/markdown/)
 
@@ -52,6 +53,7 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 | **Solar plant** Lovelace | Live W glances grouped by bus + `power-sankey` (after Energy is configured) |
 | Template sensors | Jumper est. (+ = T2→KU), T2-end jumper sign, trailer outlet W, KU PV est., KU equal-share est. |
 | Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
+| NWS REST | `sensor.nws_watauga_lake_alerts` from [api.weather.gov alerts](https://www.weather.gov/documentation/services-web-api) `point=36.32,-82.12` |
 
 HA Energy / `power-sankey` is a **sources / battery / home / devices** Sankey, not a
 Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron clamps).
@@ -215,6 +217,7 @@ Official cards:
 - [Entities](https://www.home-assistant.io/dashboards/entities/) -- sim dump plug ON/OFF
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee indoor setpoint (`climate.417373300314`, name **Ecobee**; not trailer)
 - [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) -- outdoor ambient + daily/hourly forecast (`weather.417373300314`; same Overview popup)
+- [Picture](https://www.home-assistant.io/dashboards/picture/) -- NWS Morristown **KMRX** standard radar loop (plays on the page)
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/) -- Instant W
 
 Do **not** add these to Energy sources: shunt Ah/min/RSSI, Sungold PV/V/A/Hz/faults,
@@ -243,7 +246,7 @@ stay in that bus glance. Per-plug dump watts stay on **History**.
 | KU 24 V (est. chargers) | **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (`sensor.t2_ku_jumper_power`, positive when T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
 | Sungold | One glance: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
 | Dump | Markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). |
-| House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
+| House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). **NWS KMRX radar** is a [picture](https://www.home-assistant.io/dashboards/picture/) of the official standard loop `https://radar.weather.gov/ridge/standard/KMRX_loop.gif` ([animated GIFs](https://www.weather.gov/radarfaq/), [ridge/standard](https://radar.weather.gov/ridge/standard/)). [api.weather.gov points](https://www.weather.gov/documentation/services-web-api) for Watauga Lake `36.32,-82.12` returns `radarStation: KMRX` (Hampton / Carter County). The GIF **plays on this page**. Tap opens [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard). Alerts: `sensor.nws_watauga_lake_alerts` ([RESTful](https://www.home-assistant.io/integrations/rest/), NWS `User-Agent` required). Do **not** iframe `radar.weather.gov` RIDGE2 (GIS app; [webpage card](https://www.home-assistant.io/dashboards/iframe/) is for pages that allow embedding). Do **not** add HACS radar cards. Optional later: [Generic Camera](https://www.home-assistant.io/integrations/generic/) UI still-image URL uses the same NWS `ridge/standard` path (HA example is `CONUS_0.gif`). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
 
 Do **not** add a **Loads (not losses)** card, a **Conversion losses** card, **Sungold cart** /
 **Sungold AC** split, or headline [gauge](https://www.home-assistant.io/dashboards/gauge/) stacks.

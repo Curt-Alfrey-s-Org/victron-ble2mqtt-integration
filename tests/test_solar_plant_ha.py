@@ -40,6 +40,15 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "sensor.trailer_outlet_power" in ku["state"]
     assert by_id["sensor.battery_1_charge_power"]["device_class"] == "power"
     assert by_id["sensor.battery_1_discharge_power"]["device_class"] == "power"
+    rest_blocks = data.get("rest") or []
+    assert rest_blocks
+    nws = rest_blocks[0]
+    assert "api.weather.gov/alerts/active?point=36.32,-82.12" in nws["resource"]
+    assert nws["scan_interval"] == 300
+    assert nws["headers"]["User-Agent"]
+    assert nws["headers"]["Accept"] == "application/geo+json"
+    nws_sensor = nws["sensor"][0]
+    assert nws_sensor["unique_id"] == "nws_watauga_lake_alerts"
     losses = by_id["sensor.solar_component_losses_power"]
     assert losses["device_class"] == "power"
     assert "sensor.t2_mppt_conversion_loss_power" in losses["state"]
@@ -94,6 +103,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "markdown" in types
     assert "thermostat" in types
     assert "weather-forecast" in types
+    assert "picture" in types
     assert "statistics-graph" in types
     assert "entities" in types
     assert "gauge" not in types
@@ -122,6 +132,10 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert daily.get("show_current") is True
     hourly = next(c for c in weather_cards if c["forecast_type"] == "hourly")
     assert hourly.get("show_current") is False
+    radar = next(c for c in cards if c.get("type") == "picture")
+    assert radar["image"] == "https://radar.weather.gov/ridge/standard/KMRX_loop.gif"
+    assert radar["tap_action"]["action"] == "url"
+    assert radar["tap_action"]["url_path"] == "https://radar.weather.gov/station/KMRX/standard"
     assert not any(c.get("type") == "glance" and c.get("title") == "Ecobee" for c in cards)
     assert not any(c.get("title") == "Trailer climate" for c in cards)
     assert not any(c.get("title") == "House climate" for c in cards)
@@ -271,6 +285,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "thermostat" in text
     assert "weather-forecast" in text
     assert "weather.417373300314" in text
+    assert "KMRX_loop.gif" in text
+    assert "sensor.nws_watauga_lake_alerts" in text
     assert "statistics-graph" in text
     assert "sensor.battery_1_remaining_minutes" in text
     assert "Do **not** configure EM16 A3 as the electricity **grid**" in text

@@ -2,9 +2,30 @@
 # Live W templates + Riemann kWh for the Energy dashboard / power-sankey.
 # Official: https://www.home-assistant.io/integrations/template/
 #           https://www.home-assistant.io/integrations/integration/
+#           https://www.home-assistant.io/integrations/rest/
 #           https://www.home-assistant.io/docs/configuration/packages/
 # Physics: docs/SOLAR_POWER_BALANCE.md (jumper est., KU equal-share est.)
+# NWS: https://www.weather.gov/documentation/services-web-api (User-Agent required)
 # This package is read-only sensors. Dump on/off is sim_dump_control.yaml.
+
+# Watauga Lake / Hampton TN. NWS points 36.32,-82.12 -> radarStation KMRX, county TNC019.
+rest:
+  - resource: https://api.weather.gov/alerts/active?point=36.32,-82.12
+    scan_interval: 300
+    timeout: 20
+    headers:
+      User-Agent: victron-ble2mqtt-integration (https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration)
+      Accept: application/geo+json
+    sensor:
+      - name: NWS Watauga Lake alerts
+        unique_id: nws_watauga_lake_alerts
+        value_template: >-
+          {% set feats = value_json.features | default([]) %}
+          {% if feats | length == 0 %}
+            None
+          {% else %}
+            {{ (feats | map(attribute='properties.event') | list | unique | list | join(', '))[:250] }}
+          {% endif %}
 
 template:
   - sensor:

@@ -327,6 +327,18 @@ views:
             forecast_type: hourly
             show_current: false
             show_forecast: true
+          - type: markdown
+            content: >
+              **NWS Watauga Lake** (36.32 N, 82.12 W; Hampton / Carter County).
+              Radar **KMRX**. Alerts: {{ states('sensor.nws_watauga_lake_alerts') }}.
+              Loop below is the official [standard radar GIF](https://www.weather.gov/radarfaq/).
+              Tap it for [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard).
+          - type: picture
+            image: https://radar.weather.gov/ridge/standard/KMRX_loop.gif
+            alt_text: NWS Morristown KMRX standard radar loop for Watauga Lake
+            tap_action:
+              action: url
+              url_path: https://radar.weather.gov/station/KMRX/standard
           - type: glance
             title: Trailer hygrometer
             show_name: true
