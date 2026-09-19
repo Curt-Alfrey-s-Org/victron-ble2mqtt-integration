@@ -31,238 +31,83 @@ views:
         group_by_area: false
         group_by_floor: false
 
-      - type: horizontal-stack
-        cards:
-          - type: gauge
-            entity: sensor.solar_controller_solar
-            name: T2 MPPT
-            min: 0
-            max: 400
-            needle: true
-          - type: gauge
-            entity: sensor.battery_1_power
-            name: Battery 1 T2
-            min: -400
-            max: 400
-            needle: true
-          - type: gauge
-            entity: sensor.battery_2_power
-            name: Battery 2 KU
-            min: -400
-            max: 400
-            needle: true
-          - type: gauge
-            entity: sensor.ku_charger_equal_share_power
-            name: KU share est.
-            min: 0
-            max: 400
-            needle: true
-
-      - type: glance
-        title: T2 24 V
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
+      - type: distribution
+        title: Instant W
         entities:
           - entity: sensor.solar_controller_solar
-            name: MPPT W
-          - entity: sensor.solar_controller_charge_state
-            name: Charge
-          - entity: sensor.solar_controller_charging_power
-            name: Charge W
-          - entity: sensor.solar_controller_yield_today
-            name: Yield today
-          - entity: sensor.t2_ku_jumper_power
-            name: Jumper est.
-          - entity: sensor.battery_1_power
-            name: Batt 1 W
-          - entity: sensor.battery_1_voltage
-            name: Batt 1 V
-          - entity: sensor.battery_1_current
-            name: Batt 1 A
-          - entity: sensor.battery_1_state_of_charge
-            name: SoC
-          - entity: sensor.battery_1_consumed_ah
-            name: Consumed Ah
-          - entity: sensor.battery_1_remaining_minutes
-            name: Remaining min
-          - entity: sensor.battery_1_rssi
-            name: RSSI
-
-      - type: glance
-        title: KU 24 V (est. chargers)
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.ku_unmetered_pv_est_power
-            name: KU PV est.
-          - entity: sensor.ku_charger_equal_share_power
-            name: Each charger est.
-          - entity: sensor.battery_2_power
-            name: Batt 2 W
-          - entity: sensor.battery_2_voltage
-            name: Batt 2 V
-          - entity: sensor.battery_2_current
-            name: Batt 2 A
-          - entity: sensor.trailer_outlet_power
-            name: Sungold AC-in
-          - entity: sensor.battery_2_state_of_charge
-            name: SoC
-          - entity: sensor.battery_2_consumed_ah
-            name: Consumed Ah
-          - entity: sensor.battery_2_remaining_minutes
-            name: Remaining min
-          - entity: sensor.battery_2_rssi
-            name: RSSI
-
-      - type: glance
-        title: Loads (not losses)
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
-          - entity: sensor.em16_a3_power
-            name: Trailer CT A3
-          - entity: sensor.em16_b3_power
-            name: Sungold breaker
-          - entity: sensor.sim_dump_load_power
-            name: Sim dump
+            name: T2 MPPT
           - entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
+          - entity: sensor.sungold_sph302480a_pv_power
+            name: Sungold PV
+          - entity: sensor.sim_dump_load_power
+            name: Sim dump
 
-      - type: markdown
-        title: Dump load
-        content: >
-          **Dump load HA control** is the kill switch for HA automations that turn
-          the sim dump plugs on and off (Threshold surplus band, charge-stage dwell,
-          min on/off timers, staged plug add). **Off** = automations do nothing.
-          **On** = they may add one plug, wait for that plug's live watt sensor,
-          then add another only if surplus, inverter headroom, and batteries still
-          allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
-          on INV OUTPUT plus cart battery amps. Plug watts come from the smart
-          plug power entity (set on each row), not a typed rating. Never all six
-          at once. Plug header toggle is manual only.
-          Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
-          Helpers list (backup): [Settings > Helpers](/config/helpers).
-
-      - type: entities
-        title: Dump load HA control
-        show_header_toggle: false
-        entities:
-          - entity: input_boolean.dump_control_enabled
-            name: Automations on/off
-            icon: mdi:transmission-tower-export
-            secondary_info: last-changed
-          - entity: input_number.dump_ac_limit_t2_w
-            name: T2 AC limit
-          - entity: input_number.dump_ac_limit_ku_w
-            name: KU AC limit
-          - entity: input_number.dump_ac_limit_sph_w
-            name: SPH AC limit
-          - entity: input_number.dump_max_discharge_t2_w
-            name: T2 max batt discharge
-          - entity: input_number.dump_max_discharge_ku_w
-            name: KU max batt discharge
-          - entity: input_number.dump_max_discharge_sph_w
-            name: SPH max batt discharge
-          - entity: binary_sensor.dump_batt_t2_ok
-            name: T2 batt ok
-          - entity: binary_sensor.dump_batt_ku_ok
-            name: KU batt ok
-          - entity: binary_sensor.dump_batt_sph_ok
-            name: SPH batt ok
-          - entity: sensor.battery_1_power
-            name: T2 shunt W
-          - entity: sensor.battery_2_power
-            name: KU shunt W
-          - entity: sensor.sungold_sph302480a_load_power
-            name: SPH AC out
-          - entity: sensor.dump_next_plug
-            name: Next plug that fits
-          - entity: sensor.dump_surplus_w
-            name: Dump surplus
-          - type: weblink
-            name: DUMP_LOAD_HA_CONTROL.md (what this does)
-            url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
-            icon: mdi:file-document-outline
-          - type: weblink
-            name: Helpers (same switch if this card is missing)
-            url: /config/helpers
-            icon: mdi:tune
-
-      - type: entities
-        title: Sim dump plugs
-        show_header_toggle: true
-        entities:
-          - entity: switch.sim_ac_plug_1
-            name: Plug 1
-          - entity: sensor.sim_ac_plug_1_power
-            name: 1 live W
-          - entity: input_text.dump_plug_1_power_entity
-            name: 1 power sensor
-          - entity: input_select.dump_plug_1_inverter
-            name: 1 inverter
-          - entity: switch.sim_ac_plug_2
-            name: Plug 2
-          - entity: sensor.sim_ac_plug_2_power
-            name: 2 live W
-          - entity: input_text.dump_plug_2_power_entity
-            name: 2 power sensor
-          - entity: input_select.dump_plug_2_inverter
-            name: 2 inverter
-          - entity: switch.sim_ac_plug_3
-            name: Plug 3
-          - entity: sensor.sim_ac_plug_3_power
-            name: 3 live W
-          - entity: input_text.dump_plug_3_power_entity
-            name: 3 power sensor
-          - entity: input_select.dump_plug_3_inverter
-            name: 3 inverter
-          - entity: switch.sim_ac_plug_4
-            name: Plug 4
-          - entity: sensor.sim_ac_plug_4_power
-            name: 4 live W
-          - entity: input_text.dump_plug_4_power_entity
-            name: 4 power sensor
-          - entity: input_select.dump_plug_4_inverter
-            name: 4 inverter
-          - entity: switch.sim_ac_plug_5
-            name: Plug 5
-          - entity: sensor.sim_ac_plug_5_power
-            name: 5 live W
-          - entity: input_text.dump_plug_5_power_entity
-            name: 5 power sensor
-          - entity: input_select.dump_plug_5_inverter
-            name: 5 inverter
-          - entity: switch.sim_ac_plug_6
-            name: Plug 6
-          - entity: sensor.sim_ac_plug_6_power
-            name: 6 live W
-          - entity: input_text.dump_plug_6_power_entity
-            name: 6 power sensor
-          - entity: input_select.dump_plug_6_inverter
-            name: 6 inverter
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+          - type: glance
+            title: T2 24 V
+            show_name: true
+            show_icon: true
+            show_state: true
+            columns: 4
+            entities:
+              - entity: sensor.solar_controller_solar
+                name: MPPT W
+              - entity: sensor.solar_controller_charge_state
+                name: Charge
+              - entity: sensor.solar_controller_charging_power
+                name: Charge W
+              - entity: sensor.solar_controller_yield_today
+                name: Yield today
+              - entity: sensor.t2_ku_jumper_power
+                name: Jumper est.
+              - entity: sensor.battery_1_power
+                name: Batt 1 W
+              - entity: sensor.battery_1_voltage
+                name: Batt 1 V
+              - entity: sensor.battery_1_current
+                name: Batt 1 A
+              - entity: sensor.battery_1_state_of_charge
+                name: SoC
+              - entity: sensor.battery_1_consumed_ah
+                name: Consumed Ah
+              - entity: sensor.battery_1_remaining_minutes
+                name: Remaining min
+              - entity: sensor.battery_1_rssi
+                name: RSSI
+              - entity: sensor.t2_mppt_conversion_loss_power
+                name: MPPT loss
+          - type: glance
+            title: KU 24 V (est. chargers)
+            show_name: true
+            show_icon: true
+            show_state: true
+            columns: 4
+            entities:
+              - entity: sensor.ku_unmetered_pv_est_power
+                name: KU PV est.
+              - entity: sensor.ku_charger_equal_share_power
+                name: KU share est.
+              - entity: sensor.battery_2_power
+                name: Batt 2 W
+              - entity: sensor.battery_2_voltage
+                name: Batt 2 V
+              - entity: sensor.battery_2_current
+                name: Batt 2 A
+              - entity: sensor.battery_2_state_of_charge
+                name: SoC
+              - entity: sensor.battery_2_consumed_ah
+                name: Consumed Ah
+              - entity: sensor.battery_2_remaining_minutes
+                name: Remaining min
+              - entity: sensor.battery_2_rssi
+                name: RSSI
 
       - type: glance
-        title: Conversion losses
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 3
-        entities:
-          - entity: sensor.solar_component_losses_power
-            name: Total est.
-          - entity: sensor.t2_mppt_conversion_loss_power
-            name: T2 MPPT
-          - entity: sensor.sungold_conversion_loss_power
-            name: Sungold
-
-      - type: glance
-        title: Sungold cart
+        title: Sungold
         show_name: true
         show_icon: true
         show_state: true
@@ -288,14 +133,14 @@ views:
             name: Charge
           - entity: sensor.sungold_sph302480a_inverter_state
             name: Mode
-
-      - type: glance
-        title: Sungold AC
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 4
-        entities:
+          - entity: sensor.trailer_outlet_power
+            name: Sungold AC-in
+          - entity: sensor.sungold_sph302480a_load_power
+            name: Sungold AC out
+          - entity: sensor.em16_a3_power
+            name: Trailer CT A3
+          - entity: sensor.em16_b3_power
+            name: Sungold breaker
           - entity: sensor.sungold_sph302480a_grid_voltage
             name: UTI V
           - entity: sensor.sungold_sph302480a_ac_output_voltage
@@ -314,51 +159,149 @@ views:
             name: Fault LED
           - entity: sensor.sungold_sph302480a_inverter_error_flags
             name: Error flags
+          - entity: sensor.sungold_conversion_loss_power
+            name: Conv. loss
 
-      - type: thermostat
-        entity: climate.417373300314
-        name: Ecobee
+      - type: vertical-stack
+        title: Dump
+        cards:
+          - type: markdown
+            title: Dump load
+            content: >
+              **Dump load HA control** is the kill switch for HA automations that turn
+              the sim dump plugs on and off (Threshold surplus band, charge-stage dwell,
+              min on/off timers, staged plug add). **Off** = automations do nothing.
+              **On** = they may add one plug, wait for that plug's live watt sensor,
+              then add another only if surplus, inverter headroom, and batteries still
+              allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
+              on INV OUTPUT plus cart battery amps. Plug watts come from the smart
+              plug power entity (set on each row), not a typed rating. Never all six
+              at once. Plug header toggle is manual only.
+              Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
+              Helpers list (backup): [Settings > Helpers](/config/helpers).
+          - type: entities
+            title: Dump load HA control
+            show_header_toggle: false
+            entities:
+              - entity: input_boolean.dump_control_enabled
+                name: Automations on/off
+                icon: mdi:transmission-tower-export
+                secondary_info: last-changed
+              - entity: input_number.dump_ac_limit_t2_w
+                name: T2 AC limit
+              - entity: input_number.dump_ac_limit_ku_w
+                name: KU AC limit
+              - entity: input_number.dump_ac_limit_sph_w
+                name: SPH AC limit
+              - entity: input_number.dump_max_discharge_t2_w
+                name: T2 max batt discharge
+              - entity: input_number.dump_max_discharge_ku_w
+                name: KU max batt discharge
+              - entity: input_number.dump_max_discharge_sph_w
+                name: SPH max batt discharge
+              - entity: binary_sensor.dump_batt_t2_ok
+                name: T2 batt ok
+              - entity: binary_sensor.dump_batt_ku_ok
+                name: KU batt ok
+              - entity: binary_sensor.dump_batt_sph_ok
+                name: SPH batt ok
+              - entity: sensor.dump_next_plug
+                name: Next plug that fits
+              - entity: sensor.dump_surplus_w
+                name: Dump surplus
+              - type: weblink
+                name: DUMP_LOAD_HA_CONTROL.md (what this does)
+                url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
+                icon: mdi:file-document-outline
+              - type: weblink
+                name: Helpers (same switch if this card is missing)
+                url: /config/helpers
+                icon: mdi:tune
+          - type: entities
+            title: Sim dump plugs
+            show_header_toggle: true
+            entities:
+              - entity: switch.sim_ac_plug_1
+                name: Plug 1
+              - entity: sensor.sim_ac_plug_1_power
+                name: 1 live W
+              - entity: input_text.dump_plug_1_power_entity
+                name: 1 power sensor
+              - entity: input_select.dump_plug_1_inverter
+                name: 1 inverter
+              - entity: switch.sim_ac_plug_2
+                name: Plug 2
+              - entity: sensor.sim_ac_plug_2_power
+                name: 2 live W
+              - entity: input_text.dump_plug_2_power_entity
+                name: 2 power sensor
+              - entity: input_select.dump_plug_2_inverter
+                name: 2 inverter
+              - entity: switch.sim_ac_plug_3
+                name: Plug 3
+              - entity: sensor.sim_ac_plug_3_power
+                name: 3 live W
+              - entity: input_text.dump_plug_3_power_entity
+                name: 3 power sensor
+              - entity: input_select.dump_plug_3_inverter
+                name: 3 inverter
+              - entity: switch.sim_ac_plug_4
+                name: Plug 4
+              - entity: sensor.sim_ac_plug_4_power
+                name: 4 live W
+              - entity: input_text.dump_plug_4_power_entity
+                name: 4 power sensor
+              - entity: input_select.dump_plug_4_inverter
+                name: 4 inverter
+              - entity: switch.sim_ac_plug_5
+                name: Plug 5
+              - entity: sensor.sim_ac_plug_5_power
+                name: 5 live W
+              - entity: input_text.dump_plug_5_power_entity
+                name: 5 power sensor
+              - entity: input_select.dump_plug_5_inverter
+                name: 5 inverter
+              - entity: switch.sim_ac_plug_6
+                name: Plug 6
+              - entity: sensor.sim_ac_plug_6_power
+                name: 6 live W
+              - entity: input_text.dump_plug_6_power_entity
+                name: 6 power sensor
+              - entity: input_select.dump_plug_6_inverter
+                name: 6 inverter
 
-      - type: weather-forecast
-        entity: weather.417373300314
-        name: Ecobee outdoor
-        forecast_type: daily
-        show_current: true
-        show_forecast: true
-        secondary_info_attribute: humidity
-
-      - type: weather-forecast
-        entity: weather.417373300314
-        name: Ecobee outdoor hourly
-        forecast_type: hourly
-        show_current: false
-        show_forecast: true
-
-      - type: glance
-        title: Trailer hygrometer
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 3
-        entities:
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
-            name: Temp
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
-            name: Humidity
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
-            name: Battery
-
-      - type: distribution
-        title: Instant W
-        entities:
-          - entity: sensor.solar_controller_solar
-            name: T2 MPPT
-          - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out
-          - entity: sensor.sungold_sph302480a_pv_power
-            name: Sungold PV
-          - entity: sensor.sim_dump_load_power
-            name: Sim dump
+      - type: vertical-stack
+        title: House
+        cards:
+          - type: thermostat
+            entity: climate.417373300314
+            name: Ecobee
+          - type: weather-forecast
+            entity: weather.417373300314
+            name: Ecobee outdoor
+            forecast_type: daily
+            show_current: true
+            show_forecast: true
+            secondary_info_attribute: humidity
+          - type: weather-forecast
+            entity: weather.417373300314
+            name: Ecobee outdoor hourly
+            forecast_type: hourly
+            show_current: false
+            show_forecast: true
+          - type: glance
+            title: Trailer hygrometer
+            show_name: true
+            show_icon: true
+            show_state: true
+            columns: 3
+            entities:
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
+                name: Temp
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
+                name: Humidity
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
+                name: Battery
 
   - title: History
     path: history

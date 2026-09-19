@@ -8,7 +8,8 @@ entities. This dashboard uses **stock cards** only:
 
 - [Energy cards](https://www.home-assistant.io/dashboards/energy/) (`power-sankey`)
 - [Glance](https://www.home-assistant.io/dashboards/glance/)
-- [Gauge](https://www.home-assistant.io/dashboards/gauge/)
+- [Grid](https://www.home-assistant.io/dashboards/grid/) (`columns: 2`, `square: false` for T2 | KU)
+- [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/) (dump, house)
 - [Entities](https://www.home-assistant.io/dashboards/entities/) (sim dump plug switches)
 - [History graph](https://www.home-assistant.io/dashboards/history-graph/)
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
@@ -48,7 +49,7 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 
 | Surface | Role |
 |---------|------|
-| **Solar plant** Lovelace | Live W glance + gauges + `power-sankey` (after Energy is configured) |
+| **Solar plant** Lovelace | Live W glances grouped by bus + `power-sankey` (after Energy is configured) |
 | Template sensors | Jumper est., trailer outlet W, KU PV est., KU equal-share est. |
 | Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
 
@@ -218,26 +219,31 @@ Official cards:
 Do **not** add these to Energy sources: shunt Ah/min/RSSI, Sungold PV/V/A/Hz/faults,
 hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 
-### Now (no duplicate watts)
+### Now (group by bus, no duplicate cards)
 
-One card per topic. Watts that already appear on **Loads** or **Instant W** are
-not repeated on Sungold/T2 extra glances. Per-plug dump watts and long notes stay
-on **History** or the intro markdown.
+Group **T2 with T2**, **KU with KU**, **Sungold with Sungold**, dump with dump,
+house climate with house climate. Do **not** put a gauge row of the same watts
+that already sit in those glances. [Grid](https://www.home-assistant.io/dashboards/grid/)
+holds T2 | KU (`square: false`). [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/)
+holds dump and house so masonry cannot split those groups.
+
+**Instant W** is the only mixed-bus pie (live clamps + dump). Bus detail watts
+stay in that bus glance. Per-plug dump watts stay on **History**.
 
 | Card | Entities |
 |------|----------|
 | Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent); KU PV est. may be negative at night |
-| Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles |
-| Conversion losses | Glance only: total + T2 MPPT + Sungold (no second gauge) |
-| Sim dump plugs | [Entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. |
-| T2 24 V | MPPT W, charge state, charge W, yield today, jumper, Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI |
-| KU 24 V | KU PV est., each charger est., Batt 2 W/V/A, **Sungold A/C-in** (`trailer_outlet_power`), SoC, consumed Ah, remaining min, RSSI |
-| Sungold cart | PV W/V/A, cart batt W, batt V/A/SoC/temp, charge state, mode -- **not** Load W (that is Loads / Instant W) |
-| Sungold AC | UTI V, AC out V/Hz, load A, AC in A/Hz, fault code, fault LED, error flags |
-| Loads (not losses) | **Trailer CT A3** (`sensor.em16_a3_power`, meter not LED/vent), **Sungold breaker** (B3), sim dump total, Sungold A/C out (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) |
-| **Ecobee** | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. |
-| **Ecobee outdoor** | Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) on **Now**: `weather.417373300314` (same Overview Living Room popup). This is **outdoor ambient** (condition, temperature, humidity, wind) plus **daily** and **hourly** forecast. Do **not** invent a second outdoor sensor or SVG. `forecast_type` is required (`daily` / `hourly`). |
-| Trailer hygrometer | Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)) |
+| Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
+| T2 24 V | MPPT W, charge state, charge W, yield today, jumper, Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
+| KU 24 V (est. chargers) | **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
+| Sungold | One glance: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
+| Dump | Markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). |
+| House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
+
+Do **not** add a **Loads (not losses)** card, a **Conversion losses** card, **Sungold cart** /
+**Sungold AC** split, or headline [gauge](https://www.home-assistant.io/dashboards/gauge/) stacks.
+T2/Sungold conversion-loss watts live on those bus glances. Combined total is History
+**Watts (losses)** (`sensor.solar_component_losses_power`).
 
 ### History (one unit per graph, max 8)
 

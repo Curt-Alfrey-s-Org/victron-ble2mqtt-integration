@@ -83,7 +83,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     types = {c["type"] for c in cards}
     assert "power-sankey" in types
     assert "glance" in types
-    assert "gauge" in types
+    assert "grid" in types
+    assert "vertical-stack" in types
     assert "history-graph" in types
     assert "distribution" in types
     assert "markdown" in types
@@ -91,6 +92,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "weather-forecast" in types
     assert "statistics-graph" in types
     assert "entities" in types
+    assert "gauge" not in types
+    assert "horizontal-stack" not in types
     forbidden = {"custom:", "iframe", "webpage"}
     for card in cards:
         t = card["type"]
@@ -136,24 +139,30 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "LED+fan" not in dist_names
     assert "sensor.trailer_outlet_power" not in dist_entities
     assert "Pi4" not in dist_names
-    loads_glance = next(
+    loads_glance = [
         c for c in cards if c.get("type") == "glance" and c.get("title") == "Loads (not losses)"
-    )
-    loads_names = {e["name"] for e in loads_glance["entities"]}
-    assert "Sungold AC out" in loads_names
-    assert "Sungold breaker" in loads_names
-    assert "Trailer CT A3" in loads_names
-    assert "A3 hot leg" not in loads_names
-    assert "Pi4" not in loads_names
+    ]
+    assert loads_glance == []
     ku = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "KU 24 V (est. chargers)")
     ku_names = {e["name"] for e in ku["entities"]}
-    assert "Sungold AC-in" in ku_names
+    ku_ids = {e["entity"] for e in ku["entities"]}
+    assert "KU share est." in ku_names
+    assert "Each charger est." not in ku_names
+    assert "Sungold AC-in" not in ku_names
     assert "LED+fan" not in ku_names
-    losses_glance = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Conversion losses"
-    )
-    loss_entities = {e["entity"] for e in losses_glance["entities"]}
-    assert "sensor.solar_component_losses_power" in loss_entities
+    assert "sensor.ku_charger_equal_share_power" in ku_ids
+    assert "sensor.trailer_outlet_power" not in ku_ids
+    assert not any(c.get("title") == "Conversion losses" for c in cards)
+    now_view = data["views"][0]
+    assert not any(c.get("type") == "gauge" for c in _all_cards(now_view["cards"]))
+    grid = next(c for c in now_view["cards"] if c.get("type") == "grid")
+    assert grid["columns"] == 2
+    assert grid.get("square") is False
+    grid_titles = [c.get("title") for c in grid["cards"]]
+    assert grid_titles == ["T2 24 V", "KU 24 V (est. chargers)"]
+    stacks = [c.get("title") for c in now_view["cards"] if c.get("type") == "vertical-stack"]
+    assert stacks == ["Dump", "House"]
+
     dump_ctrl = next(
         c for c in cards if c.get("type") == "entities" and c.get("title") == "Dump load HA control"
     )
@@ -166,9 +175,9 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "input_number.dump_ac_limit_ku_w" in dump_ctrl_ids
     assert "input_number.dump_ac_limit_sph_w" in dump_ctrl_ids
     assert "binary_sensor.dump_batt_t2_ok" in dump_ctrl_ids
-    assert "sensor.battery_1_power" in dump_ctrl_ids
-    assert "sensor.battery_2_power" in dump_ctrl_ids
-    assert "sensor.sungold_sph302480a_load_power" in dump_ctrl_ids
+    assert "sensor.battery_1_power" not in dump_ctrl_ids
+    assert "sensor.battery_2_power" not in dump_ctrl_ids
+    assert "sensor.sungold_sph302480a_load_power" not in dump_ctrl_ids
     dump_card = next(
         c for c in cards if c.get("type") == "entities" and c.get("title") == "Sim dump plugs"
     )
@@ -210,22 +219,30 @@ def test_dashboard_uses_official_cards_only() -> None:
     dump_w_ids = {e["entity"] for e in dump_w["entities"]}
     assert "sensor.sim_dump_load_power" in dump_w_ids
     assert "sensor.sim_ac_plug_3_power" in dump_w_ids
-    sungold_ac = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold AC"
+    sungold = next(
+        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold"
     )
-    status_ids = {e["entity"] for e in sungold_ac["entities"]}
-    assert "sensor.sungold_sph302480a_fail_code" in status_ids
-    assert "binary_sensor.sungold_sph302480a_fault_active" in status_ids
-    assert "sensor.sungold_sph302480a_load_power" not in status_ids
+    sungold_ids = {e["entity"] for e in sungold["entities"]}
+    sungold_names = {e["name"] for e in sungold["entities"]}
+    assert "sensor.sungold_sph302480a_fail_code" in sungold_ids
+    assert "binary_sensor.sungold_sph302480a_fault_active" in sungold_ids
+    assert "sensor.sungold_sph302480a_load_power" in sungold_ids
+    assert "sensor.trailer_outlet_power" in sungold_ids
+    assert "sensor.em16_a3_power" in sungold_ids
+    assert "sensor.sungold_conversion_loss_power" in sungold_ids
+    assert "Sungold AC-in" in sungold_names
+    assert "Sungold AC out" in sungold_names
+    assert "Trailer CT A3" in sungold_names
+    assert "Sungold breaker" in sungold_names
+    assert "A3 hot leg" not in sungold_names
+    assert "Pi4" not in sungold_names
     t2 = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 24 V")
     t2_ids = {e["entity"] for e in t2["entities"]}
     assert "sensor.solar_controller_yield_today" in t2_ids
     assert "sensor.battery_1_state_of_charge" in t2_ids
-    sungold_cart = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold cart"
-    )
-    cart_ids = {e["entity"] for e in sungold_cart["entities"]}
-    assert "sensor.sungold_sph302480a_load_power" not in cart_ids
+    assert "sensor.t2_mppt_conversion_loss_power" in t2_ids
+    assert not any(c.get("title") == "Sungold cart" for c in cards)
+    assert not any(c.get("title") == "Sungold AC" for c in cards)
 
 
 def test_docs_and_install_script_exist() -> None:
@@ -247,6 +264,10 @@ def test_docs_and_install_script_exist() -> None:
     assert "switch.sim_ac_plug_1" in text
     assert "input_boolean.dump_control_enabled" in text
     assert "Dump load HA control" in text
+    assert "KU share est." in text
+    assert "Do **not** put Sungold A/C-in here" in text
+    assert "Gauges (PV)" not in text
+    assert "Gauges (batteries)" not in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script
