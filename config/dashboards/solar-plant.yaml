@@ -171,11 +171,11 @@ views:
             title: Dump load
             content: >
               **Dump load HA control** is the kill switch for HA automations that turn
-              the sim dump plugs on and off (Threshold surplus band, charge-stage dwell,
-              min on/off timers, staged plug add). **Off** = automations do nothing.
-              **On** = they may add one plug, wait for that plug's live watt sensor,
-              then add another only if surplus, inverter headroom, and batteries still
-              allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
+              the sim dump plugs on and off (Victron float + solar-present, re-bulk
+              and solar-gone off, min on/off timers, staged plug add). **Off** =
+              automations do nothing. **On** = they may add one plug, wait for that
+              plug's live watt sensor, then add another only if float band, inverter
+              headroom, and batteries still allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
               on INV OUTPUT plus cart battery amps. Plug watts come from the smart
               plug power entity (set on each row), not a typed rating. Never all six
               at once. Plug header toggle is manual only.
