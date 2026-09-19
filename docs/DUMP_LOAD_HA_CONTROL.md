@@ -107,6 +107,24 @@ Until a real smart-plug power entity is set on
 `input_text.dump_plug_N_power_entity`, a probe has no live watts and will turn
 off after the wait. That is fail-closed, not a typed rating.
 
+**Already-ON leftover (required):** the staged-ON wait only runs after a **new**
+`switch.turn_on`. Plugs that are already on with unknown watts (old slam-all-on,
+or HA restart while sim templates are ON) never hit that wait, and surplus stays
+high because unknown watts do not add to `sensor.sim_dump_load_power`. Automation
+`sim_dump_turn_off_unknown_watts` fail-closes those plugs:
+
+- [Template trigger](https://www.home-assistant.io/docs/automation/trigger/#template-trigger)
+  `for: 00:00:15` when any dump switch is `on` and that plug's power sensor is
+  not numeric.
+- [Home Assistant start](https://www.home-assistant.io/triggers/homeassistant/)
+  and [automation_reloaded](https://www.home-assistant.io/docs/configuration/events/)
+  ([event trigger](https://www.home-assistant.io/triggers/event/)), then
+  [delay](https://www.home-assistant.io/docs/scripts/#delay) 15 s, so leftover
+  ON plugs are checked after a container restart or automation reload.
+- Each ON plug with non-numeric live watts is turned **off** even during min-on
+  ([switch.turn_off](https://www.home-assistant.io/integrations/switch/)); min-on
+  is cancelled (same as bulk). Kill switch off = automations do nothing.
+
 Hardware when purchased: official [Shelly](https://www.home-assistant.io/integrations/shelly/)
 plug (local power sensor). See [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md).
 
@@ -127,6 +145,8 @@ Turn-**off**:
   wins, cancels min-on).
 - **That inverter only:** its `dump_batt_*_ok` stays off 1 minute (discharging
   beyond the helper). Plugs on the other inverters stay as they are.
+- **That plug:** ON with non-numeric live watts for 15 s (failed probe or
+  leftover already-on). Even during min-on; cancels min-on.
 
 ### Any load on any inverter (live meters)
 

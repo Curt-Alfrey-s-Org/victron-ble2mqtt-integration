@@ -44,6 +44,8 @@ def test_docs_and_install_exist() -> None:
     assert "ha_set_number" in docs
     assert "2000" in docs
     assert "sensor.dump_next_plug" in docs
+    assert "sim_dump_turn_off_unknown_watts" in docs
+    assert "Already-ON leftover" in docs
     assert INSTALL.is_file()
     text = INSTALL.read_text(encoding="utf-8")
     assert "sim_dump_control.yaml" in text
@@ -139,6 +141,7 @@ def test_automations_use_switch_services_and_dwell() -> None:
         "sim_dump_turn_off_batt_t2",
         "sim_dump_turn_off_batt_ku",
         "sim_dump_turn_off_batt_sph",
+        "sim_dump_turn_off_unknown_watts",
     }
     on = by_id["sim_dump_turn_on"]
     off_s = by_id["sim_dump_turn_off_surplus"]
@@ -152,6 +155,23 @@ def test_automations_use_switch_services_and_dwell() -> None:
         for trig in auto["triggers"]:
             if trig.get("trigger") == "state":
                 assert trig.get("for") == "00:01:00"
+    unk = by_id["sim_dump_turn_off_unknown_watts"]
+    unk_by_id = {t.get("id"): t for t in unk["triggers"]}
+    assert unk_by_id["unknown_dwell"]["trigger"] == "template"
+    assert unk_by_id["unknown_dwell"]["for"] == "00:00:15"
+    assert "sensor.sim_ac_plug_1_power" in unk_by_id["unknown_dwell"]["value_template"]
+    assert unk_by_id["ha_start"] == {
+        "trigger": "homeassistant",
+        "id": "ha_start",
+        "event": "start",
+    }
+    assert unk_by_id["autos_reloaded"]["event_type"] == "automation_reloaded"
+    unk_txt = str(unk["actions"])
+    assert "00:00:15" in unk_txt
+    assert "switch.turn_off" in unk_txt
+    assert "timer.cancel" in unk_txt
+    assert "timer.dump_min_on" in unk_txt
+    assert "dump_control_enabled" in str(unk["conditions"])
     on_repeat = on["actions"][0]["repeat"]
     on_seq = on_repeat["sequence"]
     seq_txt = str(on_seq)

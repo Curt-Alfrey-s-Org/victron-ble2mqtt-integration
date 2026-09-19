@@ -12,6 +12,10 @@
 #   https://www.home-assistant.io/integrations/input_number/
 #   https://www.home-assistant.io/integrations/input_select/
 #   https://www.home-assistant.io/docs/scripts/
+#   https://www.home-assistant.io/docs/automation/trigger/#template-trigger
+#   https://www.home-assistant.io/triggers/homeassistant/
+#   https://www.home-assistant.io/triggers/event/
+#   https://www.home-assistant.io/docs/configuration/events/
 # Victron 1-minute re-bulk:
 #   https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html
 # SmartShunt +charge / -discharge:
@@ -642,3 +646,70 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+
+  - id: sim_dump_turn_off_unknown_watts
+    alias: Dump load turn off unknown watts
+    description: Fail closed. ON dump plug with no numeric live watts for 15s turns off even during min-on. Also runs 15s after HA start or automation reload so leftover ON plugs are not left on.
+    mode: single
+    triggers:
+      - trigger: template
+        id: unknown_dwell
+        value_template: >
+          {{ (is_state('switch.sim_ac_plug_1', 'on') and not is_number(states('sensor.sim_ac_plug_1_power')))
+             or (is_state('switch.sim_ac_plug_2', 'on') and not is_number(states('sensor.sim_ac_plug_2_power')))
+             or (is_state('switch.sim_ac_plug_3', 'on') and not is_number(states('sensor.sim_ac_plug_3_power')))
+             or (is_state('switch.sim_ac_plug_4', 'on') and not is_number(states('sensor.sim_ac_plug_4_power')))
+             or (is_state('switch.sim_ac_plug_5', 'on') and not is_number(states('sensor.sim_ac_plug_5_power')))
+             or (is_state('switch.sim_ac_plug_6', 'on') and not is_number(states('sensor.sim_ac_plug_6_power'))) }}
+        for: "00:00:15"
+      - trigger: homeassistant
+        id: ha_start
+        event: start
+      - trigger: event
+        id: autos_reloaded
+        event_type: automation_reloaded
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - if:
+          - condition: trigger
+            id:
+              - ha_start
+              - autos_reloaded
+        then:
+          - delay: "00:00:15"
+      - condition: template
+        value_template: >
+          {{ (is_state('switch.sim_ac_plug_1', 'on') and not is_number(states('sensor.sim_ac_plug_1_power')))
+             or (is_state('switch.sim_ac_plug_2', 'on') and not is_number(states('sensor.sim_ac_plug_2_power')))
+             or (is_state('switch.sim_ac_plug_3', 'on') and not is_number(states('sensor.sim_ac_plug_3_power')))
+             or (is_state('switch.sim_ac_plug_4', 'on') and not is_number(states('sensor.sim_ac_plug_4_power')))
+             or (is_state('switch.sim_ac_plug_5', 'on') and not is_number(states('sensor.sim_ac_plug_5_power')))
+             or (is_state('switch.sim_ac_plug_6', 'on') and not is_number(states('sensor.sim_ac_plug_6_power'))) }}
+      - repeat:
+          for_each:
+            - plug: switch.sim_ac_plug_1
+              power: sensor.sim_ac_plug_1_power
+            - plug: switch.sim_ac_plug_2
+              power: sensor.sim_ac_plug_2_power
+            - plug: switch.sim_ac_plug_3
+              power: sensor.sim_ac_plug_3_power
+            - plug: switch.sim_ac_plug_4
+              power: sensor.sim_ac_plug_4_power
+            - plug: switch.sim_ac_plug_5
+              power: sensor.sim_ac_plug_5_power
+            - plug: switch.sim_ac_plug_6
+              power: sensor.sim_ac_plug_6_power
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state(repeat.item.plug, 'on') and not is_number(states(repeat.item.power)) }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ repeat.item.plug }}"
+      - action: timer.cancel
+        target:
+          entity_id: timer.dump_min_on

@@ -2,8 +2,9 @@
 
 **Status (2026-09-19):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
 watt rating.** Staging uses each plug's **live power sensor**. Until a real
-smart plug is added, power is unknown while ON and HA turns that probe off
-after 15 s (fail closed).
+smart plug is added, power is unknown while ON and HA turns that plug off
+after 15 s (fail closed), including plugs that were already on when automations
+loaded. See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
 
 **Hardware when purchased:** official [Shelly](https://www.home-assistant.io/integrations/shelly/)
 plug (local switch + `power` sensor). Do not invent a custom watt protocol.
