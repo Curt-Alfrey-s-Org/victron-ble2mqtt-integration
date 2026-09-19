@@ -61,7 +61,7 @@ views:
             name: Charge W
           - entity: sensor.solar_controller_yield_today
             name: Yield today
-          - entity: sensor.t2_ku_jumper_power
+          - entity: sensor.t2_ku_jumper_at_t2_power
             name: Jumper to KU
           - entity: sensor.battery_1_power
             name: Batt 1 W

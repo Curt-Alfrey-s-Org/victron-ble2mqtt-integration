@@ -17,6 +17,17 @@ template:
         availability: "{{ is_number(states('sensor.solar_controller_solar')) and is_number(states('sensor.battery_1_power')) }}"
         state: "{{ (states('sensor.solar_controller_solar') | float(0)) - (states('sensor.battery_1_power') | float(0)) }}"
 
+      # T2 glance sign only. Canonical jumper stays + = T2->KU for KU PV / History.
+      # https://www.home-assistant.io/integrations/template/
+      - name: T2-KU jumper at T2
+        unique_id: t2_ku_jumper_at_t2_power
+        default_entity_id: sensor.t2_ku_jumper_at_t2_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.t2_ku_jumper_power')) }}"
+        state: "{{ -(states('sensor.t2_ku_jumper_power') | float(0)) }}"
+
       - name: Trailer outlet power
         unique_id: trailer_outlet_power
         default_entity_id: sensor.trailer_outlet_power

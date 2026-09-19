@@ -28,6 +28,10 @@ def test_package_pins_jumper_and_ku_share() -> None:
     jumper = by_id["sensor.t2_ku_jumper_power"]
     assert "sensor.solar_controller_solar" in jumper["state"]
     assert "sensor.battery_1_power" in jumper["state"]
+    jumper_t2 = by_id["sensor.t2_ku_jumper_at_t2_power"]
+    assert "sensor.t2_ku_jumper_power" in jumper_t2["state"]
+    assert jumper_t2["state"].lstrip().startswith("{{ -(") or "-(" in jumper_t2["state"]
+    assert jumper_t2["device_class"] == "power"
     share = by_id["sensor.ku_charger_equal_share_power"]
     assert "/ 3" in share["state"]
     ku = by_id["sensor.ku_unmetered_pv_est_power"]
@@ -57,6 +61,7 @@ def test_package_has_riemann_integrals() -> None:
     assert "sensor.em16_a3_power" not in sources
     assert "sensor.sim_dump_load_power" in sources
     assert "sensor.sungold_sph302480a_load_power" in sources
+    assert "sensor.t2_ku_jumper_at_t2_power" not in sources
     assert "sensor.sungold_sph302480a_load_active_power" not in sources
     for row in platforms:
         assert row["platform"] == "integration"
@@ -252,6 +257,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.battery_1_state_of_charge" in t2_ids
     assert "sensor.t2_mppt_conversion_loss_power" in t2_ids
     assert "Jumper to KU" in t2_names
+    assert "sensor.t2_ku_jumper_at_t2_power" in t2_ids
+    assert "sensor.t2_ku_jumper_power" not in t2_ids
     assert not any(c.get("title") == "Sungold cart" for c in cards)
     assert not any(c.get("title") == "Sungold AC" for c in cards)
 
@@ -278,7 +285,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "KU share est." in text
     assert "Do **not** put Sungold A/C-in here" in text
     assert "Jumper from T2" in text
-    assert "Do **not** add a second inverted jumper sensor" in text
+    assert "sensor.t2_ku_jumper_at_t2_power" in text
+    assert "Negative = leaving T2" in text
     assert "Gauges (PV)" not in text
     assert "Gauges (batteries)" not in text
     script = INSTALL.read_text(encoding="utf-8")

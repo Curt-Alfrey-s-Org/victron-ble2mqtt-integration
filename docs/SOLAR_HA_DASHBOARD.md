@@ -50,7 +50,7 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 | Surface | Role |
 |---------|------|
 | **Solar plant** Lovelace | Live W glances grouped by bus + `power-sankey` (after Energy is configured) |
-| Template sensors | Jumper est., trailer outlet W, KU PV est., KU equal-share est. |
+| Template sensors | Jumper est. (+ = T2→KU), T2-end jumper sign, trailer outlet W, KU PV est., KU equal-share est. |
 | Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
 
 HA Energy / `power-sankey` is a **sources / battery / home / devices** Sankey, not a
@@ -62,7 +62,8 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 
 | entity_id | Meaning |
 |-----------|---------|
-| `sensor.t2_ku_jumper_power` | Est. `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). + = T2 to KU. Same entity on **T2** (Jumper to KU) and **KU** (Jumper from T2). Do **not** add a second inverted jumper sensor. There is no KU-end clamp ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)). |
+| `sensor.t2_ku_jumper_power` | Est. `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). **Canonical + = T2→KU.** Used on **KU** glance (**Jumper from T2**), KU PV est., and History. There is no KU-end clamp ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)). |
+| `sensor.t2_ku_jumper_at_t2_power` | Same estimate, T2-end sign: `-(t2_ku_jumper_power)`. **T2 glance only** (**Jumper to KU**). Negative = leaving T2 (T2→KU); positive = arriving at T2 (KU→T2). Not a second clamp. Do **not** Riemann this. Do **not** put it on History. |
 | `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. That clamp is the **trailer outlet / Sungold A/C-in** (SPH cord). Cargo LED (~0.01 W) and vent fan (~0.1 W) are not separately metered and must **not** be the Lovelace name. |
 | `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + trailer_outlet` |
 | `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
@@ -238,8 +239,8 @@ stay in that bus glance. Per-plug dump watts stay on **History**.
 |------|----------|
 | Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent); KU PV est. may be negative at night |
 | Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
-| T2 24 V | MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_power`), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
-| KU 24 V (est. chargers) | **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (same `sensor.t2_ku_jumper_power`; + still T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
+| T2 24 V | MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
+| KU 24 V (est. chargers) | **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (`sensor.t2_ku_jumper_power`, positive when T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
 | Sungold | One glance: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
 | Dump | Markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). |
 | House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
