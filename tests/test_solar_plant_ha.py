@@ -58,6 +58,17 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "| max" in t2_loss["state"]
     sg_loss = by_id["sensor.sungold_conversion_loss_power"]
     assert "sensor.sungold_sph302480a_charging_power" in sg_loss["state"]
+    site_solar = by_id["sensor.site_solar_power"]
+    assert "sensor.solar_controller_solar" in site_solar["state"]
+    assert "sensor.sungold_sph302480a_pv_power" in site_solar["state"]
+    assert "sensor.ku_unmetered_pv_est_power" in site_solar["state"]
+    assert "| max" in site_solar["state"]
+    site_charge = by_id["sensor.site_charge_power"]
+    assert "sensor.battery_1_charge_power" in site_charge["state"]
+    assert "sensor.battery_2_charge_power" in site_charge["state"]
+    assert "sensor.sungold_sph302480a_charging_power" in site_charge["state"]
+    assert "sensor.solar_controller_charging_power" not in site_charge["state"]
+    assert "| max" in site_charge["state"]
 
 
 def test_package_has_riemann_integrals() -> None:
@@ -70,6 +81,9 @@ def test_package_has_riemann_integrals() -> None:
     assert "sensor.em16_a3_power" not in sources
     assert "sensor.sim_dump_load_power" in sources
     assert "sensor.sungold_sph302480a_load_power" in sources
+    assert "sensor.site_solar_power" in sources
+    assert "sensor.site_charge_power" in sources
+    assert "sensor.site_load_power" not in sources
     assert "sensor.t2_ku_jumper_at_t2_power" not in sources
     assert "sensor.sungold_sph302480a_load_active_power" not in sources
     for row in platforms:
@@ -115,6 +129,32 @@ def _section_tiles(view: dict, heading: str) -> list[dict]:
     return []
 
 
+def _section_cards(view: dict, heading: str) -> list[dict]:
+    for section in view.get("sections") or []:
+        if section.get("type") != "grid":
+            continue
+        section_cards = section.get("cards") or []
+        if not section_cards:
+            continue
+        first = section_cards[0]
+        if first.get("type") == "heading" and first.get("heading") == heading:
+            return section_cards
+    return []
+
+
+def _first_section_heading(view: dict) -> str | None:
+    for section in view.get("sections") or []:
+        if section.get("type") != "grid":
+            continue
+        section_cards = section.get("cards") or []
+        if not section_cards:
+            continue
+        first = section_cards[0]
+        if first.get("type") == "heading":
+            return first.get("heading")
+    return None
+
+
 def test_dashboard_uses_official_cards_only() -> None:
     data = _load(DASHBOARD)
     assert data["title"] == "Solar plant"
@@ -140,8 +180,44 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "weather-forecast" in types
     assert "picture" in types
     assert "statistics-graph" in types
+    assert "statistic" in types
     assert "entities" in types
     assert "heading" in types
+    assert _first_section_heading(now_view) == "Site totals"
+    site_cards = _section_cards(now_view, "Site totals")
+    site_stat_cards = [c for c in site_cards if c.get("type") == "statistic"]
+    assert len(site_stat_cards) == 3
+    stat_entities = {c["entity"] for c in site_stat_cards}
+    assert stat_entities == {
+        "sensor.site_solar_energy_kwh",
+        "sensor.site_charge_energy_kwh",
+        "sensor.sungold_load_energy_kwh",
+    }
+    for stat_card in site_stat_cards:
+        assert stat_card["stat_type"] == "change"
+        assert stat_card["period"]["calendar"]["period"] == "day"
+    site_tiles = [c for c in site_cards if c.get("type") == "tile"]
+    site_tile_names = {t["name"] for t in site_tiles}
+    assert site_tile_names == {"Solar now", "Charge now", "Load now"}
+    site_tile_entities = {t["entity"] for t in site_tiles}
+    assert site_tile_entities == {
+        "sensor.site_solar_power",
+        "sensor.site_charge_power",
+        "sensor.sungold_sph302480a_load_power",
+    }
+    pair_types = [c["type"] for c in site_cards if c.get("type") in ("tile", "statistic")]
+    assert pair_types == [
+        "tile",
+        "statistic",
+        "tile",
+        "statistic",
+        "tile",
+        "statistic",
+    ]
+    yaml_pkg = PACKAGE.read_text(encoding="utf-8")
+    assert "utility_meter" not in yaml_pkg
+    assert "site_load_power" not in yaml_pkg
+    assert "energy-sources-table" not in DASHBOARD.read_text(encoding="utf-8")
     assert "gauge" not in types
     assert "horizontal-stack" not in types
     card_types = {c["type"] for c in cards}
@@ -346,6 +422,9 @@ def test_docs_and_install_script_exist() -> None:
     assert "Gauges (batteries)" not in text
     assert "type: sections" in text or "sections view" in text
     assert "tile" in text
+    assert "Site totals" in text
+    assert "site_solar_power" in text
+    assert "stat_type: change" in text or "dashboards/statistic" in text
     assert "mobile_app:" in text
     assert "Do **not** add" in text and "default_config:" in text
     script = INSTALL.read_text(encoding="utf-8")

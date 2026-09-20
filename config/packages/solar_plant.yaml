@@ -193,6 +193,42 @@ template:
           {{ (states('sensor.t2_mppt_conversion_loss_power') | float(0))
              + (states('sensor.sungold_conversion_loss_power') | float(0)) }}
 
+      - name: Site solar power
+        unique_id: site_solar_power
+        default_entity_id: sensor.site_solar_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.solar_controller_solar'))
+             or is_number(states('sensor.sungold_sph302480a_pv_power'))
+             or is_number(states('sensor.ku_unmetered_pv_est_power')) }}
+        state: >-
+          {{ (states('sensor.solar_controller_solar') | float(0)
+              if is_number(states('sensor.solar_controller_solar')) else 0)
+             + (states('sensor.sungold_sph302480a_pv_power') | float(0)
+                if is_number(states('sensor.sungold_sph302480a_pv_power')) else 0)
+             + ([states('sensor.ku_unmetered_pv_est_power') | float(0)
+                if is_number(states('sensor.ku_unmetered_pv_est_power')) else 0, 0] | max) }}
+
+      - name: Site charge power
+        unique_id: site_charge_power
+        default_entity_id: sensor.site_charge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.battery_1_charge_power'))
+             or is_number(states('sensor.battery_2_charge_power'))
+             or is_number(states('sensor.sungold_sph302480a_charging_power')) }}
+        state: >-
+          {{ (states('sensor.battery_1_charge_power') | float(0)
+              if is_number(states('sensor.battery_1_charge_power')) else 0)
+             + (states('sensor.battery_2_charge_power') | float(0)
+                if is_number(states('sensor.battery_2_charge_power')) else 0)
+             + ([states('sensor.sungold_sph302480a_charging_power') | float(0)
+                if is_number(states('sensor.sungold_sph302480a_charging_power')) else 0, 0] | max) }}
+
 sensor:
   - platform: integration
     source: sensor.solar_controller_solar
@@ -264,6 +300,24 @@ sensor:
     source: sensor.sungold_sph302480a_load_power
     name: Sungold load energy kWh
     unique_id: sungold_load_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.site_solar_power
+    name: Site solar energy kWh
+    unique_id: site_solar_energy_kwh
+    unit_prefix: k
+    round: 3
+    method: left
+    max_sub_interval:
+      minutes: 5
+  - platform: integration
+    source: sensor.site_charge_power
+    name: Site charge energy kWh
+    unique_id: site_charge_energy_kwh
     unit_prefix: k
     round: 3
     method: left

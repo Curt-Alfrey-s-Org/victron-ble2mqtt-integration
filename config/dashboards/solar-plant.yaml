@@ -65,6 +65,49 @@ views:
       - type: grid
         cards:
           - type: heading
+            heading: Site totals
+          - type: markdown
+            content: >
+              **Solar** = T2 clamp + Sungold PV + KU est (night KU >= 0).
+              **Charge** = T2+KU+SPH packs (not T2 MPPT output).
+              **Load** = Sungold AC out (includes dump; do not add dump or AC-in).
+              **Today** = statistic change this calendar day.
+            grid_options:
+              columns: full
+          - type: tile
+            entity: sensor.site_solar_power
+            name: Solar now
+          - type: statistic
+            entity: sensor.site_solar_energy_kwh
+            name: Solar today
+            stat_type: change
+            period:
+              calendar:
+                period: day
+          - type: tile
+            entity: sensor.site_charge_power
+            name: Charge now
+          - type: statistic
+            entity: sensor.site_charge_energy_kwh
+            name: Charge today
+            stat_type: change
+            period:
+              calendar:
+                period: day
+          - type: tile
+            entity: sensor.sungold_sph302480a_load_power
+            name: Load now
+          - type: statistic
+            entity: sensor.sungold_load_energy_kwh
+            name: Load today
+            stat_type: change
+            period:
+              calendar:
+                period: day
+
+      - type: grid
+        cards:
+          - type: heading
             heading: Power flow
           - type: power-sankey
             title: Power flow
