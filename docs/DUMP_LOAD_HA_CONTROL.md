@@ -30,9 +30,8 @@ Official manuals (RULE #1):
 - Dropdown helper (which inverter feeds each plug): [Input select](https://www.home-assistant.io/integrations/input_select/)
 - Live power entity id per plug: [Input text](https://www.home-assistant.io/integrations/input_text/)
 - Staged ON (`repeat` / `while` / `delay` / `if` / `stop`): [Script syntax](https://www.home-assistant.io/docs/scripts/)
-- Real plug power (when purchased): [Shelly](https://www.home-assistant.io/integrations/shelly/) (switch + `power` sensor)
-- Matter (future SKU only if Matter-certified): [Matter](https://www.home-assistant.io/integrations/matter/)
-- Govee BLE (sensors only; **not** H5082 smart plugs): [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/)
+- MQTT discovery (same HA path Victron BLE already uses): [MQTT](https://www.home-assistant.io/integrations/mqtt/)
+- Govee BLE sensors only (**not** H5082 plugs): [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/)
 - Victron charge stages and 1-minute re-bulk: [BlueSolar operation](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html)
 - SmartShunt current sign (+charge / -discharge): [SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)
 
@@ -67,7 +66,7 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
 | Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, default 5) and `input_number.dump_site_delta_min_w` (5-500 W, default 25) |
 | Per-plug min-on / cooldown | HA `timer.dump_plug_N_min_on` (15 min, `restore: true`) and `timer.dump_plug_N_cooldown` (10 min, `restore: true`) |
-| Inverter caps, plug->bus, live meters | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; live plug `dump_plug_N_power_entity` (optional Shelly confirm path) |
+| Inverter caps, plug->bus, live meters | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; optional `dump_plug_N_power_entity` |
 | Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
 | Tune helpers, inspect meters | Ask ALFa `ha_set_number` / `ha_select_option` / `ha_get_states` (no Approve). **Never** dump-actuate standing night loads. |
 | Surplus W (`sensor.dump_surplus_w`) | Briefing only. **Not** the ON/OFF trigger. |
@@ -119,8 +118,7 @@ trigger (float throttles PV watts to the load).
    - **T2:** signed `-sensor.battery_1_power` (more AC load => more negative pack
      power / less charge).
    - **KU:** signed `-sensor.battery_2_power`.
-   Optional alternate: mapped plug `sensor.sim_ac_plug_N_power` is numeric and > 0
-   (Shelly path later). Either path confirms.
+   Optional: mapped `sensor.sim_ac_plug_N_power` numeric and > 0 also confirms.
 8. If solar-present or charge-float is already off after the delay: turn that plug
    off, start its 10 min cooldown, cancel its min-on, stop staging.
 9. If **not** confirmed: turn off, start 10 min cooldown, try the next plug (do
@@ -133,16 +131,20 @@ trigger (float throttles PV watts to the load).
 That is how leftover PV is claimed: add until voltage sags toward re-bulk or the
 inverter is full -- not until a 200 W surplus helper trips.
 
-**Govee H5082:** HA Core [govee_ble](https://www.home-assistant.io/integrations/govee_ble/)
-does **not** list H5082. BLE capture on `.93` / Pi 5 is not an official plug
-switch path. Dump still needs a Core `switch` entity (template slot today;
-[Shelly](https://www.home-assistant.io/integrations/shelly/) or
-[Matter](https://www.home-assistant.io/integrations/matter/) when certified).
-Until HA actually switches a load on SPH AC out, site-delta will fail confirm
-(template sim does not change Sungold watts) and that slot cools 10 min -- correct.
+**Govee H5082 (this site's dump hardware):** same *shape* as Victron BLE, not
+the same product. Victron Instant Readout is a documented advertisement;
+`victron_ble2mqtt` on Pi 4 decodes it and publishes [MQTT discovery](https://www.home-assistant.io/integrations/mqtt/).
+HA never speaks Victron BLE. H5082 also has no official HA plug integration
+([govee_ble](https://www.home-assistant.io/integrations/govee_ble/) is sensors
+only). Forums/GitHub drive it with extra software (HACS or a BLE/cloud MQTT
+bridge). A **sidecar that publishes MQTT switches** (like this repo already
+does for Victron) would keep HA on official MQTT. That sidecar is **not** in
+the repo yet. Template `switch.sim_ac_plug_*` stay until it is. Confirm stays
+**SPH AC-out** (and T2/KU pack sign), not Govee energy monitoring. HACS Govee
+plugins are not used on this HA.
 
-Hardware when purchased: official [Shelly](https://www.home-assistant.io/integrations/shelly/)
-plug (local power sensor). See [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md).
+Until MQTT (or another official HA switch) actually toggles a load on SPH AC
+out, site-delta fails confirm and that slot cools 10 min.
 
 Default AC caps are **2000 W** per inverter (operator / Renogy 2 kW class).
 SPH nameplate is **3000 W**; raise **SPH AC limit** only if dumps are on that

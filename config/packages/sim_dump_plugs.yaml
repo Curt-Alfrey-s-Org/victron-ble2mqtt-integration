@@ -1,13 +1,11 @@
-# Dump-load plugs -- template switches until real power-reporting smart plugs.
-# When hardware is added (official Shelly integration), rename the device switch
-# to switch.sim_ac_plug_N and set input_text.dump_plug_N_power_entity to that
-# device's power sensor. Staging confirms site load delta (see DUMP_LOAD_HA_CONTROL.md).
+# Dump-load plugs -- template switches until Govee H5082 MQTT switches exist.
+# Staging confirms site load delta (see DUMP_LOAD_HA_CONTROL.md).
 # Official:
 #   https://www.home-assistant.io/integrations/template/
 #   https://www.home-assistant.io/integrations/input_boolean/
 #   https://www.home-assistant.io/integrations/input_text/
 #   https://www.home-assistant.io/docs/configuration/packages/
-#   https://www.home-assistant.io/integrations/shelly/
+#   https://www.home-assistant.io/integrations/mqtt/
 # unique_id + default_entity_id: https://www.home-assistant.io/integrations/template/
 
 input_boolean:

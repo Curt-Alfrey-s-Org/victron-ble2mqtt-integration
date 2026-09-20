@@ -52,6 +52,8 @@ def test_docs_and_install_exist() -> None:
     assert "10 min" in docs or "00:10:00" in docs
     assert "govee_ble" in docs
     assert "H5082" in docs
+    assert "Shelly" not in docs
+    assert "shelly" not in docs
     assert "sim_dump_turn_off_unknown_watts" not in docs
     assert "Already-ON leftover" not in docs
     assert "dump_charge_float" in docs
@@ -68,6 +70,8 @@ def test_docs_and_install_exist() -> None:
     assert "dump_site_confirm_s" in sim_docs
     assert "govee_ble" in sim_docs
     assert "H5082" in sim_docs
+    assert "Shelly" not in sim_docs
+    assert "shelly" not in sim_docs
 
 
 def test_kill_switch_and_timers() -> None:

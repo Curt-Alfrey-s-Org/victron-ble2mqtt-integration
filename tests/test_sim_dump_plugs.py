@@ -111,3 +111,9 @@ def test_total_load_sensor_sums_live_power():
     assert "sensor.sim_ac_plug_" in total["state"]
     assert "dump_plug_1_watts" not in total["state"]
     assert "1200" not in total["state"]
+
+
+def test_package_has_no_shelly():
+    text = PACKAGE.read_text(encoding="utf-8")
+    assert "Shelly" not in text
+    assert "shelly" not in text
