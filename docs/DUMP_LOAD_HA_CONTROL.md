@@ -181,10 +181,10 @@ exists). A stale copy leaves helpers such as
 `input_boolean.dump_soc_unsynced` / `input_number.dump_float_t2_v` missing from
 `/api/states` while Energy / Helpers still expect them.
 
-Operator dump UI is **Energy** (individual device Sim dump) plus
-**Settings > Devices & services > Helpers**. Disable:
-`input_boolean.dump_control_enabled` (Dump Automations helper), or delete the
-package file and restart HA. YAML Lovelace is not the daily dump control.
+Operator dump UI is **Energy** (individual device Sim dump), **Site solar**
+(`/site-solar` storage tiles), plus **Settings > Devices & services > Helpers**.
+Disable: `input_boolean.dump_control_enabled` (Dump Automations helper), or delete
+the package file and restart HA. YAML Lovelace is not the daily dump control.
 
 Default: this package is **not** on `/opt/homeassistant` until the operator runs
 the install script.

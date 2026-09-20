@@ -468,7 +468,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "built-in" in text
     assert "docs/energy" in text
     assert "mode: yaml" in text
-    assert "not rearranged in the UI" in text or "not UI-movable" in text or "cannot move cards" in text
+    assert "site-solar" in text
+    assert "lovelace/config/save" in text or "storage" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script

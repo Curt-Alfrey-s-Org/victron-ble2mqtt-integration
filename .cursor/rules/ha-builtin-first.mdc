@@ -16,7 +16,7 @@ Official: [built-in dashboards](https://www.home-assistant.io/dashboards/dashboa
 
 1. **Energy / Home / History / MQTT Solar** for daily use.
 2. **Package YAML** for data HA cannot generate: templates, Riemann integrals, dump automations ([packages](https://www.home-assistant.io/docs/configuration/packages/)). Helpers stay editable under Settings > Helpers.
-3. If a custom layout is required, **Settings > Dashboards > Add dashboard** (storage). Operator can move cards there.
+3. If a custom layout is required, a **storage** dashboard (Settings > Dashboards, or `lovelace/dashboards/create` + `lovelace/config/save`). Operator can move cards there. Not `mode: yaml`.
 
 ## Do not
 

@@ -1,30 +1,32 @@
 # Solar plant (Home Assistant Energy)
 
-**Canonical operator view** is Home Assistant's **built-in** dashboards on **`.105:8123`**.
-HA draws those UIs. We **do not** maintain a second Lovelace layout for daily use.
+**Canonical operator view** is Home Assistant on **`.105:8123`**: built-in **Energy**
+for kWh / Sankey, MQTT **Solar** for discovery, and **Site solar** (`/site-solar`)
+for leftover live tiles. Site solar is **storage** mode so you can move cards.
 
 | Surface | Who draws it | What you plug in |
 |---------|----------------|------------------|
 | [Energy](https://www.home-assistant.io/docs/energy/) | HA (built-in) | kWh + W sensors via [Energy settings](https://www.home-assistant.io/docs/energy/) / `energy/save_prefs` |
 | [Home](https://www.home-assistant.io/dashboards/dashboards/#home-dashboard) | HA (built-in) | Devices assigned to [areas](https://www.home-assistant.io/docs/organizing/areas/) (official sections view) |
 | Sidebar **Solar** | HA storage + MQTT discovery | Live Victron / Sungold / shunt tiles |
+| **Site solar** | HA **storage** Lovelace | Leftover live tiles Energy cannot plot (jumper, KU est., dump, NWS, Ecobee). Cards are movable. |
 | [History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard) | HA (built-in) | Pick entities; no YAML cards |
 
 The custom SVG proxy on `:8765` is **retired** ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
 
-**Built-in first.** [Energy](https://www.home-assistant.io/docs/energy/), [Home](https://www.home-assistant.io/dashboards/dashboards/#home-dashboard),
-[History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard),
-and sidebar **Solar** (MQTT discovery) are the operator UI. Those dashboards
-[update themselves](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard).
+**Built-in first.** [Energy](https://www.home-assistant.io/docs/energy/) is kWh / Sankey.
+MQTT **Solar** is the discovery list. Leftover live tiles go on **Site solar**
+(`/site-solar`) as a **storage** dashboard
+([creating a dashboard](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard);
+[lovelace/dashboards/create](https://github.com/home-assistant/core/blob/master/homeassistant/components/lovelace/dashboard.py)
++ `lovelace/config/save`). `mode: storage` lets you move cards in the UI.
 A [YAML dashboard](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards)
-(`mode: yaml`) is **file-only**: you cannot move cards in the UI, and you lose
-that auto-update. Use YAML Lovelace only if a built-in surface cannot show the
-data. If a custom layout is still required, add a **storage** dashboard under
-**Settings > Dashboards** so cards stay movable.
+(`mode: yaml`) is **file-only**. Do **not** re-register YAML Lovelace.
 
-`config/dashboards/solar-plant.yaml` stays in git as a last-resort archive. The
-install script **does not** register it and **unregisters** `/solar-plant` if a
-prior install added it. Do **not** add HACS / `custom:` cards.
+`config/dashboards/solar-plant.yaml` is the official-card seed for that storage
+dashboard. The package install script **does not** register it as YAML and
+**unregisters** `/solar-plant` if a prior install added it. Do **not** add HACS /
+`custom:` cards.
 
 **Data YAML (keep):** package `config/packages/solar_plant.yaml` -- template
 W sensors and Riemann kWh ([Template](https://www.home-assistant.io/integrations/template/),
@@ -127,15 +129,22 @@ runs `check_config`, then `docker restart homeassistant`.
 Open **Energy** (sidebar, or Settings > Dashboards > Energy). Configure sources
 once with `python scripts/save_solar_plant_energy_prefs.py` if they are empty.
 
+Seed leftover tiles onto **Site solar** (storage, movable) from a host that can
+reach `.105:8123`, with the long-lived token in `HA_TOKEN` or `HA_TOKEN_FILE`
+(never commit the token):
+
+```bash
+python scripts/save_solar_plant_storage_dashboard.py
+```
+
 Open:
 
 ```text
 http://192.168.0.105:8123/energy
+http://192.168.0.105:8123/site-solar
 ```
 
-If a custom layout is still required later, add it in the UI
-([Create a new dashboard](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard))
-so cards stay movable. Do **not** re-add `mode: yaml`.
+Do **not** re-add `mode: yaml`.
 
 ---
 
@@ -227,14 +236,10 @@ It also adds `energy:` so the Energy settings page exists
 
 ---
 
-## Graphs (YAML archive, not daily UI)
+## Graphs (Site solar + Energy + History)
 
-The MQTT **Solar** sidebar and built-in **Energy** / **History** are the operator
-graphs. The YAML file still lists the same entities for tests; do **not** iterate
-that layout for daily use.
-
-The MQTT **Solar** sidebar is the full entity list. Extra live points belong on
-**Solar** / built-in **History**, not as Energy grid/solar.
+The MQTT **Solar** sidebar is the full discovery list. Extra live points live on
+**Site solar** (`/site-solar` storage). Do **not** add them as Energy grid/solar.
 
 Official cards:
 
