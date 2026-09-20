@@ -73,8 +73,8 @@ In the **Home Assistant Companion app**, add that URL as the server (or as the e
 | Home LAN | `http://YOUR-LAN-IP:8123` (`.105`, e.g. `hostname -I` on that VM) |
 | Away, Tailscale on | `http://YOUR-TAILSCALE-NAME:8123` or the Tailscale `100.x` address of **`.105`** |
 
-Both URLs talk to the **same** Home Assistant. Canonical solar view is Lovelace
-**Solar plant** (`/solar-plant`) -- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
+Both URLs talk to the **same** Home Assistant. Canonical solar view is built-in
+**Energy** (`/energy`) -- [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 The old SVG proxy on `:8765` is retired. `127.0.0.1` is not a Tailscale address.
 
 Optional: [Tailscale Serve](https://tailscale.com/docs/features/tailscale-serve) may

@@ -1,109 +1,45 @@
-# Solar plant (Home Assistant Lovelace)
+# Solar plant (Home Assistant Energy)
 
-**Canonical operator power-flow view** is this Lovelace dashboard on **`.105:8123`**.
+**Canonical operator view** is Home Assistant's **built-in** dashboards on **`.105:8123`**.
+HA draws those UIs. We **do not** maintain a second Lovelace layout for daily use.
+
+| Surface | Who draws it | What you plug in |
+|---------|----------------|------------------|
+| [Energy](https://www.home-assistant.io/docs/energy/) | HA (built-in) | kWh + W sensors via [Energy settings](https://www.home-assistant.io/docs/energy/) / `energy/save_prefs` |
+| [Home](https://www.home-assistant.io/dashboards/dashboards/#home-dashboard) | HA (built-in) | Devices assigned to [areas](https://www.home-assistant.io/docs/organizing/areas/) (official sections view) |
+| Sidebar **Solar** | HA storage + MQTT discovery | Live Victron / Sungold / shunt tiles |
+| [History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard) | HA (built-in) | Pick entities; no YAML cards |
+
 The custom SVG proxy on `:8765` is **retired** ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
+YAML `dashboards/solar-plant.yaml` is **not** the operator UI. The install script
+keeps it off the sidebar (`show_in_sidebar: false`). Do **not** add cards to that
+file for day-to-day use. Do **not** add HACS / `custom:` cards.
 
-Home Assistant already holds the Victron, shunt, Refoss, Sungold, and sim-dump
-entities. This dashboard uses **stock cards** only, on the official
-[sections view](https://www.home-assistant.io/dashboards/sections/) (HA default;
-reflows to one column on a phone):
+**Data** (keep maintaining): package `config/packages/solar_plant.yaml` -- template
+W sensors and Riemann kWh ([Template](https://www.home-assistant.io/integrations/template/),
+[Integral](https://www.home-assistant.io/integrations/integration/#energy)).
+That is how numbers get **into** Energy. Dump on/off stays
+`sim_dump_control.yaml` ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md));
+knobs live under **Settings > Helpers** (`input_boolean.dump_control_enabled`).
 
-- [Energy cards](https://www.home-assistant.io/dashboards/energy/) (`power-sankey`, `layout: auto` so phones get vertical)
-- [Tile](https://www.home-assistant.io/dashboards/tile/) — one tile per live value (same as sidebar **Solar**)
-- [Statistic](https://www.home-assistant.io/dashboards/statistic/) — **today** kWh (`stat_type: change`, calendar `day`)
-- [Heading](https://www.home-assistant.io/dashboards/heading/) — totals / T2 / KU / Sungold / Dump / House
-- [Badges](https://www.home-assistant.io/dashboards/badges/) — SoC + NWS + dump at the top of **Now**
-- [Entities](https://www.home-assistant.io/dashboards/entities/) (dump helpers and sim plug rows)
-- [History graph](https://www.home-assistant.io/dashboards/history-graph/)
-- [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
-- [Thermostat](https://www.home-assistant.io/dashboards/thermostat/)
-- [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) (`weather.417373300314` outdoor ambient + forecast)
-- [Picture](https://www.home-assistant.io/dashboards/picture/) (NWS KMRX standard radar loop)
-- [Distribution](https://www.home-assistant.io/dashboards/distribution/)
-- [Markdown](https://www.home-assistant.io/dashboards/markdown/)
-
-Do **not** use masonry [glance](https://www.home-assistant.io/dashboards/glance/)
-`columns: 3` on this dashboard: on a ~390 px phone the glance card ellipsizes
-names and watts (`hui-glance-card.ts`). Do **not** wrap bus groups in
-[vertical-stack](https://www.home-assistant.io/dashboards/vertical-stack/) —
-a [section](https://www.home-assistant.io/dashboards/sections/) is already a
-vertical group. Do **not** add HACS / `custom:` / iframe / webpage cards.
-
-YAML dashboards: [Adding YAML dashboards](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards).
-Views: [Dashboard views](https://www.home-assistant.io/dashboards/views/) (`type: sections`).
-`max_columns` / `header` / `footer` are on official frontend
-[LovelaceViewConfig](https://github.com/home-assistant/frontend/blob/dev/src/data/lovelace/config/view.ts)
-(the sections YAML table on home-assistant.io does not list those keys).
-Packages: [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/).
-Template sensors: [Template](https://www.home-assistant.io/integrations/template/).
-Watt-hours from watts: [Integral (Riemann)](https://www.home-assistant.io/integrations/integration/).
-Energy sources: [Home energy management](https://www.home-assistant.io/docs/energy/).
+Site physics: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
+Energy solar is **T2 MPPT only**. Do **not** add KU equal-share or A3 as grid.
+Dump is an Energy **individual device** (already in `save_solar_plant_energy_prefs.py`).
+Sungold A/C-in and A/C-out are devices, not a second solar source.
 
 ### Phone (Companion)
 
 This HA has no `default_config:` (Bluetooth / Cloud / USB stay off on `.105`).
-Companion registration therefore needs the official
-[Mobile App](https://www.home-assistant.io/integrations/mobile_app/) YAML only:
+Companion needs [Mobile App](https://www.home-assistant.io/integrations/mobile_app/)
+`mobile_app:` only (`install_solar_plant_ha.sh` appends it). Do **not** add
+`default_config:`.
 
-```yaml
-mobile_app:
-```
-
-`install_solar_plant_ha.sh` appends that key when it is missing. Do **not** add
-`default_config:` to get Companion -- that meta-integration also loads
-`bluetooth`, `cloud`, and `usb`
-([default config](https://www.home-assistant.io/integrations/default_config/)).
-
-Use the official [Companion app](https://companion.home-assistant.io/docs/getting_started/).
-On LAN: `http://192.168.0.105:8123`. Away from home: Tailscale on `.105` and on
-the phone, then the same HA login ([TAILSCALE.md](TAILSCALE.md)). Do **not**
-open `:8123` to the public internet. Companion
-[internal / external URL](https://companion.home-assistant.io/docs/troubleshooting/networking/)
-and [connection security](https://companion.home-assistant.io/docs/getting_started/connection-security-level/)
-are **app settings**, not this YAML. On **that phone**: Settings > Dashboards >
-Solar plant > **Set as default on this device**
-([dashboards](https://www.home-assistant.io/dashboards/dashboards/#setting-a-default-dashboard);
-Android first-view: [webview](https://companion.home-assistant.io/docs/integrations/android-webview/)).
-Do **not** port-forward `:8123` or use Home Assistant Cloud Remote.
-
-**Now** uses `max_columns: 3` so a wide screen can show **T2 | KU | Sungold**
-(and Dump groups) as separate [sections](https://www.home-assistant.io/dashboards/sections/)
-(frontend `max_columns`; phone still clamps to one). Do **not** put all dump
-helpers in one full-width [entities](https://www.home-assistant.io/dashboards/entities/)
-card -- that is a 30-row list when zoomed out. Split: **Dump** (tiles +
-[heading badges](https://www.home-assistant.io/dashboards/heading/)),
-**Dump voltages**, **Dump limits**, **Dump plugs** (switch tiles with
-[toggle](https://www.home-assistant.io/dashboards/features/#toggle) + live W tiles
-+ a short wiring entities card). Header badges stay visible. Kill switch is
-the **Dump** Automations tile (`input_boolean.dump_control_enabled`). Do **not**
-add a second footer copy of that tile.
-`power-sankey` `layout: auto` follows
-[energy cards](https://www.home-assistant.io/dashboards/energy/) (vertical on
-narrow screens).
-
-Wide cards (`power-sankey`, `distribution`, `thermostat`, `weather-forecast`,
-`picture`, graphs, **Dump plug wiring**) set `grid_options.columns: full`
-([LovelaceGridOptions](https://github.com/home-assistant/frontend/blob/dev/src/panels/lovelace/types.ts)).
-**Dump voltages** and **Dump limits** stay default width so they can sit beside
-other sections. Tiles stay at the default half-section width (two per phone row).
-
-Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
-([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)): Victron **float hold** then
-staged plugs; **solar-gone / re-bulk** off so packs stay 95%+ after PV stops.
-Kill switch is the **Dump** Automations tile
-(`input_boolean.dump_control_enabled`). Plug tiles are visibility and optional
-manual. Per-plug watts are on **Dump plugs** and on **History**.
-Do **not** put `input_boolean.sim_ac_plug_*_internal` on Lovelace. Do **not** add a
-second dump ticker in alfa-ai.
-
-**Do not** add hops, SVG wires, or Node-RED for this view.
-
-Site physics (two 24 V buses, jumper estimate, A3/B3 = trailer outlet feeding
-Sungold A/C-in, not LED/vent): [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
-
-The existing storage-mode sidebar item **Solar** (`dashboard-solar`) stays as the
-MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
-(`/solar-plant`).
+Official [Companion](https://companion.home-assistant.io/docs/getting_started/):
+LAN `http://192.168.0.105:8123`. Away: Tailscale ([TAILSCALE.md](TAILSCALE.md)).
+On **that phone**: User profile or Settings > Dashboards > **Energy** >
+**Set as default on this device**
+([default dashboard](https://www.home-assistant.io/dashboards/dashboards/#setting-a-default-dashboard)).
+Do **not** port-forward `:8123`.
 
 ---
 
@@ -111,10 +47,12 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 
 | Surface | Role |
 |---------|------|
-| **Solar plant** Lovelace | **Site totals** (solar / charge / load, now + today) then live W tiles by bus + `power-sankey` |
-| Template sensors | Site solar/charge sums, jumper est. (+ = T2→KU), T2-end jumper sign, trailer outlet W, KU PV est., KU equal-share est. |
-| Integral sensors | kWh from live W (site solar/charge, T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
-| NWS REST | `sensor.nws_watauga_lake_alerts` from [api.weather.gov alerts](https://www.weather.gov/documentation/services-web-api) `point=36.32,-82.12` |
+| **Energy** (built-in) | Solar / battery / load now + today. HA draws it. |
+| **Home** (built-in) | Area tiles after devices have [areas](https://www.home-assistant.io/docs/organizing/areas/) |
+| **Solar** sidebar | MQTT entity list |
+| Template sensors | Jumper est., trailer outlet W, KU PV est., site solar/charge sums |
+| Integral sensors | kWh for Energy (T2 MPPT, batteries, trailer outlet, dump, Sungold load) |
+| NWS REST | `sensor.nws_watauga_lake_alerts` (package; not an Energy card) |
 
 HA Energy / `power-sankey` is a **sources / battery / home / devices** Sankey, not a
 Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron clamps).
@@ -142,12 +80,17 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 
 **Site load** reuses `sensor.sungold_sph302480a_load_power` / `sensor.sungold_load_energy_kwh` (SPH INV OUTPUT). Do **not** add a second load template or integral. Do **not** add dump watts or trailer-outlet (AC-in) into that total -- dump is on SPH OUTPUT; AC-in is the cord, not house load. T2/KU Renogy inverter loads are **not in HA**.
 
-**Today** on **Now** is the official [statistic card](https://www.home-assistant.io/dashboards/statistic/) `stat_type: change` with `period.calendar.period: day` (this HA `time_zone` is `America/New_York`). That is today's kWh from long-term statistics, not a new Utility Meter (Utility Meter's first cycle is incomplete until the next reset -- [utility meter](https://www.home-assistant.io/integrations/utility_meter/)). Do **not** put `energy-sources-table` here: Energy solar is T2-only, and Energy devices (AC-in + dump + AC-out) overlap ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
+**Today** kWh is the built-in [Energy dashboard](https://www.home-assistant.io/docs/energy/)
+(calendar day in this HA `time_zone` `America/New_York`). Package Riemann sensors
+feed Energy; do **not** add a Utility Meter (first cycle incomplete --
+[utility meter](https://www.home-assistant.io/integrations/utility_meter/)).
+Do **not** put `energy-sources-table` on a custom Lovelace view: Energy solar is
+T2-only, and Energy devices (AC-in + dump + AC-out) overlap
+([energy cards](https://www.home-assistant.io/dashboards/energy/)).
 
 Do **not** treat KU equal-share as a live Victron watt clamp. Do **not** add A3 as
-utility grid. Do **not** put `sensor.ku_unmetered_pv_est_power` on the Instant W
-distribution card — night **negative** values are balance residual / losses, not
-KU solar generation.
+utility grid. Do **not** put `sensor.ku_unmetered_pv_est_power` on Energy as solar -- night
+**negative** values are balance residual / losses, not KU solar generation.
 
 ---
 
@@ -161,25 +104,21 @@ cd /home/ansible/victron-ble2mqtt-integration
 bash scripts/install_solar_plant_ha.sh
 ```
 
-The script copies the package and dashboard YAML, appends `lovelace:` / `recorder:` /
-`history:` / `energy:` / `mobile_app:` when missing, refreshes
-`packages/sim_dump_control.yaml` **if that file is already installed** (stale
-helpers make Dump tiles unknown -- [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)),
-runs `python -m homeassistant --script check_config -c /config` inside the container
-([check configuration](https://www.home-assistant.io/docs/configuration/troubleshooting/)),
-then `docker restart homeassistant`
-([Container install](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
-This HA has no `default_config:`. Recorder/history are required for graphs; Energy
-(`energy`) is required for **Settings > Dashboards > Energy**;
-`mobile_app:` is required for Companion
-([default config](https://www.home-assistant.io/integrations/default_config/),
-[Mobile App](https://www.home-assistant.io/integrations/mobile_app/),
-[Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).
+The script copies the **package** (sensors). It still copies the YAML dashboard file
+but sets `show_in_sidebar: false` so Energy / Home / Solar are the operator UIs
+([built-in dashboards](https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards)).
+It appends `recorder:` / `history:` / `energy:` / `mobile_app:` when missing,
+refreshes `packages/sim_dump_control.yaml` **if that file is already installed**,
+runs `check_config`, then `docker restart homeassistant`.
+
+Open **Energy** (sidebar, or Settings > Dashboards > Energy). Configure sources
+once with `python scripts/save_solar_plant_energy_prefs.py` if they are empty.
+YAML dashboard path `/solar-plant` remains as a file, not a daily UI.
 
 Open:
 
 ```text
-http://192.168.0.105:8123/solar-plant
+http://192.168.0.105:8123/energy
 ```
 
 YAML dashboard reload after later file edits: dashboard three-dots **Refresh**
@@ -275,10 +214,14 @@ It also adds `energy:` so the Energy settings page exists
 
 ---
 
-## Graphs (Solar plant History + Now)
+## Graphs (YAML archive, not daily UI)
+
+The MQTT **Solar** sidebar and built-in **Energy** / **History** are the operator
+graphs. The YAML file still lists the same entities for tests; do **not** iterate
+that layout for daily use.
 
 The MQTT **Solar** sidebar is the full entity list. Extra live points belong on
-**Solar plant** stock cards, not as Energy grid/solar.
+**Solar** / built-in **History**, not as Energy grid/solar.
 
 Official cards:
 

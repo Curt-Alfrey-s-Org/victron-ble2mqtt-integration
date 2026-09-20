@@ -1,4 +1,4 @@
-"""Solar-flow SVG stack is retired; HA Solar plant is canonical."""
+"""Solar-flow SVG stack is retired; HA Energy is canonical."""
 
 from __future__ import annotations
 
@@ -23,3 +23,4 @@ def test_retired_doc_and_uninstall_script() -> None:
     assert "solar-flow.service" in script
     assert "serve reset" not in script
     assert "tailscale serve --https=443 --set-path=/ off" in script
+    assert "http://192.168.0.105:8123/energy" in script

@@ -465,11 +465,17 @@ def test_docs_and_install_script_exist() -> None:
     assert "stat_type: change" in text or "dashboards/statistic" in text
     assert "mobile_app:" in text
     assert "Do **not** add" in text and "default_config:" in text
+    assert "built-in" in text
+    assert "docs/energy" in text
+    assert "show_in_sidebar: false" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script
     assert "dashboards/solar-plant.yaml" in script
+    assert "show_in_sidebar: false" in script
+    assert "http://192.168.0.105:8123/energy" in script
     assert "energy:" in script
+    assert "re.subn" in script
     assert "mobile_app:" in script
     assert "sim_dump_control.yaml" in script
     assert 'if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]' in script

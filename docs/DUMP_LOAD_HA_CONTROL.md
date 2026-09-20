@@ -179,14 +179,12 @@ After a later dump-package change, `git pull` then rerun this script (or
 `install_solar_plant_ha.sh`, which refreshes the dump file when it already
 exists). A stale copy leaves helpers such as
 `input_boolean.dump_soc_unsynced` / `input_number.dump_float_t2_v` missing from
-`/api/states` while Solar plant still lists them.
+`/api/states` while Energy / Helpers still expect them.
 
-On Solar plant **Now**, dump helpers are four sections (not one 30-row list):
-**Dump** tiles, **Dump voltages**, **Dump limits**, **Dump plugs** + wiring.
-Disable: turn off **Dump** Automations on that page
-(`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
-The same toggle is also a helper under Settings, but the dashboard is the operator
-control.
+Operator dump UI is **Energy** (individual device Sim dump) plus
+**Settings > Devices & services > Helpers**. Disable:
+`input_boolean.dump_control_enabled` (Dump Automations helper), or delete the
+package file and restart HA. The hidden YAML dashboard is not the daily control.
 
 Default: this package is **not** on `/opt/homeassistant` until the operator runs
 the install script.

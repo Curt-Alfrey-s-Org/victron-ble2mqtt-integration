@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# Install Solar plant Lovelace dashboard + helper package on .105 HA Container.
-# Official: https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
+# Install solar package sensors + Energy wiring on .105 HA Container.
+# Operator UI is built-in Energy / Home / Solar (not the YAML dashboard).
+# Official: https://www.home-assistant.io/docs/energy/
+#           https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards
+#           https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
 #           https://www.home-assistant.io/docs/configuration/packages/
 #           https://www.home-assistant.io/docs/configuration/troubleshooting/
 #           https://www.home-assistant.io/installation/linux#install-home-assistant-container
@@ -53,9 +56,30 @@ lovelace:
       mode: yaml
       title: Solar plant
       icon: mdi:solar-power
-      show_in_sidebar: true
+      show_in_sidebar: false
       filename: dashboards/solar-plant.yaml
 YAML
+fi
+
+# Operator UI is built-in Energy / Home / Solar, not this YAML dashboard.
+# https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards
+if grep -q 'filename: dashboards/solar-plant.yaml' "$CONF"; then
+  sudo python3 - "$CONF" <<'PY'
+from pathlib import Path
+import re
+import sys
+p = Path(sys.argv[1])
+text = p.read_text(encoding="utf-8")
+new, n = re.subn(
+    r"(solar-plant:\n(?:[ \t]+.+\n)*?[ \t]+show_in_sidebar: )true",
+    r"\1false",
+    text,
+    count=1,
+)
+if n:
+    p.write_text(new, encoding="utf-8")
+    print("[solar-plant] show_in_sidebar: false (Energy/Home/Solar are the operator UI)")
+PY
 fi
 
 if ! grep -q '^recorder:' "$CONF"; then
@@ -111,8 +135,8 @@ if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
     i=$((i + 1))
     sleep 5
   done
-  echo "[solar-plant] Open http://192.168.0.105:8123/solar-plant"
-  echo "[solar-plant] Then Settings > Dashboards > Energy (see docs/SOLAR_HA_DASHBOARD.md)."
+  echo "[solar-plant] Open http://192.168.0.105:8123/energy"
+  echo "[solar-plant] YAML /solar-plant is hidden from the sidebar."
 else
   echo "[solar-plant] homeassistant container not running -- start HA, then rerun this script."
   exit 1

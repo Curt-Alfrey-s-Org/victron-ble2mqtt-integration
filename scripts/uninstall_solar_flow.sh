@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Retire solar-flow.service on .105 (custom SVG :8765).
-# Canonical view: Home Assistant /solar-plant (docs/SOLAR_HA_DASHBOARD.md).
+# Canonical view: Home Assistant /energy (docs/SOLAR_HA_DASHBOARD.md).
 # Official: https://www.freedesktop.org/software/systemd/man/systemctl.html
 #           https://tailscale.com/kb/1242/tailscale-serve/#disable-tailscale-serve
 #           https://manpages.ubuntu.com/manpages/noble/man8/ufw.8.html
@@ -49,4 +49,4 @@ if command -v ufw >/dev/null 2>&1; then
   done
 fi
 
-echo "[solar-flow] retired. Open http://192.168.0.105:8123/solar-plant"
+echo "[solar-flow] retired. Open http://192.168.0.105:8123/energy"

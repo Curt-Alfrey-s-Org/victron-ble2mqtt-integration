@@ -32,8 +32,8 @@ Sungold cart (not on T2 or KU)
   SPH302480A on a dolly + 2x LiTime 24V 100Ah in parallel (emergency).
 ```
 
-**Operator display (17 Sep 2026):** canonical live view is Home Assistant
-**Solar plant** Lovelace ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
+**Operator display (20 Sep 2026):** canonical live view is Home Assistant
+built-in **Energy** ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
 The GX-style SVG page is **retired**. Physics is unchanged on **D/C**: Sungold stays
 off T2/KU battery negatives. **A/C:** Sungold **UTI / A/C INPUT** is in the **Sungold cart lane**
 (cord from the KU trailer outlet), **not** in the KU A/C / breaker lane. KU A/C lane:
@@ -251,8 +251,8 @@ auto-toggle from forecast (alfa-ai observe/Ask ALFa read only; see
 (~0.1 W) are not Instant W slices. `sensor.trailer_outlet_power` (hundreds of W) is the
 trailer outlet feeding **Sungold A/C-in**. Instant W uses **Sungold A/C out** for where
 those watts are consumed (Pi4 plus anything on SPH OUTPUT). Do not put trailer-outlet W
-on Instant W next to SPH A/C out (same energy path, A/C-in vs A/C-out). Lovelace names:
-[SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
+on Instant W next to SPH A/C out (same energy path, A/C-in vs A/C-out). Energy /
+MQTT names: [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 
 **Operator 18 Sep 2026:** `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
 ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)) -- **all**

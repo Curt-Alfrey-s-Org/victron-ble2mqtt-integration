@@ -48,7 +48,7 @@ fi
 if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   echo "[sim-dump-control] Restarting homeassistant container (reload package) ..."
   docker restart homeassistant
-  echo "[sim-dump-control] Open http://192.168.0.105:8123/solar-plant -- Dump load HA control"
+  echo "[sim-dump-control] Open http://192.168.0.105:8123/energy -- dump is Energy device Sim dump; knobs in Settings > Helpers"
 else
   echo "[sim-dump-control] homeassistant container not running -- start HA, then restart."
 fi
