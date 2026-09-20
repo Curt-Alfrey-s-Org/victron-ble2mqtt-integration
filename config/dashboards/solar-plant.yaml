@@ -1,12 +1,18 @@
 # Solar plant Lovelace (YAML). Official cards only.
 # https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
-# https://www.home-assistant.io/dashboards/energy/
+# https://www.home-assistant.io/dashboards/sections/
 title: Solar plant
 views:
   - title: Now
     path: now
-    cards:
-      - type: markdown
+    type: sections
+    max_columns: 2
+    dense_section_placement: false
+    header:
+      layout: responsive
+      badges_position: bottom
+      card:
+        type: markdown
         title: Solar plant
         content: >
           Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
@@ -26,147 +32,222 @@ views:
           ~0.1 W and are not tiles.
           **KU PV est.** may be negative at night (balance residual, not
           live KU solar). Do not add A3 as utility grid.
-
-      - type: power-sankey
-        title: Power flow
-        layout: horizontal
-        collection_key: energy_dashboard
-        group_by_area: false
-        group_by_floor: false
-
-      - type: distribution
-        title: Instant W
-        entities:
-          - entity: sensor.solar_controller_solar
-            name: T2 MPPT
-          - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out
-          - entity: sensor.sungold_sph302480a_pv_power
-            name: Sungold PV
-          - entity: sensor.sim_dump_load_power
-            name: Sim dump
-
-      - type: glance
-        title: T2 24 V
+    badges:
+      - type: entity
+        entity: sensor.battery_1_state_of_charge
+        name: T2 SoC
         show_name: true
-        show_icon: true
-        show_state: true
-        columns: 3
-        entities:
-          - entity: sensor.solar_controller_solar
+      - type: entity
+        entity: sensor.battery_2_state_of_charge
+        name: KU SoC
+        show_name: true
+      - type: entity
+        entity: sensor.sungold_sph302480a_battery_soc
+        name: SPH SoC
+        show_name: true
+      - type: entity
+        entity: sensor.nws_watauga_lake_alerts
+        name: NWS
+        show_name: true
+      - type: entity
+        entity: input_boolean.dump_control_enabled
+        name: Dump
+        show_name: true
+    footer:
+      max_width: 600
+      card:
+        type: tile
+        entity: input_boolean.dump_control_enabled
+        name: Dump automations
+        features:
+          - type: toggle
+    sections:
+      - type: grid
+        cards:
+          - type: heading
+            heading: Power flow
+          - type: power-sankey
+            title: Power flow
+            layout: auto
+            collection_key: energy_dashboard
+            group_by_area: false
+            group_by_floor: false
+            grid_options:
+              columns: full
+          - type: distribution
+            title: Instant W
+            entities:
+              - entity: sensor.solar_controller_solar
+                name: T2 MPPT
+              - entity: sensor.sungold_sph302480a_load_power
+                name: Sungold AC out
+              - entity: sensor.sungold_sph302480a_pv_power
+                name: Sungold PV
+              - entity: sensor.sim_dump_load_power
+                name: Sim dump
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: T2 24 V
+          - type: tile
+            entity: sensor.solar_controller_solar
             name: MPPT W
-          - entity: sensor.solar_controller_charge_state
+          - type: tile
+            entity: sensor.solar_controller_charge_state
             name: Charge
-          - entity: sensor.solar_controller_charging_power
+          - type: tile
+            entity: sensor.solar_controller_charging_power
             name: Charge W
-          - entity: sensor.solar_controller_yield_today
+          - type: tile
+            entity: sensor.solar_controller_yield_today
             name: Yield today
-          - entity: sensor.t2_ku_jumper_at_t2_power
+          - type: tile
+            entity: sensor.t2_ku_jumper_at_t2_power
             name: Jumper to KU
-          - entity: sensor.battery_1_power
+          - type: tile
+            entity: sensor.battery_1_power
             name: Batt 1 W
-          - entity: sensor.battery_1_voltage
+          - type: tile
+            entity: sensor.battery_1_voltage
             name: Batt 1 V
-          - entity: sensor.battery_1_current
+          - type: tile
+            entity: sensor.battery_1_current
             name: Batt 1 A
-          - entity: sensor.battery_1_state_of_charge
+          - type: tile
+            entity: sensor.battery_1_state_of_charge
             name: SoC
-          - entity: sensor.battery_1_consumed_ah
+          - type: tile
+            entity: sensor.battery_1_consumed_ah
             name: Consumed Ah
-          - entity: sensor.battery_1_remaining_minutes
+          - type: tile
+            entity: sensor.battery_1_remaining_minutes
             name: Remaining min
-          - entity: sensor.battery_1_rssi
+          - type: tile
+            entity: sensor.battery_1_rssi
             name: RSSI
-          - entity: sensor.t2_mppt_conversion_loss_power
+          - type: tile
+            entity: sensor.t2_mppt_conversion_loss_power
             name: MPPT loss
 
-      - type: glance
-        title: KU 24 V (est. chargers)
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 3
-        entities:
-          - entity: sensor.ku_unmetered_pv_est_power
+      - type: grid
+        cards:
+          - type: heading
+            heading: KU 24 V (est. chargers)
+          - type: tile
+            entity: sensor.ku_unmetered_pv_est_power
             name: KU PV est.
-          - entity: sensor.ku_charger_equal_share_power
+          - type: tile
+            entity: sensor.ku_charger_equal_share_power
             name: KU share est.
-          - entity: sensor.t2_ku_jumper_power
+          - type: tile
+            entity: sensor.t2_ku_jumper_power
             name: Jumper from T2
-          - entity: sensor.battery_2_power
+          - type: tile
+            entity: sensor.battery_2_power
             name: Batt 2 W
-          - entity: sensor.battery_2_voltage
+          - type: tile
+            entity: sensor.battery_2_voltage
             name: Batt 2 V
-          - entity: sensor.battery_2_current
+          - type: tile
+            entity: sensor.battery_2_current
             name: Batt 2 A
-          - entity: sensor.battery_2_state_of_charge
+          - type: tile
+            entity: sensor.battery_2_state_of_charge
             name: SoC
-          - entity: sensor.battery_2_consumed_ah
+          - type: tile
+            entity: sensor.battery_2_consumed_ah
             name: Consumed Ah
-          - entity: sensor.battery_2_remaining_minutes
+          - type: tile
+            entity: sensor.battery_2_remaining_minutes
             name: Remaining min
-          - entity: sensor.battery_2_rssi
+          - type: tile
+            entity: sensor.battery_2_rssi
             name: RSSI
 
-      - type: glance
-        title: Sungold
-        show_name: true
-        show_icon: true
-        show_state: true
-        columns: 3
-        entities:
-          - entity: sensor.sungold_sph302480a_pv_power
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sungold
+          - type: tile
+            entity: sensor.sungold_sph302480a_pv_power
             name: PV W
-          - entity: sensor.sungold_sph302480a_pv_voltage
+          - type: tile
+            entity: sensor.sungold_sph302480a_pv_voltage
             name: PV V
-          - entity: sensor.sungold_sph302480a_pv_current
+          - type: tile
+            entity: sensor.sungold_sph302480a_pv_current
             name: PV A
-          - entity: sensor.sungold_sph302480a_charging_power
+          - type: tile
+            entity: sensor.sungold_sph302480a_charging_power
             name: Cart batt
-          - entity: sensor.sungold_sph302480a_battery_voltage
+          - type: tile
+            entity: sensor.sungold_sph302480a_battery_voltage
             name: Batt V
-          - entity: sensor.sungold_sph302480a_battery_current
+          - type: tile
+            entity: sensor.sungold_sph302480a_battery_current
             name: Batt A
-          - entity: sensor.sungold_sph302480a_battery_soc
+          - type: tile
+            entity: sensor.sungold_sph302480a_battery_soc
             name: Batt SoC
-          - entity: sensor.sungold_sph302480a_battery_temperature
+          - type: tile
+            entity: sensor.sungold_sph302480a_battery_temperature
             name: Batt temp
-          - entity: sensor.sungold_sph302480a_charge_state
+          - type: tile
+            entity: sensor.sungold_sph302480a_charge_state
             name: Charge
-          - entity: sensor.sungold_sph302480a_inverter_state
+          - type: tile
+            entity: sensor.sungold_sph302480a_inverter_state
             name: Mode
-          - entity: sensor.trailer_outlet_power
+          - type: tile
+            entity: sensor.trailer_outlet_power
             name: Sungold AC-in
-          - entity: sensor.sungold_sph302480a_load_power
+          - type: tile
+            entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
-          - entity: sensor.em16_a3_power
+          - type: tile
+            entity: sensor.em16_a3_power
             name: Trailer CT A3
-          - entity: sensor.em16_b3_power
+          - type: tile
+            entity: sensor.em16_b3_power
             name: Sungold breaker
-          - entity: sensor.sungold_sph302480a_grid_voltage
+          - type: tile
+            entity: sensor.sungold_sph302480a_grid_voltage
             name: UTI V
-          - entity: sensor.sungold_sph302480a_ac_output_voltage
+          - type: tile
+            entity: sensor.sungold_sph302480a_ac_output_voltage
             name: AC out V
-          - entity: sensor.sungold_sph302480a_ac_output_frequency
+          - type: tile
+            entity: sensor.sungold_sph302480a_ac_output_frequency
             name: AC out Hz
-          - entity: sensor.sungold_sph302480a_load_current
+          - type: tile
+            entity: sensor.sungold_sph302480a_load_current
             name: Load A
-          - entity: sensor.sungold_sph302480a_grid_current
+          - type: tile
+            entity: sensor.sungold_sph302480a_grid_current
             name: AC in A
-          - entity: sensor.sungold_sph302480a_grid_frequency
+          - type: tile
+            entity: sensor.sungold_sph302480a_grid_frequency
             name: AC in Hz
-          - entity: sensor.sungold_sph302480a_fail_code
+          - type: tile
+            entity: sensor.sungold_sph302480a_fail_code
             name: Fault
-          - entity: binary_sensor.sungold_sph302480a_fault_active
+          - type: tile
+            entity: binary_sensor.sungold_sph302480a_fault_active
             name: Fault LED
-          - entity: sensor.sungold_sph302480a_inverter_error_flags
+          - type: tile
+            entity: sensor.sungold_sph302480a_inverter_error_flags
             name: Error flags
-          - entity: sensor.sungold_conversion_loss_power
+          - type: tile
+            entity: sensor.sungold_conversion_loss_power
             name: Conv. loss
 
-      - type: vertical-stack
-        title: Dump
+      - type: grid
         cards:
+          - type: heading
+            heading: Dump
           - type: markdown
             title: Dump load
             content: >
@@ -181,6 +262,8 @@ views:
               at once. Plug header toggle is manual only.
               Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
               Helpers list (backup): [Settings > Helpers](/config/helpers).
+            grid_options:
+              columns: full
           - type: entities
             title: Dump load HA control
             show_header_toggle: false
@@ -255,6 +338,8 @@ views:
                 name: Helpers (same switch if this card is missing)
                 url: /config/helpers
                 icon: mdi:tune
+            grid_options:
+              columns: full
           - type: entities
             title: Sim dump plugs
             show_header_toggle: true
@@ -307,13 +392,18 @@ views:
                 name: 6 power sensor
               - entity: input_select.dump_plug_6_inverter
                 name: 6 inverter
+            grid_options:
+              columns: full
 
-      - type: vertical-stack
-        title: House
+      - type: grid
         cards:
+          - type: heading
+            heading: House
           - type: thermostat
             entity: climate.417373300314
             name: Ecobee
+            grid_options:
+              columns: full
           - type: weather-forecast
             entity: weather.417373300314
             name: Ecobee outdoor
@@ -321,224 +411,302 @@ views:
             show_current: true
             show_forecast: true
             secondary_info_attribute: humidity
+            grid_options:
+              columns: full
           - type: weather-forecast
             entity: weather.417373300314
             name: Ecobee outdoor hourly
             forecast_type: hourly
             show_current: false
             show_forecast: true
+            grid_options:
+              columns: full
           - type: markdown
             content: >
               **NWS Watauga Lake** (36.32 N, 82.12 W; Hampton / Carter County).
               Radar **KMRX**. Alerts: {{ states('sensor.nws_watauga_lake_alerts') }}.
               Loop below is the official [standard radar GIF](https://www.weather.gov/radarfaq/).
               Tap it for [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard).
+            grid_options:
+              columns: full
           - type: picture
             image: https://radar.weather.gov/ridge/standard/KMRX_loop.gif
             alt_text: NWS Morristown KMRX standard radar loop for Watauga Lake
             tap_action:
               action: url
               url_path: https://radar.weather.gov/station/KMRX/standard
-          - type: glance
-            title: Trailer hygrometer
-            show_name: true
-            show_icon: true
-            show_state: true
-            entities:
-              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
-                name: Temp
-              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
-                name: Humidity
-              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
-                name: Battery
+            grid_options:
+              columns: full
+          - type: tile
+            entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
+            name: Temp
+          - type: tile
+            entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
+            name: Humidity
+          - type: tile
+            entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
+            name: Battery
 
   - title: History
     path: history
-    cards:
-      - type: markdown
-        content: >
-          History graph needs [Recorder](https://www.home-assistant.io/integrations/recorder/)
-          and [History](https://www.home-assistant.io/integrations/history/).
+    type: sections
+    max_columns: 2
+    dense_section_placement: false
+    sections:
+      - type: grid
+        cards:
+          - type: markdown
+            content: >
+              History graph needs [Recorder](https://www.home-assistant.io/integrations/recorder/)
+              and [History](https://www.home-assistant.io/integrations/history/).
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Watts
-        hours_to_show: 72
-        entities:
-          - entity: sensor.solar_controller_solar
-            name: T2 MPPT
-          - entity: sensor.battery_1_power
-            name: Battery 1
-          - entity: sensor.battery_2_power
-            name: Battery 2
-          - entity: sensor.t2_ku_jumper_power
-            name: Jumper est.
-          - entity: sensor.trailer_outlet_power
-            name: Sungold AC-in
-          - entity: sensor.sim_dump_load_power
-            name: Sim dump
-          - entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out
-          - entity: sensor.sungold_sph302480a_pv_power
-            name: Sungold PV
+      - type: grid
+        cards:
+          - type: heading
+            heading: Watts
+          - type: history-graph
+            title: Watts
+            hours_to_show: 72
+            entities:
+              - entity: sensor.solar_controller_solar
+                name: T2 MPPT
+              - entity: sensor.battery_1_power
+                name: Battery 1
+              - entity: sensor.battery_2_power
+                name: Battery 2
+              - entity: sensor.t2_ku_jumper_power
+                name: Jumper est.
+              - entity: sensor.trailer_outlet_power
+                name: Sungold AC-in
+              - entity: sensor.sim_dump_load_power
+                name: Sim dump
+              - entity: sensor.sungold_sph302480a_load_power
+                name: Sungold AC out
+              - entity: sensor.sungold_sph302480a_pv_power
+                name: Sungold PV
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Watts (chargers)
-        hours_to_show: 72
-        entities:
-          - entity: sensor.ku_unmetered_pv_est_power
-            name: KU PV est.
-          - entity: sensor.ku_charger_equal_share_power
-            name: KU share est.
-          - entity: sensor.solar_controller_charging_power
-            name: T2 charge
-          - entity: sensor.sungold_sph302480a_charging_power
-            name: Sungold charge
+      - type: grid
+        cards:
+          - type: heading
+            heading: Watts (chargers)
+          - type: history-graph
+            title: Watts (chargers)
+            hours_to_show: 72
+            entities:
+              - entity: sensor.ku_unmetered_pv_est_power
+                name: KU PV est.
+              - entity: sensor.ku_charger_equal_share_power
+                name: KU share est.
+              - entity: sensor.solar_controller_charging_power
+                name: T2 charge
+              - entity: sensor.sungold_sph302480a_charging_power
+                name: Sungold charge
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Watts (losses)
-        hours_to_show: 72
-        entities:
-          - entity: sensor.solar_component_losses_power
-            name: Total est.
-          - entity: sensor.t2_mppt_conversion_loss_power
-            name: T2 MPPT
-          - entity: sensor.sungold_conversion_loss_power
-            name: Sungold
+      - type: grid
+        cards:
+          - type: heading
+            heading: Watts (losses)
+          - type: history-graph
+            title: Watts (losses)
+            hours_to_show: 72
+            entities:
+              - entity: sensor.solar_component_losses_power
+                name: Total est.
+              - entity: sensor.t2_mppt_conversion_loss_power
+                name: T2 MPPT
+              - entity: sensor.sungold_conversion_loss_power
+                name: Sungold
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Sim dump plugs
-        hours_to_show: 72
-        entities:
-          - entity: switch.sim_ac_plug_1
-            name: 1 fan
-          - entity: switch.sim_ac_plug_2
-            name: 2 dehumidifier
-          - entity: switch.sim_ac_plug_3
-            name: 3 water heater
-          - entity: switch.sim_ac_plug_4
-            name: 4 fan
-          - entity: switch.sim_ac_plug_5
-            name: 5 fan
-          - entity: switch.sim_ac_plug_6
-            name: 6 gaming PC
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sim dump plugs
+          - type: history-graph
+            title: Sim dump plugs
+            hours_to_show: 72
+            entities:
+              - entity: switch.sim_ac_plug_1
+                name: 1 fan
+              - entity: switch.sim_ac_plug_2
+                name: 2 dehumidifier
+              - entity: switch.sim_ac_plug_3
+                name: 3 water heater
+              - entity: switch.sim_ac_plug_4
+                name: 4 fan
+              - entity: switch.sim_ac_plug_5
+                name: 5 fan
+              - entity: switch.sim_ac_plug_6
+                name: 6 gaming PC
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Sim dump plug W
-        hours_to_show: 72
-        entities:
-          - entity: sensor.sim_dump_load_power
-            name: Total
-          - entity: sensor.sim_ac_plug_1_power
-            name: 1
-          - entity: sensor.sim_ac_plug_2_power
-            name: 2
-          - entity: sensor.sim_ac_plug_3_power
-            name: 3
-          - entity: sensor.sim_ac_plug_4_power
-            name: 4
-          - entity: sensor.sim_ac_plug_5_power
-            name: 5
-          - entity: sensor.sim_ac_plug_6_power
-            name: 6
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sim dump plug W
+          - type: history-graph
+            title: Sim dump plug W
+            hours_to_show: 72
+            entities:
+              - entity: sensor.sim_dump_load_power
+                name: Total
+              - entity: sensor.sim_ac_plug_1_power
+                name: 1
+              - entity: sensor.sim_ac_plug_2_power
+                name: 2
+              - entity: sensor.sim_ac_plug_3_power
+                name: 3
+              - entity: sensor.sim_ac_plug_4_power
+                name: 4
+              - entity: sensor.sim_ac_plug_5_power
+                name: 5
+              - entity: sensor.sim_ac_plug_6_power
+                name: 6
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Hz
-        hours_to_show: 72
-        entities:
-          - entity: sensor.sungold_sph302480a_grid_frequency
-            name: AC in
-          - entity: sensor.sungold_sph302480a_ac_output_frequency
-            name: AC out
+      - type: grid
+        cards:
+          - type: heading
+            heading: Hz
+          - type: history-graph
+            title: Hz
+            hours_to_show: 72
+            entities:
+              - entity: sensor.sungold_sph302480a_grid_frequency
+                name: AC in
+              - entity: sensor.sungold_sph302480a_ac_output_frequency
+                name: AC out
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Volts
-        hours_to_show: 72
-        entities:
-          - entity: sensor.battery_1_voltage
-            name: Battery 1
-          - entity: sensor.battery_2_voltage
-            name: Battery 2
-          - entity: sensor.solar_controller_battery
-            name: T2 batt
-          - entity: sensor.sungold_sph302480a_battery_voltage
-            name: Sungold batt
-          - entity: sensor.sungold_sph302480a_pv_voltage
-            name: Sungold PV
-          - entity: sensor.sungold_sph302480a_grid_voltage
-            name: Sungold grid
-          - entity: sensor.sungold_sph302480a_ac_output_voltage
-            name: Sungold AC out
+      - type: grid
+        cards:
+          - type: heading
+            heading: Volts
+          - type: history-graph
+            title: Volts
+            hours_to_show: 72
+            entities:
+              - entity: sensor.battery_1_voltage
+                name: Battery 1
+              - entity: sensor.battery_2_voltage
+                name: Battery 2
+              - entity: sensor.solar_controller_battery
+                name: T2 batt
+              - entity: sensor.sungold_sph302480a_battery_voltage
+                name: Sungold batt
+              - entity: sensor.sungold_sph302480a_pv_voltage
+                name: Sungold PV
+              - entity: sensor.sungold_sph302480a_grid_voltage
+                name: Sungold grid
+              - entity: sensor.sungold_sph302480a_ac_output_voltage
+                name: Sungold AC out
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Amps
-        hours_to_show: 72
-        entities:
-          - entity: sensor.battery_1_current
-            name: Battery 1
-          - entity: sensor.battery_2_current
-            name: Battery 2
-          - entity: sensor.solar_controller_battery_charging
-            name: T2 charge
-          - entity: sensor.sungold_sph302480a_battery_current
-            name: Sungold batt
-          - entity: sensor.sungold_sph302480a_pv_current
-            name: Sungold PV
-          - entity: sensor.sungold_sph302480a_load_current
-            name: Sungold AC out
-          - entity: sensor.sungold_sph302480a_grid_current
-            name: Sungold grid
+      - type: grid
+        cards:
+          - type: heading
+            heading: Amps
+          - type: history-graph
+            title: Amps
+            hours_to_show: 72
+            entities:
+              - entity: sensor.battery_1_current
+                name: Battery 1
+              - entity: sensor.battery_2_current
+                name: Battery 2
+              - entity: sensor.solar_controller_battery_charging
+                name: T2 charge
+              - entity: sensor.sungold_sph302480a_battery_current
+                name: Sungold batt
+              - entity: sensor.sungold_sph302480a_pv_current
+                name: Sungold PV
+              - entity: sensor.sungold_sph302480a_load_current
+                name: Sungold AC out
+              - entity: sensor.sungold_sph302480a_grid_current
+                name: Sungold grid
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: SoC / %
-        hours_to_show: 72
-        entities:
-          - entity: sensor.battery_1_state_of_charge
-            name: Battery 1 SoC
-          - entity: sensor.battery_2_state_of_charge
-            name: Battery 2 SoC
-          - entity: sensor.sungold_sph302480a_battery_soc
-            name: Sungold SoC
-          - entity: sensor.417373300314_humidity
-            name: Ecobee humidity
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
-            name: Hygrometer hum
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
-            name: Hygrometer batt
+      - type: grid
+        cards:
+          - type: heading
+            heading: SoC / %
+          - type: history-graph
+            title: SoC / %
+            hours_to_show: 72
+            entities:
+              - entity: sensor.battery_1_state_of_charge
+                name: Battery 1 SoC
+              - entity: sensor.battery_2_state_of_charge
+                name: Battery 2 SoC
+              - entity: sensor.sungold_sph302480a_battery_soc
+                name: Sungold SoC
+              - entity: sensor.417373300314_humidity
+                name: Ecobee humidity
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_hum
+                name: Hygrometer hum
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_batt
+                name: Hygrometer batt
+            grid_options:
+              columns: full
 
-      - type: history-graph
-        title: Temperature
-        hours_to_show: 72
-        entities:
-          - entity: sensor.417373300314_temperature
-            name: Ecobee temp
-          - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
-            name: Hygrometer temp
-          - entity: sensor.sungold_sph302480a_battery_temperature
-            name: Sungold batt
-          - entity: sensor.sungold_sph302480a_temperature_dc_dc
-            name: Sungold DC-DC
-          - entity: sensor.sungold_sph302480a_temperature_dc_ac
-            name: Sungold DC-AC
+      - type: grid
+        cards:
+          - type: heading
+            heading: Temperature
+          - type: history-graph
+            title: Temperature
+            hours_to_show: 72
+            entities:
+              - entity: sensor.417373300314_temperature
+                name: Ecobee temp
+              - entity: sensor.thermo_hygrometer_caaf6f_h5072_75_tempc
+                name: Hygrometer temp
+              - entity: sensor.sungold_sph302480a_battery_temperature
+                name: Sungold batt
+              - entity: sensor.sungold_sph302480a_temperature_dc_dc
+                name: Sungold DC-DC
+              - entity: sensor.sungold_sph302480a_temperature_dc_ac
+                name: Sungold DC-AC
+            grid_options:
+              columns: full
 
-      - type: statistics-graph
-        title: kWh
-        chart_type: line
-        days_to_show: 7
-        period: hour
-        entities:
-          - entity: sensor.t2_mppt_energy_kwh
-            name: T2 MPPT
-          - entity: sensor.battery_1_charge_energy_kwh
-            name: Batt 1 charge
-          - entity: sensor.battery_1_discharge_energy_kwh
-            name: Batt 1 discharge
-          - entity: sensor.battery_2_charge_energy_kwh
-            name: Batt 2 charge
-          - entity: sensor.battery_2_discharge_energy_kwh
-            name: Batt 2 discharge
-          - entity: sensor.em16_a3_energy_kwh
-            name: Sungold AC-in
-          - entity: sensor.sungold_load_energy_kwh
-            name: Sungold AC out
-          - entity: sensor.sim_dump_energy_kwh
-            name: Sim dump
+      - type: grid
+        cards:
+          - type: heading
+            heading: kWh
+          - type: statistics-graph
+            title: kWh
+            chart_type: line
+            days_to_show: 7
+            period: hour
+            entities:
+              - entity: sensor.t2_mppt_energy_kwh
+                name: T2 MPPT
+              - entity: sensor.battery_1_charge_energy_kwh
+                name: Batt 1 charge
+              - entity: sensor.battery_1_discharge_energy_kwh
+                name: Batt 1 discharge
+              - entity: sensor.battery_2_charge_energy_kwh
+                name: Batt 2 charge
+              - entity: sensor.battery_2_discharge_energy_kwh
+                name: Batt 2 discharge
+              - entity: sensor.em16_a3_energy_kwh
+                name: Sungold AC-in
+              - entity: sensor.sungold_load_energy_kwh
+                name: Sungold AC out
+              - entity: sensor.sim_dump_energy_kwh
+                name: Sim dump
+            grid_options:
+              columns: full

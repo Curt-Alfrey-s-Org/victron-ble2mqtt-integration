@@ -88,16 +88,51 @@ def _all_cards(nodes: list) -> list:
     return out
 
 
+def _cards_from_view(view: dict) -> list:
+    cards: list = []
+    header = view.get("header") or {}
+    if header.get("card"):
+        cards.append(header["card"])
+    footer = view.get("footer") or {}
+    if footer.get("card"):
+        cards.append(footer["card"])
+    for section in view.get("sections") or []:
+        cards.extend(_all_cards(section.get("cards") or []))
+    cards.extend(_all_cards(view.get("cards") or []))
+    return cards
+
+
+def _section_tiles(view: dict, heading: str) -> list[dict]:
+    for section in view.get("sections") or []:
+        if section.get("type") != "grid":
+            continue
+        section_cards = section.get("cards") or []
+        if not section_cards:
+            continue
+        first = section_cards[0]
+        if first.get("type") == "heading" and first.get("heading") == heading:
+            return [c for c in section_cards if c.get("type") == "tile"]
+    return []
+
+
 def test_dashboard_uses_official_cards_only() -> None:
     data = _load(DASHBOARD)
     assert data["title"] == "Solar plant"
+    views = data["views"]
+    now_view = views[0]
+    history_view = views[1]
+    for view in views:
+        assert view.get("type") == "sections"
+        assert view.get("max_columns") == 2
+        assert view.get("dense_section_placement") is False
     cards = []
-    for view in data["views"]:
-        cards.extend(_all_cards(view["cards"]))
+    for view in views:
+        cards.extend(_cards_from_view(view))
     types = {c["type"] for c in cards}
     assert "power-sankey" in types
-    assert "glance" in types
-    assert "vertical-stack" in types
+    assert "tile" in types
+    assert "glance" not in types
+    assert "vertical-stack" not in types
     assert "history-graph" in types
     assert "distribution" in types
     assert "markdown" in types
@@ -106,9 +141,13 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "picture" in types
     assert "statistics-graph" in types
     assert "entities" in types
+    assert "heading" in types
     assert "gauge" not in types
     assert "horizontal-stack" not in types
-    assert "grid" not in types
+    card_types = {c["type"] for c in cards}
+    assert "grid" not in card_types
+    for section in now_view.get("sections") or []:
+        assert section.get("type") == "grid"
     forbidden = {"custom:", "iframe", "webpage"}
     for card in cards:
         t = card["type"]
@@ -118,8 +157,9 @@ def test_dashboard_uses_official_cards_only() -> None:
             entities = card.get("entities") or []
             assert len(entities) <= 8
     sankey = next(c for c in cards if c["type"] == "power-sankey")
-    assert sankey["layout"] == "horizontal"
+    assert sankey["layout"] == "auto"
     assert sankey["collection_key"] == "energy_dashboard"
+    assert sankey.get("grid_options", {}).get("columns") == "full"
     thermostat = next(c for c in cards if c["type"] == "thermostat")
     assert thermostat["entity"] == "climate.417373300314"
     assert thermostat["name"] == "Ecobee"
@@ -144,10 +184,13 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert not any(c.get("title") == "KU shunt extras" for c in cards)
     assert not any(c.get("title") == "Sim dump plug W" and c.get("type") == "glance" for c in cards)
     assert not any(c.get("title") == "Sungold status" for c in cards)
-    trailer_hygro = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Trailer hygrometer"
-    )
-    hygro_ids = {e["entity"] for e in trailer_hygro["entities"]}
+    hygro_tiles = [
+        c
+        for c in cards
+        if c.get("type") == "tile"
+        and c.get("entity", "").startswith("sensor.thermo_hygrometer_caaf6f_h5072_75_")
+    ]
+    hygro_ids = {c["entity"] for c in hygro_tiles}
     assert "sensor.thermo_hygrometer_caaf6f_h5072_75_tempc" in hygro_ids
     dist = next(c for c in cards if c["type"] == "distribution")
     dist_entities = {e["entity"] for e in dist["entities"]}
@@ -158,13 +201,9 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "LED+fan" not in dist_names
     assert "sensor.trailer_outlet_power" not in dist_entities
     assert "Pi4" not in dist_names
-    loads_glance = [
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Loads (not losses)"
-    ]
-    assert loads_glance == []
-    ku = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "KU 24 V (est. chargers)")
-    ku_names = {e["name"] for e in ku["entities"]}
-    ku_ids = {e["entity"] for e in ku["entities"]}
+    ku_tiles = _section_tiles(now_view, "KU 24 V (est. chargers)")
+    ku_names = {t["name"] for t in ku_tiles}
+    ku_ids = {t["entity"] for t in ku_tiles}
     assert "KU share est." in ku_names
     assert "Jumper from T2" in ku_names
     assert "Each charger est." not in ku_names
@@ -174,16 +213,15 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.t2_ku_jumper_power" in ku_ids
     assert "sensor.trailer_outlet_power" not in ku_ids
     assert not any(c.get("title") == "Conversion losses" for c in cards)
-    now_view = data["views"][0]
-    assert not any(c.get("type") == "gauge" for c in _all_cards(now_view["cards"]))
-    assert not any(c.get("type") == "grid" for c in now_view["cards"])
-    now_titles = [c.get("title") for c in now_view["cards"] if c.get("type") == "glance"]
-    assert now_titles == ["T2 24 V", "KU 24 V (est. chargers)", "Sungold"]
-    for title in ("T2 24 V", "KU 24 V (est. chargers)", "Sungold"):
-        card = next(c for c in now_view["cards"] if c.get("title") == title)
-        assert card["columns"] == 3
-    stacks = [c.get("title") for c in now_view["cards"] if c.get("type") == "vertical-stack"]
-    assert stacks == ["Dump", "House"]
+    assert not any(c.get("type") == "gauge" for c in cards)
+    footer_tile = now_view["footer"]["card"]
+    assert footer_tile["type"] == "tile"
+    assert footer_tile["entity"] == "input_boolean.dump_control_enabled"
+    assert footer_tile["features"] == [{"type": "toggle"}]
+    badges = now_view.get("badges") or []
+    badge_entities = {b["entity"] for b in badges}
+    assert "sensor.battery_1_state_of_charge" in badge_entities
+    assert "input_boolean.dump_control_enabled" in badge_entities
 
     dump_ctrl = next(
         c for c in cards if c.get("type") == "entities" and c.get("title") == "Dump load HA control"
@@ -247,11 +285,9 @@ def test_dashboard_uses_official_cards_only() -> None:
     dump_w_ids = {e["entity"] for e in dump_w["entities"]}
     assert "sensor.sim_dump_load_power" in dump_w_ids
     assert "sensor.sim_ac_plug_3_power" in dump_w_ids
-    sungold = next(
-        c for c in cards if c.get("type") == "glance" and c.get("title") == "Sungold"
-    )
-    sungold_ids = {e["entity"] for e in sungold["entities"]}
-    sungold_names = {e["name"] for e in sungold["entities"]}
+    sungold_tiles = _section_tiles(now_view, "Sungold")
+    sungold_ids = {t["entity"] for t in sungold_tiles}
+    sungold_names = {t["name"] for t in sungold_tiles}
     assert "sensor.sungold_sph302480a_fail_code" in sungold_ids
     assert "binary_sensor.sungold_sph302480a_fault_active" in sungold_ids
     assert "sensor.sungold_sph302480a_load_power" in sungold_ids
@@ -264,9 +300,9 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "Sungold breaker" in sungold_names
     assert "A3 hot leg" not in sungold_names
     assert "Pi4" not in sungold_names
-    t2 = next(c for c in cards if c.get("type") == "glance" and c.get("title") == "T2 24 V")
-    t2_ids = {e["entity"] for e in t2["entities"]}
-    t2_names = {e["name"] for e in t2["entities"]}
+    t2_tiles = _section_tiles(now_view, "T2 24 V")
+    t2_ids = {t["entity"] for t in t2_tiles}
+    t2_names = {t["name"] for t in t2_tiles}
     assert "sensor.solar_controller_yield_today" in t2_ids
     assert "sensor.battery_1_state_of_charge" in t2_ids
     assert "sensor.t2_mppt_conversion_loss_power" in t2_ids
@@ -275,6 +311,9 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.t2_ku_jumper_power" not in t2_ids
     assert not any(c.get("title") == "Sungold cart" for c in cards)
     assert not any(c.get("title") == "Sungold AC" for c in cards)
+    for graph in [c for c in cards if c.get("type") in ("history-graph", "statistics-graph")]:
+        assert graph.get("grid_options", {}).get("columns") == "full"
+    assert history_view.get("type") == "sections"
 
 
 def test_docs_and_install_script_exist() -> None:
@@ -305,6 +344,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "Negative = leaving T2" in text
     assert "Gauges (PV)" not in text
     assert "Gauges (batteries)" not in text
+    assert "type: sections" in text or "sections view" in text
+    assert "tile" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script

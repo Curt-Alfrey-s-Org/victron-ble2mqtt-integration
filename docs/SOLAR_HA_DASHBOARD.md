@@ -4,12 +4,15 @@
 The custom SVG proxy on `:8765` is **retired** ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
 
 Home Assistant already holds the Victron, shunt, Refoss, Sungold, and sim-dump
-entities. This dashboard uses **stock cards** only:
+entities. This dashboard uses **stock cards** only, on the official
+[sections view](https://www.home-assistant.io/dashboards/sections/) (HA default;
+reflows to one column on a phone):
 
-- [Energy cards](https://www.home-assistant.io/dashboards/energy/) (`power-sankey`)
-- [Glance](https://www.home-assistant.io/dashboards/glance/) (`columns` set so names and watts fit; omitting it uses `min(entity count, 5)` in the [glance card](https://github.com/home-assistant/frontend/blob/dev/src/panels/lovelace/cards/hui-glance-card.ts) and ellipsizes)
-- [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/) (dump, house)
-- [Entities](https://www.home-assistant.io/dashboards/entities/) (sim dump plug switches)
+- [Energy cards](https://www.home-assistant.io/dashboards/energy/) (`power-sankey`, `layout: auto` so phones get vertical)
+- [Tile](https://www.home-assistant.io/dashboards/tile/) — one tile per live value (same as sidebar **Solar**)
+- [Heading](https://www.home-assistant.io/dashboards/heading/) — T2 / KU / Sungold / Dump / House
+- [Badges](https://www.home-assistant.io/dashboards/badges/) — SoC + NWS + dump at the top of **Now**
+- [Entities](https://www.home-assistant.io/dashboards/entities/) (dump helpers and sim plug rows)
 - [History graph](https://www.home-assistant.io/dashboards/history-graph/)
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/)
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/)
@@ -18,11 +21,41 @@ entities. This dashboard uses **stock cards** only:
 - [Distribution](https://www.home-assistant.io/dashboards/distribution/)
 - [Markdown](https://www.home-assistant.io/dashboards/markdown/)
 
+Do **not** use masonry [glance](https://www.home-assistant.io/dashboards/glance/)
+`columns: 3` on this dashboard: on a ~390 px phone the glance card ellipsizes
+names and watts (`hui-glance-card.ts`). Do **not** wrap bus groups in
+[vertical-stack](https://www.home-assistant.io/dashboards/vertical-stack/) —
+a [section](https://www.home-assistant.io/dashboards/sections/) is already a
+vertical group. Do **not** add HACS / `custom:` / iframe / webpage cards.
+
 YAML dashboards: [Adding YAML dashboards](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards).
+Views: [Dashboard views](https://www.home-assistant.io/dashboards/views/) (`type: sections`, `max_columns`).
 Packages: [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/).
 Template sensors: [Template](https://www.home-assistant.io/integrations/template/).
 Watt-hours from watts: [Integral (Riemann)](https://www.home-assistant.io/integrations/integration/).
 Energy sources: [Home energy management](https://www.home-assistant.io/docs/energy/).
+
+### Phone (Companion)
+
+Use the official [Companion app](https://companion.home-assistant.io/docs/getting_started/).
+On LAN: `http://192.168.0.105:8123`. Away from home: Tailscale on `.105` and on
+the phone, then the same HA login ([TAILSCALE.md](TAILSCALE.md)). Do **not**
+open `:8123` to the public internet. Companion default-dashboard and
+internal/external URL are **app settings**, not this YAML.
+
+**Now** uses `max_columns: 2` so a tablet can show two section columns; a phone
+clamps to one ([sections view](https://www.home-assistant.io/dashboards/sections/),
+frontend `max_columns`). Header badges stay visible. Footer tile
+`input_boolean.dump_control_enabled` with the official
+[toggle feature](https://www.home-assistant.io/dashboards/features/#toggle)
+stays on screen while you scroll. `power-sankey` `layout: auto` follows
+[energy cards](https://www.home-assistant.io/dashboards/energy/) (vertical on
+narrow screens).
+
+Wide cards (`power-sankey`, `distribution`, `thermostat`, `weather-forecast`,
+`picture`, `entities`, graphs) set `grid_options.columns: full`
+([LovelaceGridOptions](https://github.com/home-assistant/frontend/blob/dev/src/panels/lovelace/types.ts)).
+Tiles stay at the default half-section width (two readable tiles per phone row).
 
 Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
 ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)): Victron **float hold** then
@@ -50,7 +83,7 @@ MQTT/Sungold **entity list**. This YAML dashboard is **Solar plant**
 
 | Surface | Role |
 |---------|------|
-| **Solar plant** Lovelace | Live W glances grouped by bus + `power-sankey` (after Energy is configured) |
+| **Solar plant** Lovelace | Live W tiles grouped by bus (sections) + `power-sankey` (after Energy is configured) |
 | Template sensors | Jumper est. (+ = T2→KU), T2-end jumper sign, trailer outlet W, KU PV est., KU equal-share est. |
 | Integral sensors | kWh from live W (T2 MPPT, battery charge/discharge, trailer outlet, dump, Sungold load) |
 | NWS REST | `sensor.nws_watauga_lake_alerts` from [api.weather.gov alerts](https://www.weather.gov/documentation/services-web-api) `point=36.32,-82.12` |
@@ -64,8 +97,8 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 
 | entity_id | Meaning |
 |-----------|---------|
-| `sensor.t2_ku_jumper_power` | Est. `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). **Canonical + = T2→KU.** Used on **KU** glance (**Jumper from T2**), KU PV est., and History. There is no KU-end clamp ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)). |
-| `sensor.t2_ku_jumper_at_t2_power` | Same estimate, T2-end sign: `-(t2_ku_jumper_power)`. **T2 glance only** (**Jumper to KU**). Negative = leaving T2 (T2→KU); positive = arriving at T2 (KU→T2). Not a second clamp. Do **not** Riemann this. Do **not** put it on History. |
+| `sensor.t2_ku_jumper_power` | Est. `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). **Canonical + = T2→KU.** Used on **KU** tile (**Jumper from T2**), KU PV est., and History. There is no KU-end clamp ([SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)). |
+| `sensor.t2_ku_jumper_at_t2_power` | Same estimate, T2-end sign: `-(t2_ku_jumper_power)`. **T2 tile only** (**Jumper to KU**). Negative = leaving T2 (T2→KU); positive = arriving at T2 (KU→T2). Not a second clamp. Do **not** Riemann this. Do **not** put it on History. |
 | `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. That clamp is the **trailer outlet / Sungold A/C-in** (SPH cord). Cargo LED (~0.01 W) and vent fan (~0.1 W) are not separately metered and must **not** be the Lovelace name. |
 | `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + trailer_outlet` |
 | `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
@@ -193,7 +226,7 @@ the warning remains, adjust that entity in
 Integral sensors use Riemann **left** + `max_sub_interval` 5 minutes per the
 [Integral energy example](https://www.home-assistant.io/integrations/integration/#energy).
 
-If glance history is empty, this HA instance has no `default_config:` -- the
+If graph history is empty, this HA instance has no `default_config:` -- the
 install script adds `recorder:` and `history:` when missing
 ([Recorder](https://www.home-assistant.io/integrations/recorder/),
 [History](https://www.home-assistant.io/integrations/history/)).
@@ -213,7 +246,8 @@ Official cards:
   **eight** entities per card; group by `unit_of_measurement` (switches with no
   unit get their own on/off graphs)
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/) -- kWh helpers
-- [Glance](https://www.home-assistant.io/dashboards/glance/)
+- [Tile](https://www.home-assistant.io/dashboards/tile/) -- one live value per tile on **Now**
+- [Heading](https://www.home-assistant.io/dashboards/heading/) -- bus / dump / house section titles
 - [Entities](https://www.home-assistant.io/dashboards/entities/) -- sim dump plug ON/OFF
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee indoor setpoint (`climate.417373300314`, name **Ecobee**; not trailer)
 - [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) -- outdoor ambient + daily/hourly forecast (`weather.417373300314`; same Overview popup)
@@ -226,31 +260,30 @@ hygrometer, climate humidity, KU equal-share, A1 monthly, A3 as grid.
 ### Now (group by bus, no duplicate cards)
 
 Group **T2 with T2**, **KU with KU**, **Sungold with Sungold**, dump with dump,
-house climate with house climate. Do **not** put a gauge row of the same watts
-that already sit in those glances. T2 and KU are **sibling** [glance](https://www.home-assistant.io/dashboards/glance/)
-cards so [masonry](https://www.home-assistant.io/dashboards/masonry/) can size each box.
-Do **not** wrap them in a [grid](https://www.home-assistant.io/dashboards/grid/) (`columns: 2`):
-that packs both into **one** masonry column and glance `text-overflow: ellipsis` clips
-`Jumper est.` / watts (`hui-glance-card.ts`). Glance `columns: 3` (not omitted: omit =
-`min(n, 5)`). [Vertical stack](https://www.home-assistant.io/dashboards/vertical-stack/)
-holds dump and house so masonry cannot split those groups.
+house climate with house climate. Each group is one [sections](https://www.home-assistant.io/dashboards/sections/)
+`type: grid` block with a [heading](https://www.home-assistant.io/dashboards/heading/)
+and [tiles](https://www.home-assistant.io/dashboards/tile/) (or stock
+thermostat / weather / picture / entities). Do **not** put a gauge row of the
+same watts that already sit on those tiles. Do **not** use masonry glance
+`columns: 3` (phone clip). Do **not** use vertical-stack just to keep a group
+together.
 
 **Instant W** is the only mixed-bus pie (live clamps + dump). Bus detail watts
-stay in that bus glance. Per-plug dump watts stay on **History**.
+stay on that bus's tiles. Per-plug dump watts stay on **History**.
 
 | Card | Entities |
 |------|----------|
 | Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent); KU PV est. may be negative at night |
 | Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
-| T2 24 V | MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
-| KU 24 V (est. chargers) | **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (`sensor.t2_ku_jumper_power`, positive when T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
-| Sungold | One glance: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
-| Dump | Markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). |
+| T2 24 V | Heading + tiles: MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
+| KU 24 V (est. chargers) | Heading + tiles: **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (`sensor.t2_ku_jumper_power`, positive when T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
+| Sungold | One section of tiles: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
+| Dump | Heading + markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). Footer tile is the same kill switch for phones. |
 | House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). **NWS KMRX radar** is a [picture](https://www.home-assistant.io/dashboards/picture/) of the official standard loop `https://radar.weather.gov/ridge/standard/KMRX_loop.gif` ([animated GIFs](https://www.weather.gov/radarfaq/), [ridge/standard](https://radar.weather.gov/ridge/standard/)). [api.weather.gov points](https://www.weather.gov/documentation/services-web-api) for Watauga Lake `36.32,-82.12` returns `radarStation: KMRX` (Hampton / Carter County). The GIF **plays on this page**. Tap opens [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard). Alerts: `sensor.nws_watauga_lake_alerts` ([RESTful](https://www.home-assistant.io/integrations/rest/), NWS `User-Agent` required). Do **not** iframe `radar.weather.gov` RIDGE2 (GIS app; [webpage card](https://www.home-assistant.io/dashboards/iframe/) is for pages that allow embedding). Do **not** add HACS radar cards. Optional later: [Generic Camera](https://www.home-assistant.io/integrations/generic/) UI still-image URL uses the same NWS `ridge/standard` path (HA example is `CONUS_0.gif`). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
 
 Do **not** add a **Loads (not losses)** card, a **Conversion losses** card, **Sungold cart** /
 **Sungold AC** split, or headline [gauge](https://www.home-assistant.io/dashboards/gauge/) stacks.
-T2/Sungold conversion-loss watts live on those bus glances. Combined total is History
+T2/Sungold conversion-loss watts live on those bus tiles. Combined total is History
 **Watts (losses)** (`sensor.solar_component_losses_power`).
 
 ### History (one unit per graph, max 8)
