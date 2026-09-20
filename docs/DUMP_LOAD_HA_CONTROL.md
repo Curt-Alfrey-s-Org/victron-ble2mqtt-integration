@@ -22,14 +22,17 @@ Official manuals (RULE #1):
   [switch.turn_off](https://www.home-assistant.io/integrations/switch/)
 - Threshold helper (numeric hysteresis): [Threshold](https://www.home-assistant.io/integrations/threshold/)
 - State trigger `for:` (dwell): [State trigger](https://www.home-assistant.io/docs/automation/trigger/)
-- Timer helper (min on/off dwell): [Timer](https://www.home-assistant.io/integrations/timer/)
+- Timer helper (per-plug min-on and cooldown): [Timer](https://www.home-assistant.io/integrations/timer/)
+- Delay (`delay` seconds, templates): [Wait for time to pass](https://www.home-assistant.io/docs/scripts/#wait-for-time-to-pass-delay)
 - Derivative helper (PV rising/falling): [Derivative](https://www.home-assistant.io/integrations/derivative/)
 - Template sensors: [Template](https://www.home-assistant.io/integrations/template/)
 - Number helper (AC watt cap and max battery discharge): [Input number](https://www.home-assistant.io/integrations/input_number/)
 - Dropdown helper (which inverter feeds each plug): [Input select](https://www.home-assistant.io/integrations/input_select/)
 - Live power entity id per plug: [Input text](https://www.home-assistant.io/integrations/input_text/)
-- Staged ON (`repeat` / `while` / `wait_template` / `delay` / `if` / `stop`): [Script syntax](https://www.home-assistant.io/docs/scripts/)
+- Staged ON (`repeat` / `while` / `delay` / `if` / `stop`): [Script syntax](https://www.home-assistant.io/docs/scripts/)
 - Real plug power (when purchased): [Shelly](https://www.home-assistant.io/integrations/shelly/) (switch + `power` sensor)
+- Matter (future SKU only if Matter-certified): [Matter](https://www.home-assistant.io/integrations/matter/)
+- Govee BLE (sensors only; **not** H5082 smart plugs): [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/)
 - Victron charge stages and 1-minute re-bulk: [BlueSolar operation](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html)
 - SmartShunt current sign (+charge / -discharge): [SmartShunt operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)
 
@@ -57,12 +60,14 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
-| **How many** plugs (claim leftover PV) | HA staged ON: one plug, wait for **live watts**, then another while that bus stays above re-bulk, batt ok, inverter headroom |
-| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min; bus voltage **<= re-bulk helper** 1 min; MPPT leaves absorb/float 1 min; `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; plug ON with unknown watts 15 s |
+| **How many** plugs (claim leftover PV) | HA staged ON: one plug, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
+| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; MPPT leaves absorb/float 1 min; `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min |
 | Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
 | Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
-| Inverter caps, plug->bus, live meters, fail-closed unknown W | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; live plug `dump_plug_N_power_entity` |
+| Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, default 5) and `input_number.dump_site_delta_min_w` (5-500 W, default 25) |
+| Per-plug min-on / cooldown | HA `timer.dump_plug_N_min_on` (15 min, `restore: true`) and `timer.dump_plug_N_cooldown` (10 min, `restore: true`) |
+| Inverter caps, plug->bus, live meters | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; live plug `dump_plug_N_power_entity` (optional Shelly confirm path) |
 | Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
 | Tune helpers, inspect meters | Ask ALFa `ha_set_number` / `ha_select_option` / `ha_get_states` (no Approve). **Never** dump-actuate standing night loads. |
 | Surplus W (`sensor.dump_surplus_w`) | Briefing only. **Not** the ON/OFF trigger. |
@@ -102,18 +107,39 @@ trigger (float throttles PV watts to the load).
 4. `dump_soc_unsynced` off **and** SoC < `dump_min_soc_percent` (95) blocks T2/KU add.
    While unsynced, skip SoC (float voltage is the full-enough gate)
    ([SmartShunt 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-5. `sensor.dump_next_plug` picks an **off** plug on a bus that is still in the
-   float band, batt ok, and inverter headroom. **Do not** require last_w <= surplus W.
-6. One `switch.turn_on`, wait up to 15 s for live plug watts; fail-closed off if none.
-7. After the reading: if that bus hit re-bulk, solar gone, not float, batt discharging,
-   or PV falling, turn that plug off and stop. Else delay 1 s and try another.
+5. `sensor.dump_next_plug` picks an **off** plug whose **cooldown timer is idle**,
+   on a bus still in the float band, batt ok, and inverter headroom. **Do not**
+   require last_w <= surplus W. Unknown per-plug watts do **not** block staging.
+6. One `switch.turn_on`, then [delay](https://www.home-assistant.io/docs/scripts/#wait-for-time-to-pass-delay)
+   `input_number.dump_site_confirm_s` seconds (default **5**; Sungold Modbus poll
+   default is also 5 s).
+7. **Site confirm** (solar-system load, not indoor Govee energy monitoring):
+   - **SPH:** `sensor.sungold_sph302480a_load_power` must rise by >=
+     `dump_site_delta_min_w` (default 25 W).
+   - **T2:** signed `-sensor.battery_1_power` (more AC load => more negative pack
+     power / less charge).
+   - **KU:** signed `-sensor.battery_2_power`.
+   Optional alternate: mapped plug `sensor.sim_ac_plug_N_power` is numeric and > 0
+   (Shelly path later). Either path confirms.
+8. If solar-present or charge-float is already off after the delay: turn that plug
+   off, start its 10 min cooldown, cancel its min-on, stop staging.
+9. If **not** confirmed: turn off, start 10 min cooldown, try the next plug (do
+   not stop the whole automation).
+10. If **confirmed**: start that plug's 15 min min-on timer, delay 1 s, stage
+    another. Confirmed plugs are **not** fail-closed for missing per-plug watts;
+    they stay on until solar-gone / bulk / re-bulk / batt-not-ok (1 min) as today.
+    PV falling does **not** immediately turn off a confirmed plug.
 
 That is how leftover PV is claimed: add until voltage sags toward re-bulk or the
 inverter is full -- not until a 200 W surplus helper trips.
 
-Until a Shelly power entity is mapped, a probe has no live watts and turns off
-after 15 s. Already-ON leftover unknown watts also turn off
-(`sim_dump_turn_off_unknown_watts`).
+**Govee H5082:** HA Core [govee_ble](https://www.home-assistant.io/integrations/govee_ble/)
+does **not** list H5082. BLE capture on `.93` / Pi 5 is not an official plug
+switch path. Dump still needs a Core `switch` entity (template slot today;
+[Shelly](https://www.home-assistant.io/integrations/shelly/) or
+[Matter](https://www.home-assistant.io/integrations/matter/) when certified).
+Until HA actually switches a load on SPH AC out, site-delta will fail confirm
+(template sim does not change Sungold watts) and that slot cools 10 min -- correct.
 
 Hardware when purchased: official [Shelly](https://www.home-assistant.io/integrations/shelly/)
 plug (local power sensor). See [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md).
@@ -127,14 +153,17 @@ SoC is **not** a dump-on gate while `dump_soc_unsynced` is on. Float voltage is
 the battery-served check. After PV stops, dumps go off so overnight use is the
 house/inverter, not dump plugs (95%+ leftover if the day reached float).
 
-Turn-**off** (Victron 1 minute except unknown-watts 15 s):
+Turn-**off** (Victron 1 minute; per-plug 10 min cooldown after any off):
 
 - **All six:** `dump_solar_present` off 1 min (weather / end of day) -- cancels
-  min-on. This is the 95%+ after solar stops rule.
-- **All six:** T2 MPPT leaves absorption/float 1 min (bulk / night).
+  all min-on, starts all cooldowns. This is the 95%+ after solar stops rule.
+- **All six:** T2 MPPT leaves absorption/float 1 min (bulk / night) -- cancels
+  all min-on, starts all cooldowns.
 - **That inverter only:** bus voltage <= re-bulk helper 1 min, or `dump_batt_*_ok`
-  off 1 min (pack supplying the inverter).
-- **That plug:** ON with non-numeric live watts 15 s (fail-closed / leftover).
+  off 1 min (pack supplying the inverter) -- turn off matching plugs, cancel each
+  plug's min-on, start each plug's cooldown.
+- **Failed site confirm:** turn off that plug only, start its 10 min cooldown
+  (no min-on started).
 
 ### Any load on any inverter (live meters)
 

@@ -1,7 +1,7 @@
 # Dump-load plugs -- template switches until real power-reporting smart plugs.
 # When hardware is added (official Shelly integration), rename the device switch
 # to switch.sim_ac_plug_N and set input_text.dump_plug_N_power_entity to that
-# device's power sensor. HA dump staging uses live watts, not typed ratings.
+# device's power sensor. Staging confirms site load delta (see DUMP_LOAD_HA_CONTROL.md).
 # Official:
 #   https://www.home-assistant.io/integrations/template/
 #   https://www.home-assistant.io/integrations/input_boolean/

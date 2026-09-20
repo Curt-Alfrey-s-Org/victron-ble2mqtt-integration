@@ -9,6 +9,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "config" / "packages" / "sim_dump_control.yaml"
 DOCS = ROOT / "docs" / "DUMP_LOAD_HA_CONTROL.md"
+SIM_DOCS = ROOT / "docs" / "SIM_DUMP_PLUGS.md"
 INSTALL = ROOT / "scripts" / "install_sim_dump_control_ha.sh"
 
 PLUGS = [
@@ -44,8 +45,15 @@ def test_docs_and_install_exist() -> None:
     assert "ha_set_number" in docs
     assert "2000" in docs
     assert "sensor.dump_next_plug" in docs
-    assert "sim_dump_turn_off_unknown_watts" in docs
-    assert "Already-ON leftover" in docs
+    assert "site confirm" in docs.lower() or "site load delta" in docs.lower()
+    assert "dump_site_confirm_s" in docs
+    assert "dump_site_delta_min_w" in docs
+    assert "15 min" in docs or "00:15:00" in docs
+    assert "10 min" in docs or "00:10:00" in docs
+    assert "govee_ble" in docs
+    assert "H5082" in docs
+    assert "sim_dump_turn_off_unknown_watts" not in docs
+    assert "Already-ON leftover" not in docs
     assert "dump_charge_float" in docs
     assert "dump_solar_present" in docs
     assert "dump_rebulk" in docs
@@ -56,6 +64,10 @@ def test_docs_and_install_exist() -> None:
     assert "install_sim_dump_plugs_ha.sh" in text
     assert "Settings > Helpers" in docs or "Helpers" in docs
     assert "solar-plant.yaml" not in text
+    sim_docs = SIM_DOCS.read_text(encoding="utf-8")
+    assert "dump_site_confirm_s" in sim_docs
+    assert "govee_ble" in sim_docs
+    assert "H5082" in sim_docs
 
 
 def test_kill_switch_and_timers() -> None:
@@ -75,6 +87,12 @@ def test_kill_switch_and_timers() -> None:
     assert numbers["dump_rebulk_t2_v"]["initial"] == 26.8
     assert numbers["dump_min_solar_w"]["initial"] == 50
     assert numbers["dump_min_soc_percent"]["initial"] == 95
+    assert numbers["dump_site_confirm_s"]["initial"] == 5
+    assert numbers["dump_site_confirm_s"]["min"] == 5
+    assert numbers["dump_site_confirm_s"]["max"] == 30
+    assert numbers["dump_site_delta_min_w"]["initial"] == 25
+    assert numbers["dump_site_delta_min_w"]["min"] == 5
+    assert numbers["dump_site_delta_min_w"]["max"] == 500
     assert "dump_plug_1_watts" not in numbers
     booleans = data.get("input_boolean") or {}
     assert booleans["dump_soc_unsynced"].get("initial") is True
@@ -84,9 +102,13 @@ def test_kill_switch_and_timers() -> None:
         assert sel["options"] == ["T2", "KU", "SPH"]
         assert sel["initial"] == "SPH"
     timers = data.get("timer") or {}
-    assert timers["dump_min_on"]["duration"] == "00:10:00"
-    assert timers["dump_min_off"]["duration"] == "00:05:00"
-    assert timers["dump_min_on"].get("restore") is True
+    assert "dump_min_on" not in timers
+    assert "dump_min_off" not in timers
+    for n in range(1, 7):
+        assert timers[f"dump_plug_{n}_min_on"]["duration"] == "00:15:00"
+        assert timers[f"dump_plug_{n}_cooldown"]["duration"] == "00:10:00"
+        assert timers[f"dump_plug_{n}_min_on"].get("restore") is True
+        assert timers[f"dump_plug_{n}_cooldown"].get("restore") is True
 
 
 def test_surplus_template_and_charge_ok() -> None:
@@ -99,6 +121,12 @@ def test_surplus_template_and_charge_ok() -> None:
     surplus = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_surplus_w")
     assert "sensor.solar_controller_solar" in surplus["state"]
     assert "sensor.sim_dump_load_power" in surplus["state"]
+    t2_load = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_bus_load_t2")
+    assert "sensor.battery_1_power" in t2_load["state"]
+    ku_load = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_bus_load_ku")
+    assert "sensor.battery_2_power" in ku_load["state"]
+    sph_load = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_bus_load_sph")
+    assert "sensor.sungold_sph302480a_load_power" in sph_load["state"]
     nxt = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_next_plug")
     nxt_state = nxt["state"]
     assert "sensor.sim_ac_plug_1_power" in nxt_state
@@ -110,6 +138,10 @@ def test_surplus_template_and_charge_ok() -> None:
     assert "sensor.battery_1_power" in nxt_state
     assert "sensor.battery_2_power" in nxt_state
     assert "sensor.sungold_sph302480a_load_power" in nxt_state
+    assert "timer.dump_plug_" in nxt_state
+    assert "_cooldown" in nxt_state
+    assert "is_state(cd, 'idle')" in nxt_state
+    assert "ns.blocked" not in nxt_state
     assert "binary_sensor.dump_batt_t2_ok" in nxt_state
     assert "binary_sensor.dump_batt_ku_ok" in nxt_state
     assert "binary_sensor.dump_batt_sph_ok" in nxt_state
@@ -166,8 +198,8 @@ def test_automations_use_switch_services_and_dwell() -> None:
         "sim_dump_turn_off_batt_t2",
         "sim_dump_turn_off_batt_ku",
         "sim_dump_turn_off_batt_sph",
-        "sim_dump_turn_off_unknown_watts",
     }
+    assert "sim_dump_turn_off_unknown_watts" not in by_id
     on = by_id["sim_dump_turn_on"]
     off_s = by_id["sim_dump_turn_off_solar_gone"]
     off_b = by_id["sim_dump_turn_off_bulk"]
@@ -194,51 +226,64 @@ def test_automations_use_switch_services_and_dwell() -> None:
     }
     for trig in on_state_trigs:
         assert trig.get("for") == "00:01:00"
-    unk = by_id["sim_dump_turn_off_unknown_watts"]
-    unk_by_id = {t.get("id"): t for t in unk["triggers"]}
-    assert unk_by_id["unknown_dwell"]["trigger"] == "template"
-    assert unk_by_id["unknown_dwell"]["for"] == "00:00:15"
-    assert "sensor.sim_ac_plug_1_power" in unk_by_id["unknown_dwell"]["value_template"]
-    assert unk_by_id["ha_start"] == {
-        "trigger": "homeassistant",
-        "id": "ha_start",
-        "event": "start",
-    }
-    assert unk_by_id["autos_reloaded"]["event_type"] == "automation_reloaded"
-    unk_txt = str(unk["actions"])
-    assert "00:00:15" in unk_txt
-    assert "switch.turn_off" in unk_txt
-    assert "timer.cancel" in unk_txt
-    assert "timer.dump_min_on" in unk_txt
-    assert "dump_control_enabled" in str(unk["conditions"])
     on_repeat = on["actions"][0]["repeat"]
     on_seq = on_repeat["sequence"]
     seq_txt = str(on_seq)
-    assert "wait_template" in seq_txt
-    assert "dump plug reported no live watts" in seq_txt
+    assert "wait_template" not in seq_txt
+    assert "dump plug reported no live watts" not in seq_txt
+    assert "dump_site_confirm_s" in seq_txt
+    assert "dump_site_delta_min_w" in seq_txt
+    assert "dump_bus_load_t2" in seq_txt
+    assert "dump_bus_load_ku" in seq_txt
+    assert "dump_bus_load_sph" in seq_txt
+    assert "confirmed" in seq_txt
+    not_conf = next(
+        a
+        for a in on_seq
+        if a.get("if")
+        and any(
+            "not confirmed" in str(c.get("value_template", ""))
+            for c in (a.get("if") or [])
+        )
+    )
+    assert "stop" not in str(not_conf.get("then") or [])
     turn_on = next(a for a in on_seq if a.get("action") == "switch.turn_on")
     assert "{{ target }}" in str(turn_on["target"]["entity_id"])
     assert PLUGS != turn_on["target"]["entity_id"]
+    delay_confirm = next(
+        a for a in on_seq if isinstance(a, dict) and "delay" in a and "dump_site_confirm_s" in str(a["delay"])
+    )
+    assert delay_confirm is not None
+    assert "timer.dump_plug_" in seq_txt and "min_on" in seq_txt
+    assert seq_txt.index("dump_site_confirm_s") < seq_txt.index("min_on")
+    assert seq_txt.index("switch.turn_on") < seq_txt.index("dump_site_confirm_s")
     while_t = " ".join(str(c) for c in on_repeat["while"])
     assert "dump_next_plug" in while_t
     assert "dump_charge_float" in while_t
     assert "dump_solar_present" in while_t
     assert "dump_surplus_high" not in while_t
     assert "repeat.index" in while_t
-    assert any(a.get("delay") == 1 for a in on_seq)
-    assert any(
-        a.get("action") == "timer.start"
-        and a.get("target", {}).get("entity_id") == "timer.dump_min_on"
-        for a in on_seq
-    )
+    assert "timer.dump_min_off" not in str(on["conditions"])
+    off_s_txt = str(off_s["actions"])
+    assert "timer.dump_plug_1_min_on" in off_s_txt
+    assert "timer.dump_plug_1_cooldown" in off_s_txt
+    assert "timer.dump_min_on" not in off_s_txt
     assert off_s["actions"][0]["action"] == "switch.turn_off"
     assert off_b["actions"][0]["action"] == "switch.turn_off"
     assert any(
         a.get("action") == "timer.cancel" for a in off_s["actions"]
-    ), "solar-gone off must cancel min-on timer"
+    ), "solar-gone off must cancel min-on timers"
+    assert any(
+        a.get("action") == "timer.start" for a in off_s["actions"]
+    ), "solar-gone off must start cooldown timers"
     assert any(
         a.get("action") == "timer.cancel" for a in off_b["actions"]
-    ), "bulk off must cancel min-on timer"
+    ), "bulk off must cancel min-on timers"
+    rebulk_t2_txt = str(by_id["sim_dump_turn_off_rebulk_t2"]["actions"])
+    assert "timer.start" in rebulk_t2_txt
+    assert "timer.cancel" in rebulk_t2_txt
+    assert "cooldown" in rebulk_t2_txt
+    assert "min_on" in rebulk_t2_txt
     assert by_id["sim_dump_turn_off_batt_t2"]["triggers"][0]["entity_id"] == (
         "binary_sensor.dump_batt_t2_ok"
     )

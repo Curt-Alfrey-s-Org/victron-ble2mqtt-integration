@@ -1,6 +1,7 @@
 # Dump-load CONTROL (HA owns on/off). Opt-in package for Home Assistant on .105.
 # Requires sim_dump_plugs.yaml (switch.sim_ac_plug_*).
-# Victron float hold then staged ON; solar-gone and re-bulk OFF (1 minute).
+# Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
+# Solar-gone and re-bulk OFF (1 minute).
 # Surplus watts (dump_surplus_w) are briefing only -- not the ON/OFF trigger.
 # Official:
 #   https://www.home-assistant.io/docs/configuration/packages/
@@ -159,6 +160,24 @@ input_number:
     unit_of_measurement: "%"
     mode: box
     icon: mdi:battery-90
+  dump_site_confirm_s:
+    name: Dump site confirm seconds
+    min: 5
+    max: 30
+    step: 1
+    initial: 5
+    unit_of_measurement: s
+    mode: box
+    icon: mdi:timer-sand
+  dump_site_delta_min_w:
+    name: Dump site delta min watts
+    min: 5
+    max: 500
+    step: 5
+    initial: 25
+    unit_of_measurement: W
+    mode: box
+    icon: mdi:transmission-tower
 
 input_select:
   dump_plug_1_inverter:
@@ -211,13 +230,53 @@ input_select:
     icon: mdi:transmission-tower
 
 timer:
-  dump_min_on:
-    name: Dump min on dwell
+  dump_plug_1_min_on:
+    name: Dump plug 1 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_1_cooldown:
+    name: Dump plug 1 cooldown
     duration: "00:10:00"
     restore: true
-  dump_min_off:
-    name: Dump min off dwell
-    duration: "00:05:00"
+  dump_plug_2_min_on:
+    name: Dump plug 2 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_2_cooldown:
+    name: Dump plug 2 cooldown
+    duration: "00:10:00"
+    restore: true
+  dump_plug_3_min_on:
+    name: Dump plug 3 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_3_cooldown:
+    name: Dump plug 3 cooldown
+    duration: "00:10:00"
+    restore: true
+  dump_plug_4_min_on:
+    name: Dump plug 4 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_4_cooldown:
+    name: Dump plug 4 cooldown
+    duration: "00:10:00"
+    restore: true
+  dump_plug_5_min_on:
+    name: Dump plug 5 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_5_cooldown:
+    name: Dump plug 5 cooldown
+    duration: "00:10:00"
+    restore: true
+  dump_plug_6_min_on:
+    name: Dump plug 6 min on
+    duration: "00:15:00"
+    restore: true
+  dump_plug_6_cooldown:
+    name: Dump plug 6 cooldown
+    duration: "00:10:00"
     restore: true
 
 template:
@@ -239,6 +298,33 @@ template:
           {% else %}
             {{ (solar | float(0)) - (load | float(0)) - (losses | float(0)) }}
           {% endif %}
+      - name: Dump bus load T2
+        unique_id: dump_bus_load_t2
+        default_entity_id: sensor.dump_bus_load_t2
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.battery_1_power') %}
+          {{ (-1 * (p | float)) if is_number(p) else none }}
+      - name: Dump bus load KU
+        unique_id: dump_bus_load_ku
+        default_entity_id: sensor.dump_bus_load_ku
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.battery_2_power') %}
+          {{ (-1 * (p | float)) if is_number(p) else none }}
+      - name: Dump bus load SPH
+        unique_id: dump_bus_load_sph
+        default_entity_id: sensor.dump_bus_load_sph
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set p = states('sensor.sungold_sph302480a_load_power') %}
+          {{ (p | float) if is_number(p) else none }}
       - name: Dump next plug
         unique_id: dump_next_plug
         default_entity_id: sensor.dump_next_plug
@@ -263,18 +349,14 @@ template:
              if is_number(states('sensor.battery_2_power')) else 0 %}
           {% set t2_from_batt = [0, -t2_pack] | max %}
           {% set ku_from_batt = [0, -ku_pack] | max %}
-          {% set ns = namespace(t2=0, ku=0, sph=0, blocked=false) %}
+          {% set ns = namespace(t2=0, ku=0, sph=0) %}
           {% for eid, pwr, last_eid, sel in plugs %}
-            {% if is_state(eid, 'on') %}
-              {% if not is_number(states(pwr)) %}
-                {% set ns.blocked = true %}
-              {% else %}
-                {% set live = states(pwr) | float(0) %}
-                {% set bus = states(sel) %}
-                {% if bus == 'T2' %}{% set ns.t2 = ns.t2 + live %}
-                {% elif bus == 'KU' %}{% set ns.ku = ns.ku + live %}
-                {% else %}{% set ns.sph = ns.sph + live %}
-                {% endif %}
+            {% if is_state(eid, 'on') and is_number(states(pwr)) %}
+              {% set live = states(pwr) | float(0) %}
+              {% set bus = states(sel) %}
+              {% if bus == 'T2' %}{% set ns.t2 = ns.t2 + live %}
+              {% elif bus == 'KU' %}{% set ns.ku = ns.ku + live %}
+              {% else %}{% set ns.sph = ns.sph + live %}
               {% endif %}
             {% endif %}
           {% endfor %}
@@ -298,8 +380,7 @@ template:
             'KU': is_state('binary_sensor.dump_v_rebulk_ku', 'on'),
             'SPH': is_state('binary_sensor.dump_v_rebulk_sph', 'on'),
           } %}
-          {% if ns.blocked
-             or not is_state('binary_sensor.dump_solar_present', 'on')
+          {% if not is_state('binary_sensor.dump_solar_present', 'on')
              or not is_state('binary_sensor.dump_charge_float', 'on')
              or not is_state('binary_sensor.dump_soc_ok', 'on') %}
             none
@@ -313,8 +394,11 @@ template:
               {% set built.rows = built.rows + [(sort_w, eid, sel, last_w)] %}
             {% endfor %}
             {% for sort_w, eid, sel, last_w in built.rows | sort %}
+              {% set plug_n = eid.split('_')[-1] %}
+              {% set cd = 'timer.dump_plug_' ~ plug_n ~ '_cooldown' %}
               {% set bus = states(sel) %}
-              {% if is_state(eid, 'off') and batt.get(bus, False)
+              {% if is_state(eid, 'off') and is_state(cd, 'idle')
+                 and batt.get(bus, False)
                  and vfloat.get(bus, False) and not vrebulk.get(bus, False) %}
                 {% if last_w is not none and last_w <= head.get(bus, -1) %}
                   {% if pick.eid == 'none' %}
@@ -553,7 +637,7 @@ binary_sensor:
 automation dump_load:
   - id: sim_dump_turn_on
     alias: Dump load turn on
-    description: Victron float hold. Stage one plug, wait for live watts, then another while the bus stays above re-bulk.
+    description: Victron float hold. Stage one plug, site load delta confirm, then another while the bus stays above re-bulk.
     mode: single
     triggers:
       - trigger: state
@@ -588,9 +672,6 @@ automation dump_load:
           - condition: state
             entity_id: binary_sensor.dump_pv_falling
             state: "on"
-      - condition: state
-        entity_id: timer.dump_min_off
-        state: idle
       - condition: template
         value_template: "{{ states('sensor.dump_next_plug').startswith('switch.sim_ac_plug_') }}"
     actions:
@@ -615,37 +696,59 @@ automation dump_load:
           sequence:
             - variables:
                 target: "{{ states('sensor.dump_next_plug') }}"
+                plug_n: "{{ states('sensor.dump_next_plug').split('_')[-1] }}"
+                bus: "{{ states('input_select.dump_plug_' ~ states('sensor.dump_next_plug').split('_')[-1] ~ '_inverter') }}"
+            - variables:
+                load_eid: "{{ 'sensor.dump_bus_load_t2' if bus == 'T2' else ('sensor.dump_bus_load_ku' if bus == 'KU' else 'sensor.dump_bus_load_sph') }}"
+            - variables:
+                load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
               value_template: "{{ target.startswith('switch.sim_ac_plug_') }}"
             - action: switch.turn_on
               target:
                 entity_id: "{{ target }}"
-            - action: timer.start
-              target:
-                entity_id: timer.dump_min_on
-            - wait_template: "{{ is_number(states('sensor.' ~ target[7:] ~ '_power')) }}"
-              timeout: "00:00:15"
-              continue_on_timeout: true
-            - if:
-                - condition: template
-                  value_template: "{{ not wait.completed }}"
-              then:
-                - action: switch.turn_off
-                  target:
-                    entity_id: "{{ target }}"
-                - stop: dump plug reported no live watts
+            - delay: "{{ states('input_number.dump_site_confirm_s') | int(5) }}"
+            - variables:
+                load_after: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
+                plug_pwr: "{{ states('sensor.' ~ target[7:] ~ '_power') }}"
+                delta_min: "{{ states('input_number.dump_site_delta_min_w') | float(25) }}"
+            - variables:
+                confirmed: >
+                  {{ (is_number(plug_pwr) and (plug_pwr | float) > 0)
+                     or (is_number(load_before) and is_number(load_after)
+                         and (load_after | float - load_before | float) >= (delta_min | float)) }}
             - if:
                 - condition: template
                   value_template: >
                     {{ not is_state('binary_sensor.dump_charge_float', 'on')
-                       or not is_state('binary_sensor.dump_solar_present', 'on')
-                       or is_state('binary_sensor.dump_pv_falling', 'on') }}
+                       or not is_state('binary_sensor.dump_solar_present', 'on') }}
               then:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ target }}"
-                - stop: left float, solar gone, or PV falling
-            - delay: 1
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - stop: left float or solar gone
+            - if:
+                - condition: template
+                  value_template: "{{ not confirmed }}"
+              then:
+                - action: switch.turn_off
+                  target:
+                    entity_id: "{{ target }}"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
+                - delay: 1
+              else:
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - delay: 1
 
   - id: sim_dump_turn_off_solar_gone
     alias: Dump load turn off solar gone
@@ -672,10 +775,22 @@ automation dump_load:
             - switch.sim_ac_plug_6
       - action: timer.cancel
         target:
-          entity_id: timer.dump_min_on
+          entity_id:
+            - timer.dump_plug_1_min_on
+            - timer.dump_plug_2_min_on
+            - timer.dump_plug_3_min_on
+            - timer.dump_plug_4_min_on
+            - timer.dump_plug_5_min_on
+            - timer.dump_plug_6_min_on
       - action: timer.start
         target:
-          entity_id: timer.dump_min_off
+          entity_id:
+            - timer.dump_plug_1_cooldown
+            - timer.dump_plug_2_cooldown
+            - timer.dump_plug_3_cooldown
+            - timer.dump_plug_4_cooldown
+            - timer.dump_plug_5_cooldown
+            - timer.dump_plug_6_cooldown
 
   - id: sim_dump_turn_off_bulk
     alias: Dump load turn off bulk
@@ -702,10 +817,22 @@ automation dump_load:
             - switch.sim_ac_plug_6
       - action: timer.cancel
         target:
-          entity_id: timer.dump_min_on
+          entity_id:
+            - timer.dump_plug_1_min_on
+            - timer.dump_plug_2_min_on
+            - timer.dump_plug_3_min_on
+            - timer.dump_plug_4_min_on
+            - timer.dump_plug_5_min_on
+            - timer.dump_plug_6_min_on
       - action: timer.start
         target:
-          entity_id: timer.dump_min_off
+          entity_id:
+            - timer.dump_plug_1_cooldown
+            - timer.dump_plug_2_cooldown
+            - timer.dump_plug_3_cooldown
+            - timer.dump_plug_4_cooldown
+            - timer.dump_plug_5_cooldown
+            - timer.dump_plug_6_cooldown
 
   - id: sim_dump_turn_off_rebulk_t2
     alias: Dump load turn off T2 re-bulk
@@ -743,6 +870,14 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_rebulk_ku
     alias: Dump load turn off KU re-bulk
@@ -780,6 +915,14 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_rebulk_sph
     alias: Dump load turn off SPH re-bulk
@@ -817,6 +960,14 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_batt_t2
     alias: Dump load turn off T2 battery
@@ -854,6 +1005,14 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_batt_ku
     alias: Dump load turn off KU battery
@@ -891,6 +1050,14 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_batt_sph
     alias: Dump load turn off SPH battery
@@ -928,70 +1095,11 @@ automation dump_load:
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ repeat.item.plug }}"
-
-  - id: sim_dump_turn_off_unknown_watts
-    alias: Dump load turn off unknown watts
-    description: Fail closed. ON dump plug with no numeric live watts for 15s turns off even during min-on. Also runs 15s after HA start or automation reload so leftover ON plugs are not left on.
-    mode: single
-    triggers:
-      - trigger: template
-        id: unknown_dwell
-        value_template: >
-          {{ (is_state('switch.sim_ac_plug_1', 'on') and not is_number(states('sensor.sim_ac_plug_1_power')))
-             or (is_state('switch.sim_ac_plug_2', 'on') and not is_number(states('sensor.sim_ac_plug_2_power')))
-             or (is_state('switch.sim_ac_plug_3', 'on') and not is_number(states('sensor.sim_ac_plug_3_power')))
-             or (is_state('switch.sim_ac_plug_4', 'on') and not is_number(states('sensor.sim_ac_plug_4_power')))
-             or (is_state('switch.sim_ac_plug_5', 'on') and not is_number(states('sensor.sim_ac_plug_5_power')))
-             or (is_state('switch.sim_ac_plug_6', 'on') and not is_number(states('sensor.sim_ac_plug_6_power'))) }}
-        for: "00:00:15"
-      - trigger: homeassistant
-        id: ha_start
-        event: start
-      - trigger: event
-        id: autos_reloaded
-        event_type: automation_reloaded
-    conditions:
-      - condition: state
-        entity_id: input_boolean.dump_control_enabled
-        state: "on"
-    actions:
-      - if:
-          - condition: trigger
-            id:
-              - ha_start
-              - autos_reloaded
-        then:
-          - delay: "00:00:15"
-      - condition: template
-        value_template: >
-          {{ (is_state('switch.sim_ac_plug_1', 'on') and not is_number(states('sensor.sim_ac_plug_1_power')))
-             or (is_state('switch.sim_ac_plug_2', 'on') and not is_number(states('sensor.sim_ac_plug_2_power')))
-             or (is_state('switch.sim_ac_plug_3', 'on') and not is_number(states('sensor.sim_ac_plug_3_power')))
-             or (is_state('switch.sim_ac_plug_4', 'on') and not is_number(states('sensor.sim_ac_plug_4_power')))
-             or (is_state('switch.sim_ac_plug_5', 'on') and not is_number(states('sensor.sim_ac_plug_5_power')))
-             or (is_state('switch.sim_ac_plug_6', 'on') and not is_number(states('sensor.sim_ac_plug_6_power'))) }}
-      - repeat:
-          for_each:
-            - plug: switch.sim_ac_plug_1
-              power: sensor.sim_ac_plug_1_power
-            - plug: switch.sim_ac_plug_2
-              power: sensor.sim_ac_plug_2_power
-            - plug: switch.sim_ac_plug_3
-              power: sensor.sim_ac_plug_3_power
-            - plug: switch.sim_ac_plug_4
-              power: sensor.sim_ac_plug_4_power
-            - plug: switch.sim_ac_plug_5
-              power: sensor.sim_ac_plug_5_power
-            - plug: switch.sim_ac_plug_6
-              power: sensor.sim_ac_plug_6_power
-          sequence:
-            - if:
-                - condition: template
-                  value_template: "{{ is_state(repeat.item.plug, 'on') and not is_number(states(repeat.item.power)) }}"
-              then:
-                - action: switch.turn_off
+                - variables:
+                    plug_n: "{{ repeat.item.plug.split('_')[-1] }}"
+                - action: timer.cancel
                   target:
-                    entity_id: "{{ repeat.item.plug }}"
-      - action: timer.cancel
-        target:
-          entity_id: timer.dump_min_on
+                    entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"

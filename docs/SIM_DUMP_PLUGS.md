@@ -1,13 +1,20 @@
 # Dump-load plugs (template now, Shelly power when purchased)
 
-**Status (2026-09-19):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
-watt rating.** Staging uses each plug's **live power sensor**. Until a real
-smart plug is added, power is unknown while ON and HA turns that plug off
-after 15 s (fail closed), including plugs that were already on when automations
-loaded. See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
+**Status (2026-09-20):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
+watt rating.** Staging confirms **solar-system load delta** after
+`input_number.dump_site_confirm_s` (default 5 s), not indoor Govee energy
+monitoring. Optional Shelly path: mapped `sensor.sim_ac_plug_N_power` > 0.
+Per plug: 15 min min-on (`timer.dump_plug_N_min_on`), 10 min cooldown after off
+(`timer.dump_plug_N_cooldown`). See [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
 
 **Hardware when purchased:** official [Shelly](https://www.home-assistant.io/integrations/shelly/)
-plug (local switch + `power` sensor). Do not invent a custom watt protocol.
+plug (local switch + `power` sensor). [Matter](https://www.home-assistant.io/integrations/matter/)
+only if a future SKU is Matter-certified. Do not invent a custom watt protocol.
+
+**Govee H5082:** HA Core [govee_ble](https://www.home-assistant.io/integrations/govee_ble/)
+does **not** list H5082. No BLE plug path on `.93` or Pi 5. Template sim slots
+do not change `sensor.sungold_sph302480a_load_power`; site-delta confirm fails
+and that slot cools 10 min until Shelly/Matter hardware switches a real load.
 
 **Hosts:** Home Assistant Container on **`.105:8123`**. alfa-ai on **`.111`**
 observes via HA REST ([REST API](https://developers.home-assistant.io/docs/api/rest/)).
@@ -20,6 +27,10 @@ Official HA manuals (RULE #1):
 - [Input text](https://www.home-assistant.io/integrations/input_text/) (`dump_plug_N_power_entity`)
 - [Switch domain](https://www.home-assistant.io/integrations/switch/)
 - [Shelly](https://www.home-assistant.io/integrations/shelly/) (power measurement needs reachable SNTP on the device)
+- [Matter](https://www.home-assistant.io/integrations/matter/) (future certified SKU only)
+- [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/) (sensors; not H5082 plugs)
+- [Timer](https://www.home-assistant.io/integrations/timer/) (per-plug min-on / cooldown)
+- [Delay](https://www.home-assistant.io/docs/scripts/#wait-for-time-to-pass-delay) (site confirm seconds)
 - [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/)
 - [Home Assistant Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container)
 
@@ -37,8 +48,9 @@ Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https:/
 | **Is not** | Loaded until the operator copies the package onto `.105` and restarts HA |
 
 Dump **on/off** and staged add live in [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
-HA waits for live watts before adding another plug. Inverter assignment is
-`input_select.dump_plug_N_inverter`.
+HA confirms **site load delta** (SPH `sensor.sungold_sph302480a_load_power`;
+T2/KU signed pack power) after `dump_site_confirm_s` before adding another plug.
+Inverter assignment is `input_select.dump_plug_N_inverter`.
 
 ---
 
@@ -70,8 +82,8 @@ Internal helpers (do **not** allowlist): `input_boolean.sim_ac_plug_N_internal`.
    ([customizing entities](https://www.home-assistant.io/docs/configuration/customizing-devices/)).
 4. On Solar plant, set **N power sensor** to the Shelly power `entity_id`
    (example shape `sensor.shellyplusplug_..._power` -- use the id HA assigned).
-5. HA dump staging then uses that live watt reading. Ask ALFa inspects the same
-   sensors.
+5. HA dump staging then may confirm via that live watt reading **or** site load
+   delta. Ask ALFa inspects the same sensors.
 
 ---
 
