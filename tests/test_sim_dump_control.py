@@ -54,7 +54,8 @@ def test_docs_and_install_exist() -> None:
     text = INSTALL.read_text(encoding="utf-8")
     assert "sim_dump_control.yaml" in text
     assert "install_sim_dump_plugs_ha.sh" in text
-    assert "solar-plant.yaml" in text
+    assert "Settings > Helpers" in docs or "Helpers" in docs
+    assert "solar-plant.yaml" not in text
 
 
 def test_kill_switch_and_timers() -> None:

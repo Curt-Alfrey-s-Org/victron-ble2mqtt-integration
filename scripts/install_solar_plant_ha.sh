@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install solar package sensors + Energy wiring on .105 HA Container.
-# Operator UI is built-in Energy / Home / Solar (not the YAML dashboard).
+# Operator UI is built-in Energy / Home / Solar. Do not register YAML Lovelace.
 # Official: https://www.home-assistant.io/docs/energy/
 #           https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards
 #           https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
@@ -12,17 +12,17 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HA_CONFIG_DIR="${HA_CONFIG_DIR:-/opt/homeassistant}"
 PKG_SRC="$ROOT/config/packages/solar_plant.yaml"
-DASH_SRC="$ROOT/config/dashboards/solar-plant.yaml"
 PKG_DST="$HA_CONFIG_DIR/packages/solar_plant.yaml"
 DASH_DST="$HA_CONFIG_DIR/dashboards/solar-plant.yaml"
 CONF="$HA_CONFIG_DIR/configuration.yaml"
+UNREG="$ROOT/scripts/unregister_yaml_lovelace_dashboard.py"
 
 if [[ ! -f "$PKG_SRC" ]]; then
   echo "Missing package source: $PKG_SRC" >&2
   exit 1
 fi
-if [[ ! -f "$DASH_SRC" ]]; then
-  echo "Missing dashboard source: $DASH_SRC" >&2
+if [[ ! -f "$UNREG" ]]; then
+  echo "Missing $UNREG" >&2
   exit 1
 fi
 if [[ ! -f "$CONF" ]]; then
@@ -30,56 +30,22 @@ if [[ ! -f "$CONF" ]]; then
   exit 1
 fi
 
-sudo mkdir -p "$HA_CONFIG_DIR/packages" "$HA_CONFIG_DIR/dashboards"
+sudo mkdir -p "$HA_CONFIG_DIR/packages"
 sudo cp "$PKG_SRC" "$PKG_DST"
-sudo cp "$DASH_SRC" "$DASH_DST"
-sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$PKG_DST" "$DASH_DST" 2>/dev/null || true
+sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$PKG_DST" 2>/dev/null || true
 echo "[solar-plant] Installed $PKG_DST"
-echo "[solar-plant] Installed $DASH_DST"
 
 if ! grep -qE 'include_dir_named packages' "$CONF"; then
   echo "[solar-plant] $CONF must include: homeassistant.packages: !include_dir_named packages" >&2
   exit 1
 fi
 
-if ! grep -q 'filename: dashboards/solar-plant.yaml' "$CONF"; then
-  if grep -q '^lovelace:' "$CONF"; then
-    echo "[solar-plant] $CONF already has lovelace: -- add solar-plant dashboard by hand (do not duplicate the key)." >&2
-    exit 1
-  fi
-  echo "[solar-plant] Appending lovelace YAML dashboard ..."
-  sudo tee -a "$CONF" >/dev/null <<'YAML'
-
-lovelace:
-  dashboards:
-    solar-plant:
-      mode: yaml
-      title: Solar plant
-      icon: mdi:solar-power
-      show_in_sidebar: false
-      filename: dashboards/solar-plant.yaml
-YAML
-fi
-
-# Operator UI is built-in Energy / Home / Solar, not this YAML dashboard.
-# https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards
-if grep -q 'filename: dashboards/solar-plant.yaml' "$CONF"; then
-  sudo python3 - "$CONF" <<'PY'
-from pathlib import Path
-import re
-import sys
-p = Path(sys.argv[1])
-text = p.read_text(encoding="utf-8")
-new, n = re.subn(
-    r"(solar-plant:\n(?:[ \t]+.+\n)*?[ \t]+show_in_sidebar: )true",
-    r"\1false",
-    text,
-    count=1,
-)
-if n:
-    p.write_text(new, encoding="utf-8")
-    print("[solar-plant] show_in_sidebar: false (Energy/Home/Solar are the operator UI)")
-PY
+# YAML Lovelace is not UI-movable. Unregister if a prior install added it.
+# https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
+sudo python3 "$UNREG" "$CONF" solar-plant
+if [[ -f "$DASH_DST" ]]; then
+  sudo rm -f "$DASH_DST"
+  echo "[solar-plant] Removed leftover YAML dashboard file $DASH_DST"
 fi
 
 if ! grep -q '^recorder:' "$CONF"; then
@@ -136,7 +102,7 @@ if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
     sleep 5
   done
   echo "[solar-plant] Open http://192.168.0.105:8123/energy"
-  echo "[solar-plant] YAML /solar-plant is hidden from the sidebar."
+  echo "[solar-plant] Built-in Energy / Home / Solar are the operator UI (no YAML Lovelace)."
 else
   echo "[solar-plant] homeassistant container not running -- start HA, then rerun this script."
   exit 1

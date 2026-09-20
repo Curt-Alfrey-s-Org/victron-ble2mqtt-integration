@@ -10,8 +10,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HA_CONFIG_DIR="${HA_CONFIG_DIR:-/opt/homeassistant}"
 PKG_SRC="$ROOT/config/packages/sim_dump_control.yaml"
 PKG_DST="$HA_CONFIG_DIR/packages/sim_dump_control.yaml"
-DASH_SRC="$ROOT/config/dashboards/solar-plant.yaml"
-DASH_DST="$HA_CONFIG_DIR/dashboards/solar-plant.yaml"
 PLUGS_DST="$HA_CONFIG_DIR/packages/sim_dump_plugs.yaml"
 CONF="$HA_CONFIG_DIR/configuration.yaml"
 
@@ -28,13 +26,6 @@ sudo mkdir -p "$HA_CONFIG_DIR/packages"
 sudo cp "$PKG_SRC" "$PKG_DST"
 sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$PKG_DST" 2>/dev/null || true
 echo "[sim-dump-control] Installed $PKG_DST"
-if [[ -f "$DASH_SRC" && -f "$DASH_DST" ]]; then
-  sudo cp "$DASH_SRC" "$DASH_DST"
-  sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$DASH_DST" 2>/dev/null || true
-  echo "[sim-dump-control] Updated Solar plant dashboard $DASH_DST"
-elif [[ -f "$DASH_SRC" ]]; then
-  echo "[sim-dump-control] Solar plant dashboard not installed; run bash scripts/install_solar_plant_ha.sh"
-fi
 
 if [[ ! -f "$CONF" ]]; then
   echo "Missing $CONF" >&2

@@ -1,0 +1,27 @@
+---
+description: Home Assistant built-in dashboards first; YAML Lovelace last resort
+alwaysApply: true
+---
+
+# Home Assistant built-in first
+
+Operator UI is Home Assistant's **built-in** dashboards. YAML Lovelace is last resort.
+
+Official: [built-in dashboards](https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards)
+(Energy / Home update themselves), [creating a dashboard](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard)
+(storage mode, cards movable in the UI), [YAML dashboards](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards)
+(`mode: yaml` is file-only; not rearranged in the UI).
+
+## Do
+
+1. **Energy / Home / History / MQTT Solar** for daily use.
+2. **Package YAML** for data HA cannot generate: templates, Riemann integrals, dump automations ([packages](https://www.home-assistant.io/docs/configuration/packages/)). Helpers stay editable under Settings > Helpers.
+3. If a custom layout is required, **Settings > Dashboards > Add dashboard** (storage). Operator can move cards there.
+
+## Do not
+
+- Register `config/dashboards/*.yaml` as `lovelace:` `mode: yaml` operator UI.
+- Iterate YAML Lovelace cards for daily layout (cannot move them in the UI; auto-update is lost).
+- Add HACS / `custom:` cards.
+
+MQTT broker remains a UI config entry ([ha-mqtt-2026.mdc](ha-mqtt-2026.mdc)).

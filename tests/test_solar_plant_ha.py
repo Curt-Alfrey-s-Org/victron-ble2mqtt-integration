@@ -467,15 +467,16 @@ def test_docs_and_install_script_exist() -> None:
     assert "Do **not** add" in text and "default_config:" in text
     assert "built-in" in text
     assert "docs/energy" in text
-    assert "show_in_sidebar: false" in text
+    assert "mode: yaml" in text
+    assert "not rearranged in the UI" in text or "not UI-movable" in text or "cannot move cards" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script
-    assert "dashboards/solar-plant.yaml" in script
-    assert "show_in_sidebar: false" in script
+    assert "unregister_yaml_lovelace_dashboard.py" in script
+    assert "Appending lovelace YAML dashboard" not in script
+    assert "show_in_sidebar:" not in script
     assert "http://192.168.0.105:8123/energy" in script
     assert "energy:" in script
-    assert "re.subn" in script
     assert "mobile_app:" in script
     assert "sim_dump_control.yaml" in script
     assert 'if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]' in script
@@ -483,3 +484,48 @@ def test_docs_and_install_script_exist() -> None:
     assert not any(
         line.strip() == "default_config:" for line in script.splitlines()
     )
+
+
+def test_unregister_yaml_dashboard_strips_solar_plant() -> None:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "unregister_yaml_lovelace_dashboard",
+        ROOT / "scripts" / "unregister_yaml_lovelace_dashboard.py",
+    )
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    sample = (
+        "homeassistant:\n"
+        "  packages: !include_dir_named packages\n"
+        "\n"
+        "lovelace:\n"
+        "  dashboards:\n"
+        "    solar-plant:\n"
+        "      mode: yaml\n"
+        "      title: Solar plant\n"
+        "      show_in_sidebar: false\n"
+        "      filename: dashboards/solar-plant.yaml\n"
+        "\n"
+        "energy:\n"
+    )
+    out = mod.unregister_yaml_dashboard(sample, "solar-plant")
+    assert "solar-plant:" not in out
+    assert "lovelace:" not in out
+    assert "energy:" in out
+    assert "packages:" in out
+    leftover = (
+        "lovelace:\n"
+        "  dashboards:\n"
+        "    solar-plant:\n"
+        "      mode: yaml\n"
+        "      filename: dashboards/solar-plant.yaml\n"
+        "    other-dash:\n"
+        "      mode: yaml\n"
+        "      filename: other.yaml\n"
+    )
+    kept = mod.unregister_yaml_dashboard(leftover, "solar-plant")
+    assert "solar-plant:" not in kept
+    assert "other-dash:" in kept
+    assert "lovelace:" in kept

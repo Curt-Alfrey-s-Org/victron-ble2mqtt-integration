@@ -11,13 +11,25 @@ HA draws those UIs. We **do not** maintain a second Lovelace layout for daily us
 | [History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard) | HA (built-in) | Pick entities; no YAML cards |
 
 The custom SVG proxy on `:8765` is **retired** ([SOLAR_FLOW_DASHBOARD.md](SOLAR_FLOW_DASHBOARD.md)).
-YAML `dashboards/solar-plant.yaml` is **not** the operator UI. The install script
-keeps it off the sidebar (`show_in_sidebar: false`). Do **not** add cards to that
-file for day-to-day use. Do **not** add HACS / `custom:` cards.
 
-**Data** (keep maintaining): package `config/packages/solar_plant.yaml` -- template
+**Built-in first.** [Energy](https://www.home-assistant.io/docs/energy/), [Home](https://www.home-assistant.io/dashboards/dashboards/#home-dashboard),
+[History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard),
+and sidebar **Solar** (MQTT discovery) are the operator UI. Those dashboards
+[update themselves](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard).
+A [YAML dashboard](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards)
+(`mode: yaml`) is **file-only**: you cannot move cards in the UI, and you lose
+that auto-update. Use YAML Lovelace only if a built-in surface cannot show the
+data. If a custom layout is still required, add a **storage** dashboard under
+**Settings > Dashboards** so cards stay movable.
+
+`config/dashboards/solar-plant.yaml` stays in git as a last-resort archive. The
+install script **does not** register it and **unregisters** `/solar-plant` if a
+prior install added it. Do **not** add HACS / `custom:` cards.
+
+**Data YAML (keep):** package `config/packages/solar_plant.yaml` -- template
 W sensors and Riemann kWh ([Template](https://www.home-assistant.io/integrations/template/),
-[Integral](https://www.home-assistant.io/integrations/integration/#energy)).
+[Integral](https://www.home-assistant.io/integrations/integration/#energy),
+[packages](https://www.home-assistant.io/docs/configuration/packages/)).
 That is how numbers get **into** Energy. Dump on/off stays
 `sim_dump_control.yaml` ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md));
 knobs live under **Settings > Helpers** (`input_boolean.dump_control_enabled`).
@@ -104,16 +116,16 @@ cd /home/ansible/victron-ble2mqtt-integration
 bash scripts/install_solar_plant_ha.sh
 ```
 
-The script copies the **package** (sensors). It still copies the YAML dashboard file
-but sets `show_in_sidebar: false` so Energy / Home / Solar are the operator UIs
-([built-in dashboards](https://www.home-assistant.io/dashboards/dashboards/#home-assistant-built-in-dashboards)).
-It appends `recorder:` / `history:` / `energy:` / `mobile_app:` when missing,
+The script copies the **package** (sensors). It does **not** register a YAML
+Lovelace dashboard ([YAML dashboards](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards)
+are not movable in the UI). If a prior install added `lovelace: solar-plant`,
+the script unregisters it. It appends `recorder:` / `history:` / `energy:` /
+`mobile_app:` when missing,
 refreshes `packages/sim_dump_control.yaml` **if that file is already installed**,
 runs `check_config`, then `docker restart homeassistant`.
 
 Open **Energy** (sidebar, or Settings > Dashboards > Energy). Configure sources
 once with `python scripts/save_solar_plant_energy_prefs.py` if they are empty.
-YAML dashboard path `/solar-plant` remains as a file, not a daily UI.
 
 Open:
 
@@ -121,8 +133,9 @@ Open:
 http://192.168.0.105:8123/energy
 ```
 
-YAML dashboard reload after later file edits: dashboard three-dots **Refresh**
-(not only the browser reload).
+If a custom layout is still required later, add it in the UI
+([Create a new dashboard](https://www.home-assistant.io/dashboards/dashboards/#creating-a-new-dashboard))
+so cards stay movable. Do **not** re-add `mode: yaml`.
 
 ---
 
@@ -291,7 +304,6 @@ T2/Sungold conversion-loss watts live on those bus tiles. Combined total is Hist
 
 `hours_to_show: 72` on history-graph ([history graph](https://www.home-assistant.io/dashboards/history-graph/); minimum 1 hour).
 `days_to_show: 7` on the kWh statistics-graph ([statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/); minimum 1 day).
-After YAML copy, dashboard three-dots **Refresh** (not only the browser reload).
 
 This HA has no `default_config:`. Recorder/history started when `recorder:` / `history:` were appended
 ([Recorder](https://www.home-assistant.io/integrations/recorder/) `purge_keep_days` default **10** if unset).

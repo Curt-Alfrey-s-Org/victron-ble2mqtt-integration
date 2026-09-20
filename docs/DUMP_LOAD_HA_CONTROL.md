@@ -184,7 +184,7 @@ exists). A stale copy leaves helpers such as
 Operator dump UI is **Energy** (individual device Sim dump) plus
 **Settings > Devices & services > Helpers**. Disable:
 `input_boolean.dump_control_enabled` (Dump Automations helper), or delete the
-package file and restart HA. The hidden YAML dashboard is not the daily control.
+package file and restart HA. YAML Lovelace is not the daily dump control.
 
 Default: this package is **not** on `/opt/homeassistant` until the operator runs
 the install script.
