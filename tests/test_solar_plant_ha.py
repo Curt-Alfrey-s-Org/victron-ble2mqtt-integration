@@ -317,7 +317,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "input_boolean.dump_control_enabled" in badge_entities
 
     now_headings = _section_headings(now_view)
-    for heading in ("Dump", "Dump voltages", "Dump limits", "Dump plugs"):
+    for heading in ("Dump", "Dump voltages", "Dump limits", "Dump dwell", "Dump plugs"):
         assert heading in now_headings
     assert not any(c.get("title") == "Dump load HA control" for c in cards)
     assert not any(c.get("title") == "Sim dump plugs" and c.get("type") == "entities" for c in cards)
@@ -325,6 +325,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     dump_tiles = _section_tiles(now_view, "Dump")
     dump_tile_ids = {t["entity"] for t in dump_tiles}
     assert "input_boolean.dump_control_enabled" in dump_tile_ids
+    assert "sensor.dump_bus_load_sph" in dump_tile_ids
     assert "binary_sensor.dump_charge_float" in dump_tile_ids
     assert "sensor.dump_next_plug" in dump_tile_ids
     assert "sensor.dump_surplus_w" in dump_tile_ids
@@ -340,6 +341,8 @@ def test_dashboard_uses_official_cards_only() -> None:
         row.get("entity") for row in dump_voltages["entities"] if isinstance(row, dict)
     }
     assert "input_boolean.dump_soc_unsynced" in voltages_ids
+    assert "input_number.dump_site_confirm_s" in voltages_ids
+    assert "input_number.dump_site_delta_min_w" in voltages_ids
     assert "input_number.dump_float_t2_v" in voltages_ids
     assert "input_number.dump_rebulk_t2_v" in voltages_ids
     assert "input_number.dump_min_solar_w" in voltages_ids
@@ -352,6 +355,14 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "input_number.dump_ac_limit_t2_w" in limits_ids
     assert "binary_sensor.dump_batt_t2_ok" in limits_ids
     assert "sensor.battery_1_power" not in limits_ids
+
+    dump_dwell = _entities_card_by_title(cards, "Dump dwell")
+    dwell_ids = {
+        row.get("entity") for row in dump_dwell["entities"] if isinstance(row, dict)
+    }
+    assert "timer.dump_plug_1_min_on" in dwell_ids
+    assert "timer.dump_plug_1_cooldown" in dwell_ids
+    assert "timer.dump_plug_6_cooldown" in dwell_ids
 
     plug_tiles = _section_tiles(now_view, "Dump plugs")
     plug_tile_ids = {t["entity"] for t in plug_tiles}

@@ -18,6 +18,8 @@ views:
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
           Dump kill switch: **Dump** Automations tile (`sim_dump_control.yaml`).
+          Staging confirms **SPH AC-out** (or T2/KU pack sign) after 5 s, then 15 min
+          on / 10 min cooldown. Not per-plug Govee watts.
           **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
           outlet clamp. Not cargo LED/vent tiles.
           **KU PV est.** may be negative at night (balance residual). Do not add A3
@@ -297,9 +299,11 @@ views:
                 show_state: true
           - type: markdown
             content: >
-              Kill switch and gate tiles here. Float/re-bulk voltages, AC limits,
-              and plug wiring are in the sections below. Doc:
-              [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
+              Kill switch and gate tiles here. Confirm is **site load** after 5 s
+              (`dump_site_confirm_s` / `dump_site_delta_min_w`), not indoor plug watts.
+              Confirmed plug: 15 min min-on. After off: 10 min cooldown.
+              Float/re-bulk, AC limits, and plug wiring are in the sections below.
+              Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
             grid_options:
               columns: full
           - type: tile
@@ -307,6 +311,9 @@ views:
             name: Automations
             features:
               - type: toggle
+          - type: tile
+            entity: sensor.dump_bus_load_sph
+            name: SPH confirm W
           - type: tile
             entity: binary_sensor.dump_charge_float
             name: MPPT float
@@ -351,6 +358,10 @@ views:
             entities:
               - entity: input_boolean.dump_soc_unsynced
                 name: SoC unsynced
+              - entity: input_number.dump_site_confirm_s
+                name: Site confirm s
+              - entity: input_number.dump_site_delta_min_w
+                name: Site delta min W
               - entity: input_number.dump_min_solar_w
                 name: Min solar W
               - entity: input_number.dump_min_soc_percent
@@ -402,6 +413,41 @@ views:
                 name: KU batt ok
               - entity: binary_sensor.dump_batt_sph_ok
                 name: SPH batt ok
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump dwell
+          - type: entities
+            title: Dump dwell
+            show_header_toggle: false
+            entities:
+              - entity: timer.dump_plug_1_min_on
+                name: 1 min on
+              - entity: timer.dump_plug_1_cooldown
+                name: 1 cooldown
+              - entity: timer.dump_plug_2_min_on
+                name: 2 min on
+              - entity: timer.dump_plug_2_cooldown
+                name: 2 cooldown
+              - entity: timer.dump_plug_3_min_on
+                name: 3 min on
+              - entity: timer.dump_plug_3_cooldown
+                name: 3 cooldown
+              - entity: timer.dump_plug_4_min_on
+                name: 4 min on
+              - entity: timer.dump_plug_4_cooldown
+                name: 4 cooldown
+              - entity: timer.dump_plug_5_min_on
+                name: 5 min on
+              - entity: timer.dump_plug_5_cooldown
+                name: 5 cooldown
+              - entity: timer.dump_plug_6_min_on
+                name: 6 min on
+              - entity: timer.dump_plug_6_cooldown
+                name: 6 cooldown
+            grid_options:
+              columns: full
 
       - type: grid
         cards:

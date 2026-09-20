@@ -35,6 +35,9 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "sensor.t2_ku_jumper_power" in blob
     assert "sensor.ku_unmetered_pv_est_power" in blob
     assert "input_boolean.dump_control_enabled" in blob
+    assert "input_number.dump_site_confirm_s" in blob
+    assert "timer.dump_plug_1_cooldown" in blob
+    assert "sensor.dump_bus_load_sph" in blob
     assert "switch.sim_ac_plug_1" in blob
     assert "sensor.nws_watauga_lake_alerts" in blob
     assert "climate.417373300314" in blob

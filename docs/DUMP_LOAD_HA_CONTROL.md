@@ -211,7 +211,8 @@ exists). A stale copy leaves helpers such as
 `/api/states` while Energy / Helpers still expect them.
 
 Operator dump UI is **Energy** (individual device Sim dump), **Site solar**
-(`/site-solar` storage tiles), plus **Settings > Devices & services > Helpers**.
+(`/site-solar` storage tiles: SPH confirm W, site confirm/delta helpers, per-plug
+15 min min-on / 10 min cooldown), plus **Settings > Devices & services > Helpers**.
 Disable: `input_boolean.dump_control_enabled` (Dump Automations helper), or delete
 the package file and restart HA. YAML Lovelace is not the daily dump control.
 
