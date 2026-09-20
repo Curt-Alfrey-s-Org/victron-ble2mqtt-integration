@@ -29,7 +29,10 @@ a [section](https://www.home-assistant.io/dashboards/sections/) is already a
 vertical group. Do **not** add HACS / `custom:` / iframe / webpage cards.
 
 YAML dashboards: [Adding YAML dashboards](https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards).
-Views: [Dashboard views](https://www.home-assistant.io/dashboards/views/) (`type: sections`, `max_columns`).
+Views: [Dashboard views](https://www.home-assistant.io/dashboards/views/) (`type: sections`).
+`max_columns` / `header` / `footer` are on official frontend
+[LovelaceViewConfig](https://github.com/home-assistant/frontend/blob/dev/src/data/lovelace/config/view.ts)
+(the sections YAML table on home-assistant.io does not list those keys).
 Packages: [Configuration packages](https://www.home-assistant.io/docs/configuration/packages/).
 Template sensors: [Template](https://www.home-assistant.io/integrations/template/).
 Watt-hours from watts: [Integral (Riemann)](https://www.home-assistant.io/integrations/integration/).
@@ -37,11 +40,30 @@ Energy sources: [Home energy management](https://www.home-assistant.io/docs/ener
 
 ### Phone (Companion)
 
+This HA has no `default_config:` (Bluetooth / Cloud / USB stay off on `.105`).
+Companion registration therefore needs the official
+[Mobile App](https://www.home-assistant.io/integrations/mobile_app/) YAML only:
+
+```yaml
+mobile_app:
+```
+
+`install_solar_plant_ha.sh` appends that key when it is missing. Do **not** add
+`default_config:` to get Companion -- that meta-integration also loads
+`bluetooth`, `cloud`, and `usb`
+([default config](https://www.home-assistant.io/integrations/default_config/)).
+
 Use the official [Companion app](https://companion.home-assistant.io/docs/getting_started/).
 On LAN: `http://192.168.0.105:8123`. Away from home: Tailscale on `.105` and on
 the phone, then the same HA login ([TAILSCALE.md](TAILSCALE.md)). Do **not**
-open `:8123` to the public internet. Companion default-dashboard and
-internal/external URL are **app settings**, not this YAML.
+open `:8123` to the public internet. Companion
+[internal / external URL](https://companion.home-assistant.io/docs/troubleshooting/networking/)
+and [connection security](https://companion.home-assistant.io/docs/getting_started/connection-security-level/)
+are **app settings**, not this YAML. On **that phone**: Settings > Dashboards >
+Solar plant > **Set as default on this device**
+([dashboards](https://www.home-assistant.io/dashboards/dashboards/#setting-a-default-dashboard);
+Android first-view: [webview](https://companion.home-assistant.io/docs/integrations/android-webview/)).
+Do **not** port-forward `:8123` or use Home Assistant Cloud Remote.
 
 **Now** uses `max_columns: 2` so a tablet can show two section columns; a phone
 clamps to one ([sections view](https://www.home-assistant.io/dashboards/sections/),
@@ -126,14 +148,18 @@ bash scripts/install_solar_plant_ha.sh
 ```
 
 The script copies the package and dashboard YAML, appends `lovelace:` / `recorder:` /
-`history:` / `energy:` when missing, runs
-`python -m homeassistant --script check_config -c /config` inside the container
+`history:` / `energy:` / `mobile_app:` when missing, refreshes
+`packages/sim_dump_control.yaml` **if that file is already installed** (stale
+helpers make Dump tiles unknown -- [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)),
+runs `python -m homeassistant --script check_config -c /config` inside the container
 ([check configuration](https://www.home-assistant.io/docs/configuration/troubleshooting/)),
 then `docker restart homeassistant`
 ([Container install](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
 This HA has no `default_config:`. Recorder/history are required for graphs; Energy
-(`energy`) is required for **Settings > Dashboards > Energy**
+(`energy`) is required for **Settings > Dashboards > Energy**;
+`mobile_app:` is required for Companion
 ([default config](https://www.home-assistant.io/integrations/default_config/),
+[Mobile App](https://www.home-assistant.io/integrations/mobile_app/),
 [Energy FAQ](https://www.home-assistant.io/docs/energy/faq/#the-energy-dashboard-is-not-visible)).
 
 Open:

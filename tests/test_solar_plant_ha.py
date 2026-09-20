@@ -346,8 +346,17 @@ def test_docs_and_install_script_exist() -> None:
     assert "Gauges (batteries)" not in text
     assert "type: sections" in text or "sections view" in text
     assert "tile" in text
+    assert "mobile_app:" in text
+    assert "Do **not** add" in text and "default_config:" in text
     script = INSTALL.read_text(encoding="utf-8")
     assert "check_config" in script
     assert "docker restart homeassistant" in script
     assert "dashboards/solar-plant.yaml" in script
     assert "energy:" in script
+    assert "mobile_app:" in script
+    assert "sim_dump_control.yaml" in script
+    assert 'if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]' in script
+    assert "default_config:" not in script or "Do not add default_config" in script
+    assert not any(
+        line.strip() == "default_config:" for line in script.splitlines()
+    )

@@ -175,6 +175,11 @@ bash scripts/install_sim_dump_control_ha.sh
 The script copies `sim_dump_control.yaml` into `/opt/homeassistant/packages/` and
 restarts the `homeassistant` container
 ([HA Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
+After a later dump-package change, `git pull` then rerun this script (or
+`install_solar_plant_ha.sh`, which refreshes the dump file when it already
+exists). A stale copy leaves helpers such as
+`input_boolean.dump_soc_unsynced` / `input_number.dump_float_t2_v` missing from
+`/api/states` while Solar plant still lists them.
 
 Disable: turn off **Dump load HA control** on Solar plant **Now**
 (`input_boolean.dump_control_enabled`), or delete the package file and restart HA.

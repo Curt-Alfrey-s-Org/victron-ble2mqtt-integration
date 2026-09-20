@@ -75,6 +75,26 @@ energy:
 YAML
 fi
 
+# Companion needs mobile_app when default_config is absent.
+# Official: https://www.home-assistant.io/integrations/mobile_app/
+# Do not add default_config: -- it also loads bluetooth/cloud/usb
+# (https://www.home-assistant.io/integrations/default_config/).
+if ! grep -q '^mobile_app:' "$CONF"; then
+  echo "[solar-plant] Appending mobile_app (Companion; no default_config) ..."
+  sudo tee -a "$CONF" >/dev/null <<'YAML'
+
+mobile_app:
+YAML
+fi
+
+DUMP_SRC="$ROOT/config/packages/sim_dump_control.yaml"
+DUMP_DST="$HA_CONFIG_DIR/packages/sim_dump_control.yaml"
+if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]; then
+  sudo cp "$DUMP_SRC" "$DUMP_DST"
+  sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$DUMP_DST" 2>/dev/null || true
+  echo "[solar-plant] Refreshed already-installed dump control $DUMP_DST"
+fi
+
 if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   echo "[solar-plant] check_config ..."
   docker exec homeassistant python -m homeassistant --script check_config -c /config
