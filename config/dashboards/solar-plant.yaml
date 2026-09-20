@@ -17,7 +17,7 @@ views:
         content: >
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump kill switch: footer tile and **Dump** section (`sim_dump_control.yaml`).
+          Dump kill switch: **Dump** Automations tile (`sim_dump_control.yaml`).
           **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
           outlet clamp. Not cargo LED/vent tiles.
           **KU PV est.** may be negative at night (balance residual). Do not add A3
@@ -43,14 +43,6 @@ views:
         entity: input_boolean.dump_control_enabled
         name: Dump
         show_name: true
-    footer:
-      max_width: 600
-      card:
-        type: tile
-        entity: input_boolean.dump_control_enabled
-        name: Dump automations
-        features:
-          - type: toggle
     sections:
       - type: grid
         cards:

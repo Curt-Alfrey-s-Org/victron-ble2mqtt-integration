@@ -183,8 +183,8 @@ exists). A stale copy leaves helpers such as
 
 On Solar plant **Now**, dump helpers are four sections (not one 30-row list):
 **Dump** tiles, **Dump voltages**, **Dump limits**, **Dump plugs** + wiring.
-Disable: turn off **Dump automations** on that page (footer or Dump tile;
-`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
+Disable: turn off **Dump** Automations on that page
+(`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
 The same toggle is also a helper under Settings, but the dashboard is the operator
 control.
 

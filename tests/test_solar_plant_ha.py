@@ -310,10 +310,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.trailer_outlet_power" not in ku_ids
     assert not any(c.get("title") == "Conversion losses" for c in cards)
     assert not any(c.get("type") == "gauge" for c in cards)
-    footer_tile = now_view["footer"]["card"]
-    assert footer_tile["type"] == "tile"
-    assert footer_tile["entity"] == "input_boolean.dump_control_enabled"
-    assert footer_tile["features"] == [{"type": "toggle"}]
+    assert "footer" not in now_view
     badges = now_view.get("badges") or []
     badge_entities = {b["entity"] for b in badges}
     assert "sensor.battery_1_state_of_charge" in badge_entities
