@@ -66,28 +66,32 @@ Solar plant > **Set as default on this device**
 Android first-view: [webview](https://companion.home-assistant.io/docs/integrations/android-webview/)).
 Do **not** port-forward `:8123` or use Home Assistant Cloud Remote.
 
-**Now** uses `max_columns: 2` so a tablet can show two section columns; a phone
-clamps to one ([sections view](https://www.home-assistant.io/dashboards/sections/),
-frontend `max_columns`). Header badges stay visible. Footer tile
-`input_boolean.dump_control_enabled` with the official
-[toggle feature](https://www.home-assistant.io/dashboards/features/#toggle)
-stays on screen while you scroll. `power-sankey` `layout: auto` follows
+**Now** uses `max_columns: 3` so a wide screen can show **T2 | KU | Sungold**
+(and Dump groups) as separate [sections](https://www.home-assistant.io/dashboards/sections/)
+(frontend `max_columns`; phone still clamps to one). Do **not** put all dump
+helpers in one full-width [entities](https://www.home-assistant.io/dashboards/entities/)
+card -- that is a 30-row list when zoomed out. Split: **Dump** (tiles +
+[heading badges](https://www.home-assistant.io/dashboards/heading/)),
+**Dump voltages**, **Dump limits**, **Dump plugs** (switch tiles with
+[toggle](https://www.home-assistant.io/dashboards/features/#toggle) + live W tiles
++ a short wiring entities card). Header badges stay visible. Footer tile
+`input_boolean.dump_control_enabled` stays on screen while you scroll.
+`power-sankey` `layout: auto` follows
 [energy cards](https://www.home-assistant.io/dashboards/energy/) (vertical on
 narrow screens).
 
 Wide cards (`power-sankey`, `distribution`, `thermostat`, `weather-forecast`,
-`picture`, `entities`, graphs) set `grid_options.columns: full`
+`picture`, graphs, **Dump plug wiring**) set `grid_options.columns: full`
 ([LovelaceGridOptions](https://github.com/home-assistant/frontend/blob/dev/src/panels/lovelace/types.ts)).
-Tiles stay at the default half-section width (two readable tiles per phone row).
+**Dump voltages** and **Dump limits** stay default width so they can sit beside
+other sections. Tiles stay at the default half-section width (two per phone row).
 
 Dump ON/OFF is Home Assistant automations in `sim_dump_control.yaml`
 ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)): Victron **float hold** then
 staged plugs; **solar-gone / re-bulk** off so packs stay 95%+ after PV stops.
-Solar plant **Now** has an [entities](https://www.home-assistant.io/dashboards/entities/)
-card **Dump load HA control** with the kill switch
-`input_boolean.dump_control_enabled` (toggle on this page; do not hunt Helpers).
-The six `switch.sim_ac_plug_*` rows are visibility (and optional manual). A header
-toggle on that plug card is **manual** only. Per-plug watts live on **History**.
+Kill switch is the footer tile and the **Dump** Automations tile
+(`input_boolean.dump_control_enabled`). Plug tiles are visibility and optional
+manual. Per-plug watts are on **Dump plugs** and on **History**.
 Do **not** put `input_boolean.sim_ac_plug_*_internal` on Lovelace. Do **not** add a
 second dump ticker in alfa-ai.
 
@@ -284,7 +288,7 @@ Official cards:
 - [Tile](https://www.home-assistant.io/dashboards/tile/) -- one live value per tile on **Now**
 - [Statistic](https://www.home-assistant.io/dashboards/statistic/) -- Site totals **today** kWh (calendar day)
 - [Heading](https://www.home-assistant.io/dashboards/heading/) -- totals / bus / dump / house section titles
-- [Entities](https://www.home-assistant.io/dashboards/entities/) -- sim dump plug ON/OFF
+- [Entities](https://www.home-assistant.io/dashboards/entities/) -- Dump voltages / limits / plug wiring
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee indoor setpoint (`climate.417373300314`, name **Ecobee**; not trailer)
 - [Weather forecast](https://www.home-assistant.io/dashboards/weather-forecast/) -- outdoor ambient + daily/hourly forecast (`weather.417373300314`; same Overview popup)
 - [Picture](https://www.home-assistant.io/dashboards/picture/) -- NWS Morristown **KMRX** standard radar loop (plays on the page)
@@ -317,7 +321,7 @@ stay on that bus's tiles. Per-plug dump watts stay on **History**.
 | T2 24 V | Heading + tiles: MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
 | KU 24 V (est. chargers) | Heading + tiles: **KU PV est.**, **KU share est.** (`ku_charger_equal_share_power` = KU PV / 3; not a battery, not a Victron clamp), **Jumper from T2** (`sensor.t2_ku_jumper_power`, positive when T2→KU). Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. Do **not** put Sungold A/C-in here. Do **not** put KU share on a T2/battery gauge row. |
 | Sungold | One section of tiles: cart PV/batt + **Sungold A/C-in** (`trailer_outlet_power`) + **Sungold A/C out** (`sensor.sungold_sph302480a_load_power` = **total** SPH OUTPUT, not Pi4) + **Trailer CT A3** + **Sungold breaker** (B3) + AC V/Hz/A + faults + Sungold conversion loss. Do **not** split cart vs AC vs Loads. |
-| Dump | Heading + markdown + **Dump load HA control** + [entities](https://www.home-assistant.io/dashboards/entities/) `switch.sim_ac_plug_1` ... `_6` (`show_header_toggle: true`). Lab names that say fan are **dump loads**, not trailer LED/fan or Pi4. Kill-switch card does **not** repeat T2/KU shunt W or SPH AC out (those live on T2 / KU / Sungold). Footer tile is the same kill switch for phones. |
+| Dump | Four sections (same entities, not one list): **Dump** heading badges (kill / next plug / surplus) + tiles for gates; **Dump voltages** entities (float / re-bulk / min solar / min SoC / unsynced); **Dump limits** entities (AC caps / max discharge / batt ok); **Dump plugs** six switch tiles + six live-W tiles + **Dump plug wiring** (`input_text` / `input_select`). Lab names that say fan are **dump loads**, not trailer LED/fan. Do **not** repeat T2/KU shunt W or SPH AC out here. Footer tile is the kill switch for phones. |
 | House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Energy **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). **NWS KMRX radar** is a [picture](https://www.home-assistant.io/dashboards/picture/) of the official standard loop `https://radar.weather.gov/ridge/standard/KMRX_loop.gif` ([animated GIFs](https://www.weather.gov/radarfaq/), [ridge/standard](https://radar.weather.gov/ridge/standard/)). [api.weather.gov points](https://www.weather.gov/documentation/services-web-api) for Watauga Lake `36.32,-82.12` returns `radarStation: KMRX` (Hampton / Carter County). The GIF **plays on this page**. Tap opens [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard). Alerts: `sensor.nws_watauga_lake_alerts` ([RESTful](https://www.home-assistant.io/integrations/rest/), NWS `User-Agent` required). Do **not** iframe `radar.weather.gov` RIDGE2 (GIS app; [webpage card](https://www.home-assistant.io/dashboards/iframe/) is for pages that allow embedding). Do **not** add HACS radar cards. Optional later: [Generic Camera](https://www.home-assistant.io/integrations/generic/) UI still-image URL uses the same NWS `ridge/standard` path (HA example is `CONUS_0.gif`). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
 
 Do **not** add a **Loads (not losses)** card, a **Conversion losses** card, **Sungold cart** /

@@ -6,7 +6,7 @@ views:
   - title: Now
     path: now
     type: sections
-    max_columns: 2
+    max_columns: 3
     dense_section_placement: false
     header:
       layout: responsive
@@ -15,23 +15,13 @@ views:
         type: markdown
         title: Solar plant
         content: >
-          Live watts from Home Assistant (Victron MQTT, Refoss, Sungold).
           **power-sankey** fills after **Settings > Dashboards > Energy**
           ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump ON/OFF is Home Assistant automations (`sim_dump_control.yaml`).
-          Victron float + re-bulk voltage (not surplus watts). Dumps off when
-          solar stops so packs stay 95%+. Brain / Ask ALFa observe and may
-          write helpers; they do not own on/off.
-          Use **Dump load HA control** on this page (kill switch). Off = no automatic
-          dump. On = float + solar-present automations may toggle sim plugs. The six switches
-          below show ticks (header toggle is **manual**). Names that say fan
-          on dump plugs are lab dump loads, not the cargo vent or LED.
-          **Sungold AC out** is LCD INV OUTPUT LOAD KW (Pi4 plus anything
-          on SPH OUTPUT, including dump). **Sungold AC-in** is the trailer
-          outlet clamp (SPH cord). Cargo LED and vent fan are ~0.01 W /
-          ~0.1 W and are not tiles.
-          **KU PV est.** may be negative at night (balance residual, not
-          live KU solar). Do not add A3 as utility grid.
+          Dump kill switch: footer tile and **Dump** section (`sim_dump_control.yaml`).
+          **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
+          outlet clamp. Not cargo LED/vent tiles.
+          **KU PV est.** may be negative at night (balance residual). Do not add A3
+          as utility grid.
     badges:
       - type: entity
         entity: sensor.battery_1_state_of_charge
@@ -135,6 +125,10 @@ views:
         cards:
           - type: heading
             heading: T2 24 V
+            badges:
+              - type: entity
+                entity: sensor.battery_1_state_of_charge
+                show_state: true
           - type: tile
             entity: sensor.solar_controller_solar
             name: MPPT W
@@ -179,6 +173,10 @@ views:
         cards:
           - type: heading
             heading: KU 24 V (est. chargers)
+            badges:
+              - type: entity
+                entity: sensor.battery_2_state_of_charge
+                show_state: true
           - type: tile
             entity: sensor.ku_unmetered_pv_est_power
             name: KU PV est.
@@ -214,6 +212,10 @@ views:
         cards:
           - type: heading
             heading: Sungold
+            badges:
+              - type: entity
+                entity: sensor.sungold_sph302480a_battery_soc
+                show_state: true
           - type: tile
             entity: sensor.sungold_sph302480a_pv_power
             name: PV W
@@ -291,32 +293,76 @@ views:
         cards:
           - type: heading
             heading: Dump
+            badges:
+              - type: entity
+                entity: input_boolean.dump_control_enabled
+                show_state: true
+              - type: entity
+                entity: sensor.dump_next_plug
+                show_state: true
+              - type: entity
+                entity: sensor.dump_surplus_w
+                show_state: true
           - type: markdown
-            title: Dump load
             content: >
-              **Dump load HA control** is the kill switch for HA automations that turn
-              the sim dump plugs on and off (Victron float + solar-present, re-bulk
-              and solar-gone off, min on/off timers, staged plug add). **Off** =
-              automations do nothing. **On** = they may add one plug, wait for that
-              plug's live watt sensor, then add another only if float band, inverter
-              headroom, and batteries still allow it. Physical loads on T2/KU show on those SmartShunts; SPH shows
-              on INV OUTPUT plus cart battery amps. Plug watts come from the smart
-              plug power entity (set on each row), not a typed rating. Never all six
-              at once. Plug header toggle is manual only.
-              Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
-              Helpers list (backup): [Settings > Helpers](/config/helpers).
+              Kill switch and gate tiles here. Float/re-bulk voltages, AC limits,
+              and plug wiring are in the sections below. Doc:
+              [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
             grid_options:
               columns: full
+          - type: tile
+            entity: input_boolean.dump_control_enabled
+            name: Automations
+            features:
+              - type: toggle
+          - type: tile
+            entity: binary_sensor.dump_charge_float
+            name: MPPT float
+          - type: tile
+            entity: binary_sensor.dump_solar_present
+            name: Solar present
+          - type: tile
+            entity: binary_sensor.dump_soc_ok
+            name: SoC ok
+          - type: tile
+            entity: binary_sensor.dump_v_float_t2
+            name: T2 float hold
+          - type: tile
+            entity: binary_sensor.dump_v_rebulk_t2
+            name: T2 re-bulk
+          - type: tile
+            entity: binary_sensor.dump_v_float_ku
+            name: KU float hold
+          - type: tile
+            entity: binary_sensor.dump_v_rebulk_ku
+            name: KU re-bulk
+          - type: tile
+            entity: binary_sensor.dump_v_float_sph
+            name: SPH float hold
+          - type: tile
+            entity: binary_sensor.dump_v_rebulk_sph
+            name: SPH re-bulk
+          - type: tile
+            entity: sensor.dump_next_plug
+            name: Next plug
+          - type: tile
+            entity: sensor.dump_surplus_w
+            name: Surplus
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump voltages
           - type: entities
-            title: Dump load HA control
+            title: Dump voltages
             show_header_toggle: false
             entities:
-              - entity: input_boolean.dump_control_enabled
-                name: Automations on/off
-                icon: mdi:transmission-tower-export
-                secondary_info: last-changed
               - entity: input_boolean.dump_soc_unsynced
-                name: SoC unsynced (skip 95% gate)
+                name: SoC unsynced
+              - entity: input_number.dump_min_solar_w
+                name: Min solar W
+              - entity: input_number.dump_min_soc_percent
+                name: Min SoC %
               - entity: input_number.dump_float_t2_v
                 name: T2 float V
               - entity: input_number.dump_rebulk_t2_v
@@ -329,28 +375,23 @@ views:
                 name: SPH float V
               - entity: input_number.dump_rebulk_sph_v
                 name: SPH re-bulk V
-              - entity: input_number.dump_min_solar_w
-                name: Min solar W (day vs night)
-              - entity: input_number.dump_min_soc_percent
-                name: Min SoC % (when synced)
-              - entity: binary_sensor.dump_charge_float
-                name: MPPT float
-              - entity: binary_sensor.dump_solar_present
-                name: Solar present
-              - entity: binary_sensor.dump_soc_ok
-                name: SoC ok
-              - entity: binary_sensor.dump_v_float_t2
-                name: T2 float hold
-              - entity: binary_sensor.dump_v_rebulk_t2
-                name: T2 re-bulk
-              - entity: binary_sensor.dump_v_float_ku
-                name: KU float hold
-              - entity: binary_sensor.dump_v_rebulk_ku
-                name: KU re-bulk
-              - entity: binary_sensor.dump_v_float_sph
-                name: SPH float hold
-              - entity: binary_sensor.dump_v_rebulk_sph
-                name: SPH re-bulk
+              - type: weblink
+                name: DUMP_LOAD_HA_CONTROL.md (what this does)
+                url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
+                icon: mdi:file-document-outline
+              - type: weblink
+                name: Helpers
+                url: /config/helpers
+                icon: mdi:tune
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump limits
+          - type: entities
+            title: Dump limits
+            show_header_toggle: false
+            entities:
               - entity: input_number.dump_ac_limit_t2_w
                 name: T2 AC limit
               - entity: input_number.dump_ac_limit_ku_w
@@ -369,68 +410,83 @@ views:
                 name: KU batt ok
               - entity: binary_sensor.dump_batt_sph_ok
                 name: SPH batt ok
-              - entity: sensor.dump_next_plug
-                name: Next plug that fits
-              - entity: sensor.dump_surplus_w
-                name: Dump surplus
-              - type: weblink
-                name: DUMP_LOAD_HA_CONTROL.md (what this does)
-                url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
-                icon: mdi:file-document-outline
-              - type: weblink
-                name: Helpers (same switch if this card is missing)
-                url: /config/helpers
-                icon: mdi:tune
-            grid_options:
-              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump plugs
+          - type: tile
+            entity: switch.sim_ac_plug_1
+            name: Plug 1
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.sim_ac_plug_2
+            name: Plug 2
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.sim_ac_plug_3
+            name: Plug 3
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.sim_ac_plug_4
+            name: Plug 4
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.sim_ac_plug_5
+            name: Plug 5
+            features:
+              - type: toggle
+          - type: tile
+            entity: switch.sim_ac_plug_6
+            name: Plug 6
+            features:
+              - type: toggle
+          - type: tile
+            entity: sensor.sim_ac_plug_1_power
+            name: 1 live W
+          - type: tile
+            entity: sensor.sim_ac_plug_2_power
+            name: 2 live W
+          - type: tile
+            entity: sensor.sim_ac_plug_3_power
+            name: 3 live W
+          - type: tile
+            entity: sensor.sim_ac_plug_4_power
+            name: 4 live W
+          - type: tile
+            entity: sensor.sim_ac_plug_5_power
+            name: 5 live W
+          - type: tile
+            entity: sensor.sim_ac_plug_6_power
+            name: 6 live W
           - type: entities
-            title: Sim dump plugs
-            show_header_toggle: true
+            title: Dump plug wiring
+            show_header_toggle: false
             entities:
-              - entity: switch.sim_ac_plug_1
-                name: Plug 1
-              - entity: sensor.sim_ac_plug_1_power
-                name: 1 live W
               - entity: input_text.dump_plug_1_power_entity
                 name: 1 power sensor
               - entity: input_select.dump_plug_1_inverter
                 name: 1 inverter
-              - entity: switch.sim_ac_plug_2
-                name: Plug 2
-              - entity: sensor.sim_ac_plug_2_power
-                name: 2 live W
               - entity: input_text.dump_plug_2_power_entity
                 name: 2 power sensor
               - entity: input_select.dump_plug_2_inverter
                 name: 2 inverter
-              - entity: switch.sim_ac_plug_3
-                name: Plug 3
-              - entity: sensor.sim_ac_plug_3_power
-                name: 3 live W
               - entity: input_text.dump_plug_3_power_entity
                 name: 3 power sensor
               - entity: input_select.dump_plug_3_inverter
                 name: 3 inverter
-              - entity: switch.sim_ac_plug_4
-                name: Plug 4
-              - entity: sensor.sim_ac_plug_4_power
-                name: 4 live W
               - entity: input_text.dump_plug_4_power_entity
                 name: 4 power sensor
               - entity: input_select.dump_plug_4_inverter
                 name: 4 inverter
-              - entity: switch.sim_ac_plug_5
-                name: Plug 5
-              - entity: sensor.sim_ac_plug_5_power
-                name: 5 live W
               - entity: input_text.dump_plug_5_power_entity
                 name: 5 power sensor
               - entity: input_select.dump_plug_5_inverter
                 name: 5 inverter
-              - entity: switch.sim_ac_plug_6
-                name: Plug 6
-              - entity: sensor.sim_ac_plug_6_power
-                name: 6 live W
               - entity: input_text.dump_plug_6_power_entity
                 name: 6 power sensor
               - entity: input_select.dump_plug_6_inverter
@@ -493,7 +549,7 @@ views:
   - title: History
     path: history
     type: sections
-    max_columns: 2
+    max_columns: 3
     dense_section_placement: false
     sections:
       - type: grid

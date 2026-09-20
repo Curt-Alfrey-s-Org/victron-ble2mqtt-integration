@@ -155,6 +155,26 @@ def _first_section_heading(view: dict) -> str | None:
     return None
 
 
+def _section_headings(view: dict) -> list[str]:
+    headings: list[str] = []
+    for section in view.get("sections") or []:
+        if section.get("type") != "grid":
+            continue
+        section_cards = section.get("cards") or []
+        if not section_cards:
+            continue
+        first = section_cards[0]
+        if first.get("type") == "heading":
+            heading = first.get("heading")
+            if heading:
+                headings.append(heading)
+    return headings
+
+
+def _entities_card_by_title(cards: list, title: str) -> dict:
+    return next(c for c in cards if c.get("type") == "entities" and c.get("title") == title)
+
+
 def test_dashboard_uses_official_cards_only() -> None:
     data = _load(DASHBOARD)
     assert data["title"] == "Solar plant"
@@ -163,7 +183,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     history_view = views[1]
     for view in views:
         assert view.get("type") == "sections"
-        assert view.get("max_columns") == 2
+        assert view.get("max_columns") == 3
         assert view.get("dense_section_placement") is False
     cards = []
     for view in views:
@@ -299,38 +319,58 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.battery_1_state_of_charge" in badge_entities
     assert "input_boolean.dump_control_enabled" in badge_entities
 
-    dump_ctrl = next(
-        c for c in cards if c.get("type") == "entities" and c.get("title") == "Dump load HA control"
+    now_headings = _section_headings(now_view)
+    for heading in ("Dump", "Dump voltages", "Dump limits", "Dump plugs"):
+        assert heading in now_headings
+    assert not any(c.get("title") == "Dump load HA control" for c in cards)
+    assert not any(c.get("title") == "Sim dump plugs" and c.get("type") == "entities" for c in cards)
+
+    dump_tiles = _section_tiles(now_view, "Dump")
+    dump_tile_ids = {t["entity"] for t in dump_tiles}
+    assert "input_boolean.dump_control_enabled" in dump_tile_ids
+    assert "binary_sensor.dump_charge_float" in dump_tile_ids
+    assert "sensor.dump_next_plug" in dump_tile_ids
+    assert "sensor.dump_surplus_w" in dump_tile_ids
+    automations_tile = next(
+        t for t in dump_tiles if t["entity"] == "input_boolean.dump_control_enabled"
     )
-    assert dump_ctrl.get("show_header_toggle") is False
-    dump_ctrl_ids = {
-        row.get("entity") for row in dump_ctrl["entities"] if isinstance(row, dict)
+    assert automations_tile["features"] == [{"type": "toggle"}]
+
+    dump_voltages = _entities_card_by_title(cards, "Dump voltages")
+    assert dump_voltages.get("show_header_toggle") is False
+    assert dump_voltages.get("grid_options", {}).get("columns") != "full"
+    voltages_ids = {
+        row.get("entity") for row in dump_voltages["entities"] if isinstance(row, dict)
     }
-    assert "input_boolean.dump_control_enabled" in dump_ctrl_ids
-    assert "input_boolean.dump_soc_unsynced" in dump_ctrl_ids
-    assert "input_number.dump_float_t2_v" in dump_ctrl_ids
-    assert "input_number.dump_rebulk_t2_v" in dump_ctrl_ids
-    assert "input_number.dump_min_solar_w" in dump_ctrl_ids
-    assert "binary_sensor.dump_charge_float" in dump_ctrl_ids
-    assert "binary_sensor.dump_solar_present" in dump_ctrl_ids
-    assert "input_number.dump_ac_limit_t2_w" in dump_ctrl_ids
-    assert "input_number.dump_ac_limit_ku_w" in dump_ctrl_ids
-    assert "input_number.dump_ac_limit_sph_w" in dump_ctrl_ids
-    assert "binary_sensor.dump_batt_t2_ok" in dump_ctrl_ids
-    assert "sensor.battery_1_power" not in dump_ctrl_ids
-    assert "sensor.battery_2_power" not in dump_ctrl_ids
-    assert "sensor.sungold_sph302480a_load_power" not in dump_ctrl_ids
-    dump_card = next(
-        c for c in cards if c.get("type") == "entities" and c.get("title") == "Sim dump plugs"
-    )
-    assert dump_card.get("show_header_toggle") is True
-    dump_ids = {e["entity"] for e in dump_card["entities"]}
-    expected_plugs = {f"switch.sim_ac_plug_{n}" for n in range(1, 7)}
+    assert "input_boolean.dump_soc_unsynced" in voltages_ids
+    assert "input_number.dump_float_t2_v" in voltages_ids
+    assert "input_number.dump_rebulk_t2_v" in voltages_ids
+    assert "input_number.dump_min_solar_w" in voltages_ids
+
+    dump_limits = _entities_card_by_title(cards, "Dump limits")
+    assert dump_limits.get("show_header_toggle") is False
+    limits_ids = {
+        row.get("entity") for row in dump_limits["entities"] if isinstance(row, dict)
+    }
+    assert "input_number.dump_ac_limit_t2_w" in limits_ids
+    assert "binary_sensor.dump_batt_t2_ok" in limits_ids
+    assert "sensor.battery_1_power" not in limits_ids
+
+    plug_tiles = _section_tiles(now_view, "Dump plugs")
+    plug_tile_ids = {t["entity"] for t in plug_tiles}
+    assert "switch.sim_ac_plug_1" in plug_tile_ids
+    assert "sensor.sim_ac_plug_6_power" in plug_tile_ids
+    plug_switch = next(t for t in plug_tiles if t["entity"] == "switch.sim_ac_plug_1")
+    assert plug_switch["features"] == [{"type": "toggle"}]
+
+    plug_wiring = _entities_card_by_title(cards, "Dump plug wiring")
+    assert plug_wiring.get("show_header_toggle") is False
+    assert plug_wiring.get("grid_options", {}).get("columns") == "full"
+    wiring_ids = {e["entity"] for e in plug_wiring["entities"]}
     expected_inv = {f"input_select.dump_plug_{n}_inverter" for n in range(1, 7)}
-    expected_power = {f"sensor.sim_ac_plug_{n}_power" for n in range(1, 7)}
     expected_src = {f"input_text.dump_plug_{n}_power_entity" for n in range(1, 7)}
-    assert dump_ids == expected_plugs | expected_inv | expected_power | expected_src
-    assert not any("dump_plug_" in e and e.endswith("_watts") for e in dump_ids)
+    assert wiring_ids == expected_inv | expected_src
+    assert not any("dump_plug_" in e and e.endswith("_watts") for e in wiring_ids)
     watts_hist = next(
         c for c in cards if c.get("type") == "history-graph" and c.get("title") == "Watts"
     )
@@ -412,7 +452,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "entities" in text
     assert "switch.sim_ac_plug_1" in text
     assert "input_boolean.dump_control_enabled" in text
-    assert "Dump load HA control" in text
+    assert "Dump voltages" in text
+    assert "Dump plugs" in text
     assert "KU share est." in text
     assert "Do **not** put Sungold A/C-in here" in text
     assert "Jumper from T2" in text

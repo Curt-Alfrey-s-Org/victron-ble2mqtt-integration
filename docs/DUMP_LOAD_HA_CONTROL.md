@@ -181,8 +181,10 @@ exists). A stale copy leaves helpers such as
 `input_boolean.dump_soc_unsynced` / `input_number.dump_float_t2_v` missing from
 `/api/states` while Solar plant still lists them.
 
-Disable: turn off **Dump load HA control** on Solar plant **Now**
-(`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
+On Solar plant **Now**, dump helpers are four sections (not one 30-row list):
+**Dump** tiles, **Dump voltages**, **Dump limits**, **Dump plugs** + wiring.
+Disable: turn off **Dump automations** on that page (footer or Dump tile;
+`input_boolean.dump_control_enabled`), or delete the package file and restart HA.
 The same toggle is also a helper under Settings, but the dashboard is the operator
 control.
 
