@@ -181,9 +181,6 @@ views:
             entity: sensor.t2_ku_jumper_power
             name: Jumper from T2
           - type: tile
-            entity: sensor.ku_renogy_ac_load_power
-            name: KU Renogy AC est
-          - type: tile
             entity: sensor.battery_2_power
             name: Batt 2 W
           - type: tile
@@ -208,6 +205,35 @@ views:
       - type: grid
         cards:
           - type: heading
+            heading: KU outlet to SPH
+          - type: tile
+            entity: sensor.ku_renogy_ac_load_power
+            name: KU Renogy AC est
+          - type: tile
+            entity: sensor.trailer_outlet_power
+            name: Trailer outlet
+          - type: tile
+            entity: sensor.em16_a3_power
+            name: Trailer CT A3
+          - type: tile
+            entity: sensor.em16_b3_power
+            name: Sungold breaker
+          - type: tile
+            entity: sensor.sungold_uti_va_power
+            name: UTI V times A
+          - type: tile
+            entity: sensor.sungold_ac_out_va_power
+            name: AC out V times A
+          - type: tile
+            entity: sensor.sungold_cart_to_load_power
+            name: Cart to AC out
+          - type: tile
+            entity: sensor.sungold_conversion_loss_power
+            name: Conv. loss
+
+      - type: grid
+        cards:
+          - type: heading
             heading: Sungold
             badges:
               - type: entity
@@ -226,9 +252,6 @@ views:
             entity: sensor.sungold_sph302480a_charging_power
             name: Cart batt
           - type: tile
-            entity: sensor.sungold_cart_to_load_power
-            name: Cart to AC out
-          - type: tile
             entity: sensor.sungold_sph302480a_battery_voltage
             name: Batt V
           - type: tile
@@ -238,32 +261,14 @@ views:
             entity: sensor.sungold_sph302480a_battery_soc
             name: Batt SoC
           - type: tile
-            entity: sensor.sungold_sph302480a_battery_temperature
-            name: Batt temp
-          - type: tile
             entity: sensor.sungold_sph302480a_charge_state
             name: Charge
           - type: tile
             entity: sensor.sungold_sph302480a_inverter_state
             name: Mode
           - type: tile
-            entity: sensor.trailer_outlet_power
-            name: Sungold AC-in
-          - type: tile
-            entity: sensor.sungold_uti_va_power
-            name: UTI V times A
-          - type: tile
             entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
-          - type: tile
-            entity: sensor.sungold_ac_out_va_power
-            name: AC out V times A
-          - type: tile
-            entity: sensor.em16_a3_power
-            name: Trailer CT A3
-          - type: tile
-            entity: sensor.em16_b3_power
-            name: Sungold breaker
           - type: tile
             entity: sensor.sungold_sph302480a_grid_voltage
             name: UTI V
@@ -291,9 +296,6 @@ views:
           - type: tile
             entity: sensor.sungold_sph302480a_inverter_error_flags
             name: Error flags
-          - type: tile
-            entity: sensor.sungold_conversion_loss_power
-            name: Conv. loss
 
       - type: grid
         cards:

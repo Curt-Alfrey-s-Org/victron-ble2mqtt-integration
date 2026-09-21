@@ -460,21 +460,33 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.sungold_sph302480a_fail_code" in sungold_ids
     assert "binary_sensor.sungold_sph302480a_fault_active" in sungold_ids
     assert "sensor.sungold_sph302480a_load_power" in sungold_ids
-    assert "sensor.trailer_outlet_power" in sungold_ids
-    assert "sensor.sungold_uti_va_power" in sungold_ids
-    assert "sensor.sungold_ac_out_va_power" in sungold_ids
-    assert "sensor.sungold_cart_to_load_power" in sungold_ids
-    assert "Cart to AC out" in sungold_names
-    assert "sensor.em16_a3_power" in sungold_ids
-    assert "sensor.sungold_conversion_loss_power" in sungold_ids
-    assert "Sungold AC-in" in sungold_names
+    assert "sensor.sungold_sph302480a_charging_power" in sungold_ids
+    assert "sensor.trailer_outlet_power" not in sungold_ids
+    assert "sensor.sungold_uti_va_power" not in sungold_ids
+    assert "sensor.sungold_ac_out_va_power" not in sungold_ids
+    assert "sensor.sungold_cart_to_load_power" not in sungold_ids
+    assert "sensor.em16_a3_power" not in sungold_ids
+    assert "sensor.em16_b3_power" not in sungold_ids
+    assert "sensor.sungold_conversion_loss_power" not in sungold_ids
+    assert "sensor.sungold_sph302480a_battery_temperature" not in sungold_ids
+    assert "Sungold AC-in" not in sungold_names
     assert "Sungold AC out" in sungold_names
     ac_out = next(t for t in sungold_tiles if t["name"] == "Sungold AC out")
     assert ac_out["entity"] == "sensor.sungold_sph302480a_load_power"
-    assert "Trailer CT A3" in sungold_names
-    assert "Sungold breaker" in sungold_names
+    assert "Trailer CT A3" not in sungold_names
+    assert "Sungold breaker" not in sungold_names
     assert "A3 hot leg" not in sungold_names
     assert "Pi4" not in sungold_names
+    cord_tiles = _section_tiles(now_view, "KU outlet to SPH")
+    cord_ids = {t["entity"] for t in cord_tiles}
+    cord_names = {t["name"] for t in cord_tiles}
+    assert "sensor.ku_renogy_ac_load_power" in cord_ids
+    assert "sensor.trailer_outlet_power" in cord_ids
+    assert "sensor.em16_a3_power" in cord_ids
+    assert "sensor.sungold_uti_va_power" in cord_ids
+    assert "sensor.sungold_cart_to_load_power" in cord_ids
+    assert "Cart to AC out" in cord_names
+    assert "sensor.ku_renogy_ac_load_power" not in ku_ids
     t2_tiles = _section_tiles(now_view, "T2 24 V")
     t2_ids = {t["entity"] for t in t2_tiles}
     t2_names = {t["name"] for t in t2_tiles}
