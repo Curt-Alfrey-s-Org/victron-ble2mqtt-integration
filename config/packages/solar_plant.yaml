@@ -69,6 +69,32 @@ template:
             unknown
           {% endif %}
 
+      # Sungold UTI on KU Renogy trailer outlet: Renogy DC load is at least max(CT, UTI).
+      # Vent fan and LEDs are on SPH AC out (not a sibling on A3 anymore).
+      - name: KU Renogy AC load power
+        unique_id: ku_renogy_ac_load_power
+        default_entity_id: sensor.ku_renogy_ac_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.trailer_outlet_power'))
+             or is_number(states('sensor.sungold_uti_va_power')) }}
+        state: >-
+          {% set tr = states('sensor.trailer_outlet_power') | float(0)
+             if is_number(states('sensor.trailer_outlet_power')) else 0 %}
+          {% set uti = states('sensor.sungold_uti_va_power') | float(0)
+             if is_number(states('sensor.sungold_uti_va_power')) else 0 %}
+          {{ [tr, uti] | max }}
+        attributes:
+          trailer_ct_w: >-
+            {{ states('sensor.trailer_outlet_power') | float(0)
+               if is_number(states('sensor.trailer_outlet_power')) else none }}
+          sungold_uti_w: >-
+            {{ states('sensor.sungold_uti_va_power') | float(0)
+               if is_number(states('sensor.sungold_uti_va_power')) else none }}
+          note: max EM16 A3/B3 and SPH grid V*A; inverter DC in >= AC INPUT
+
       # Isolate KU PV: subtract shunt-to-shunt leftover already in Battery 2.
       - name: KU unmetered PV est power
         unique_id: ku_unmetered_pv_est_power
@@ -76,8 +102,18 @@ template:
         unit_of_measurement: W
         device_class: power
         state_class: measurement
-        availability: "{{ is_number(states('sensor.battery_2_power')) and is_number(states('sensor.t2_ku_jumper_power')) and is_number(states('sensor.trailer_outlet_power')) }}"
-        state: "{{ (states('sensor.battery_2_power') | float(0)) - (states('sensor.t2_ku_jumper_power') | float(0)) + (states('sensor.trailer_outlet_power') | float(0)) }}"
+        availability: >-
+          {{ is_number(states('sensor.battery_2_power'))
+             and is_number(states('sensor.t2_ku_jumper_power'))
+             and is_number(states('sensor.ku_renogy_ac_load_power')) }}
+        state: >-
+          {{ (states('sensor.battery_2_power') | float(0))
+             - (states('sensor.t2_ku_jumper_power') | float(0))
+             + (states('sensor.ku_renogy_ac_load_power') | float(0)) }}
+        attributes:
+          ku_renogy_ac_w: "{{ states('sensor.ku_renogy_ac_load_power') }}"
+          batt2_w: "{{ states('sensor.battery_2_power') }}"
+          jumper_w: "{{ states('sensor.t2_ku_jumper_power') }}"
 
       - name: KU charger equal share power
         unique_id: ku_charger_equal_share_power

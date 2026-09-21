@@ -37,10 +37,15 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert jumper_t2["device_class"] == "power"
     share = by_id["sensor.ku_charger_equal_share_power"]
     assert "/ 3" in share["state"]
+    renogy_ac = by_id["sensor.ku_renogy_ac_load_power"]
+    assert "sensor.trailer_outlet_power" in renogy_ac["state"]
+    assert "sensor.sungold_uti_va_power" in renogy_ac["state"]
+    assert "| max" in renogy_ac["state"]
     ku = by_id["sensor.ku_unmetered_pv_est_power"]
     assert "sensor.battery_2_power" in ku["state"]
     assert "sensor.t2_ku_jumper_power" in ku["state"]
-    assert "sensor.trailer_outlet_power" in ku["state"]
+    assert "sensor.ku_renogy_ac_load_power" in ku["state"]
+    assert "sensor.trailer_outlet_power" not in ku["state"]
     assert by_id["sensor.battery_1_charge_power"]["device_class"] == "power"
     assert by_id["sensor.battery_1_discharge_power"]["device_class"] == "power"
     rest_blocks = data.get("rest") or []

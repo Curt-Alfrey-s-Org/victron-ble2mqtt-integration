@@ -54,7 +54,8 @@ Renogy means current is leaving T2 through the jumper toward KU, not into the T2
 downstream hop** on that path carries the same magnitude until the outlet split (panel →
 B3 → outlet). **B3** = breaker feeding the trailer outlet (`path-panel-b3` / `path-b3-outlet`).
 **UTI hop** (`path-outlet-uti`, `path-sg-uti-sph`) uses **`utiHopW`** (passthrough — not A3).
-**Vent fan** = residual on the outlet split; **load**, not loss. **Dump loads** (Morningstar diversion; not "soak"): fed from
+**Vent fan and LEDs** (operator 2026-09-21) are on **SPH AC out**, not a separate A3 sibling.
+**Dump loads** (Morningstar diversion; not "soak"): fed from
 **Sungold A/C out** (SPH INV OUTPUT / `node-sg-acout`,
 `sensor.sungold_sph302480a_load_active_power` per
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not

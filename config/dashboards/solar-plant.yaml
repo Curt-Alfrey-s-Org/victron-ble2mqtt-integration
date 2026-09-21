@@ -56,9 +56,11 @@ views:
               **Solar** = T2 clamp + Sungold PV + max(0, KU residual).
               KU residual subtracts jumper so T2 watts already in Batt 2 are not KU PV.
               **Charge** = T2+KU+SPH packs (not T2 MPPT output; jumper already in Batt 1/2).
-              **Load** = Sungold AC out (same entity; do not add dump, AC-in, or jumper).
+              **Load** = Sungold AC out (vent fan + LEDs on SPH out; do not add AC-in or jumper).
+              **KU Renogy AC** = max(trailer CT, UTI V×A) for Sungold on KU outlet.
+              **KU PV est** = Batt2 - jumper + KU Renogy AC (not raw Batt2 net).
               **KU share** = KU PV est / 3. **Jumper** = shunt-to-shunt leftover (not extra watts).
-              **Sungold AC-in** = trailer clamp. **UTI V×A** is SPH grid P=VI.
+              **Sungold AC-in** = trailer CT; cross-check UTI V×A.
               **Today** = daily utility meter on each kWh integral (not the lifetime
               total on `*_energy_kwh`). Solar, charge, and load today do not add up:
               load is SPH AC-out only; charge is pack inflow; KU Renogy and losses
@@ -175,6 +177,9 @@ views:
           - type: tile
             entity: sensor.t2_ku_jumper_power
             name: Jumper from T2
+          - type: tile
+            entity: sensor.ku_renogy_ac_load_power
+            name: KU Renogy AC est
           - type: tile
             entity: sensor.battery_2_power
             name: Batt 2 W

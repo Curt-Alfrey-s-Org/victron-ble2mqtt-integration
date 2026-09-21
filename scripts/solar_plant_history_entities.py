@@ -11,6 +11,7 @@ SOLAR_PLANT_PACKAGE_ENTITY_IDS: tuple[str, ...] = (
     "sensor.t2_ku_jumper_power",
     "sensor.t2_ku_jumper_at_t2_power",
     "sensor.trailer_outlet_power",
+    "sensor.ku_renogy_ac_load_power",
     "sensor.ku_unmetered_pv_est_power",
     "sensor.ku_charger_equal_share_power",
     "sensor.battery_1_charge_power",

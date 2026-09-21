@@ -81,8 +81,9 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 |-----------|---------|
 | `sensor.t2_ku_jumper_power` | T2 leftover `solar_controller_solar - battery_1_power` (T2 Renogy idle = 0). **Canonical + = T2→KU.** **Shunt-to-shunt:** those watts are already in Battery 1 and Battery 2. Used to **isolate** KU PV est. (subtract T2-sourced charge from Batt 2), on the **KU** tile (**Jumper from T2**), and History. Not a third generation/load clamp. Do **not** add into Solar now / Charge now / Load now ([SmartShunt installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html) step 2). |
 | `sensor.t2_ku_jumper_at_t2_power` | Same leftover, T2-end sign: `-(t2_ku_jumper_power)`. **T2 tile only** (**Jumper to KU**). Negative = leaving T2 (T2→KU); positive = arriving at T2 (KU→T2). Not extra watts. Do **not** Riemann this. Do **not** put it on History. |
-| `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. That clamp is the **trailer outlet / Sungold A/C-in** (SPH cord). Cargo LED (~0.01 W) and vent fan (~0.1 W) are not separately metered and must **not** be the Lovelace name. |
-| `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + trailer_outlet`. Subtract jumper so T2-sourced shunt-to-shunt watts in Battery 2 are not labeled KU PV. |
+| `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. EM16 hot leg on the KU trailer outlet (Sungold UTI cord). Vent fan and LEDs are on **SPH AC out**, not a separate A3 sibling. |
+| `sensor.ku_renogy_ac_load_power` | `max(trailer_outlet_power, sungold_uti_va_power)`. KU Renogy inverter AC load lower bound when Sungold is on the trailer outlet ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)). Attributes `trailer_ct_w`, `sungold_uti_w`. |
+| `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + ku_renogy_ac_load_power`. Subtract jumper so T2-sourced shunt-to-shunt watts in Battery 2 are not labeled KU PV. Batt 2 net can exceed KU Renogy AC when PWM/Victron charge offsets discharge. |
 | `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
 | `sensor.battery_1_charge_power` / `_discharge_power` | `max(0, +/- battery_1_power)` |
 | `sensor.battery_2_charge_power` / `_discharge_power` | same for Battery 2 |

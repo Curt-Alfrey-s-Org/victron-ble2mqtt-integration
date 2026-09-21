@@ -590,7 +590,9 @@ template:
         state: >
           {% set solar = states('sensor.site_solar_power') %}
           {% set load = states('sensor.sungold_sph302480a_load_power') %}
+          {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
           {{ is_number(solar) and is_number(load)
+             and (solar | float) >= minw
              and (load | float) > (solar | float) }}
       - name: Dump SoC ok
         unique_id: dump_soc_ok

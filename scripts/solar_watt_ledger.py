@@ -231,11 +231,11 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     a3_v = _first_w(states, _A3_V_IDS)
     a3_a = _first_w(states, _A3_A_IDS)
     b3 = _first_w(states, _B3_IDS)
-    trailer_w: float | None = None
+    trailer_ct_w: float | None = None
     if b3 is not None and abs(b3) >= 0.5:
-        trailer_w = abs(b3)
+        trailer_ct_w = abs(b3)
     elif a3 is not None:
-        trailer_w = abs(a3)
+        trailer_ct_w = abs(a3)
 
     sg_grid_v = _first_w(states, _SG_GRID_V_IDS)
     sg_grid_a = _first_w(states, _SG_GRID_A_IDS)
@@ -247,12 +247,12 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if uti_hop_w is None or uti_hop_w < 0.5:
         if sg_load is not None and abs(sg_load) >= 0.5:
             uti_hop_w = abs(sg_load)
-    vent_fan_w: float | None = None
+    trailer_w: float | None = None
+    if trailer_ct_w is not None or uti_hop_w is not None:
+        trailer_w = max(trailer_ct_w or 0.0, uti_hop_w or 0.0)
+    # Operator 2026-09-21: cargo vent fan and LEDs on SPH AC out (not A3 sibling).
+    vent_fan_w: float | None = 0.0
     vent_unmetered = False
-    if trailer_w is not None and uti_hop_w is not None:
-        vent_fan_w = max(0.0, trailer_w - uti_hop_w)
-    else:
-        vent_unmetered = True
 
     sg_pv = _first_w(states, _SG_PV_IDS)
     if sg_pv is None:
@@ -337,22 +337,18 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             "trailer_outlet",
             "Trailer outlet",
             trailer_w,
-            (uti_hop_w + vent_fan_w) if (uti_hop_w is not None and vent_fan_w is not None) else None,
-            note="A3/B3 hot leg splits to Sungold A/C in and cargo-trailer vent fan",
+            uti_hop_w,
+            note="max(A3/B3 CT, SPH UTI V*A); Sungold-only on KU Renogy outlet",
         )
     )
     hops.append(
         _hop(
             "vent_fan",
-            "Trailer vent fan",
+            "Trailer vent fan (retired path)",
             vent_fan_w,
             vent_fan_w,
             unmetered=vent_unmetered,
-            note=(
-                "max(0, trailer_outlet_W - SPH A/C INPUT); sibling of Sungold on KU outlet"
-                if not vent_unmetered
-                else "unmetered sibling load on trailer outlet; A3 is not Sungold-only"
-            ),
+            note="Vent fan and LEDs on SPH AC out since 2026-09-21; not on A3 sibling",
         )
     )
 

@@ -76,7 +76,7 @@ def test_ku_renogy_ac_est_is_batt2_load_not_shunt() -> None:
     assert not isclose(ledger["ku_charger_equal_share_w"], naive, rel_tol=1e-6)
 
 
-def test_vent_fan_residual_matches_trailer_minus_uti_hop() -> None:
+def test_ku_renogy_ac_uses_max_trailer_ct_and_uti() -> None:
     states = {
         "sensor.em16_a3_power": _row("sensor.em16_a3_power", "25"),
         "sensor.sungold_sph302480a_grid_voltage": _row(
@@ -92,9 +92,11 @@ def test_vent_fan_residual_matches_trailer_minus_uti_hop() -> None:
     ledger = build_watt_ledger(states)
     assert ledger["sungold_ac_in_w"] == 0.0
     assert ledger["uti_hop_w"] == 5.0
-    assert ledger["vent_fan_w"] == 20.0
+    assert ledger["vent_fan_w"] == 0.0
+    assert ledger["ku_renogy_ac_est_w"] == 25.0
     hops = {h["id"]: h for h in ledger["watt_hops"]}
-    assert hops["vent_fan"]["watts_in"] == 20.0
+    assert hops["vent_fan"]["watts_in"] == 0.0
+    assert hops["ku_renogy_ac"]["watts_in"] == 25.0
 
 
 def test_sungold_ac_in_passthrough_from_load_when_grid_va_zero() -> None:
@@ -135,4 +137,4 @@ def test_combined_path_losses_and_vent_fan_not_conversion() -> None:
     assert "vent_fan" not in _CONVERSION_HOP_IDS
     hops = {h["id"]: h for h in ledger["watt_hops"]}
     assert hops["vent_fan"]["id"] == "vent_fan"
-    assert hops["vent_fan"].get("loss_w") is None
+    assert hops["vent_fan"].get("loss_w") in (None, 0.0)
