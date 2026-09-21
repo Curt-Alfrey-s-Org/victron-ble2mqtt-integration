@@ -232,27 +232,27 @@ utility import.
 
 ### After Site solar math fix (history / statistics)
 
-HA cannot recompute past **states** from a new template formula. Deploy the
-package + dashboard, then clean up what you can:
+HA cannot recompute past **states** from a new template formula. Deploy fixed
+YAML first, then **wipe solar-related HA history** so bad template math does not
+taint Energy / statistics going forward.
 
 1. **`.105`:** `bash scripts/install_solar_plant_ha.sh` (reloads `solar_plant.yaml`).
 2. **Energy prefs:** `python scripts/save_solar_plant_energy_prefs.py` (drops
    Sungold A/C-in as a house device; nests sim dump under AC-out).
 3. **Site solar Lovelace:** re-seed storage dashboard from repo YAML if Load now
    still points at the wrong entity (see install script / storage seed docs).
-4. **Short-term states** (default ~10 days): wrong **Sungold conversion loss**
-   and any mis-bound **Load now** tiles age out per
-   [Recorder](https://www.home-assistant.io/integrations/recorder/) `purge_keep_days`.
-5. **Long-term statistics** (kWh graphs, Energy totals): use
-   [Developer tools > Statistics](https://www.home-assistant.io/docs/tools/dev-tools/)
-   to **delete** or **adjust** bad rows for entities whose formulas changed, for
-   example `sensor.sungold_conversion_loss_power`, `sensor.site_solar_power`,
-   `sensor.ku_unmetered_pv_est_power`, and device kWh helpers if Energy showed
-   double-counted house load. See
-   [Long- and short-term statistics](https://data.home-assistant.io/docs/statistics/).
-   There is no supported bulk "replay" of template history.
-6. **Victron / Sungold source MQTT** history is unchanged; only HA templates and
-   Energy device list change going forward.
+4. **Purge recorder + statistics (recommended after formula fix):**
+   ```bash
+   cd ~/victron-ble2mqtt-integration
+   python scripts/purge_solar_plant_ha_history.py --dry-run
+   python scripts/purge_solar_plant_ha_history.py --apply
+   ```
+   Uses [recorder.purge_entities](https://www.home-assistant.io/actions/recorder/purge_entities/)
+   (`keep_days: 0`) and WebSocket `recorder/clear_statistics` for Victron,
+   Sungold, site totals, sim dump, and `solar_plant.yaml` helpers. Excludes NWS
+   and Ecobee. Set `HA_TOKEN` or `HA_TOKEN_FILE` (admin long-lived token).
+5. **Victron / Sungold on-device logs** are unchanged; only the Home Assistant
+   database is cleared. Integral kWh sensors restart from zero after purge.
 
 `sensor.em16_a3_power` is a signed CT. Integrating it made `sensor.em16_a3_energy_kwh`
 negative (`-0.02` kWh) and Energy warned that individual devices need a positive
