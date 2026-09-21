@@ -218,44 +218,52 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "weather-forecast" in types
     assert "picture" in types
     assert "statistics-graph" in types
-    assert "statistic" in types
+    assert "statistic" not in types
     assert "entities" in types
     assert "heading" in types
     assert _first_section_heading(now_view) == "Site totals"
     site_cards = _section_cards(now_view, "Site totals")
-    site_stat_cards = [c for c in site_cards if c.get("type") == "statistic"]
+    site_stat_cards = [c for c in site_cards if c.get("type") == "tile" and c.get("name", "").endswith("today")]
     assert len(site_stat_cards) == 3
     stat_entities = {c["entity"] for c in site_stat_cards}
     assert stat_entities == {
-        "sensor.site_solar_energy_kwh",
-        "sensor.site_charge_energy_kwh",
-        "sensor.sungold_load_energy_kwh",
+        "sensor.site_solar_today",
+        "sensor.site_charge_today",
+        "sensor.sungold_load_today",
     }
-    for stat_card in site_stat_cards:
-        assert stat_card["stat_type"] == "change"
-        assert stat_card["period"]["calendar"]["period"] == "day"
     site_tiles = [c for c in site_cards if c.get("type") == "tile"]
     site_tile_names = {t["name"] for t in site_tiles}
-    assert site_tile_names == {"Solar now", "Charge now", "Load now"}
+    assert site_tile_names == {
+        "Solar now",
+        "Solar today",
+        "Charge now",
+        "Charge today",
+        "Load now",
+        "Load today",
+    }
     site_tile_entities = {t["entity"] for t in site_tiles}
     assert site_tile_entities == {
         "sensor.site_solar_power",
+        "sensor.site_solar_today",
         "sensor.site_charge_power",
+        "sensor.site_charge_today",
         "sensor.sungold_sph302480a_load_power",
+        "sensor.sungold_load_today",
     }
     load_now = next(t for t in site_tiles if t["name"] == "Load now")
     assert load_now["entity"] == "sensor.sungold_sph302480a_load_power"
-    pair_types = [c["type"] for c in site_cards if c.get("type") in ("tile", "statistic")]
+    pair_types = [c["type"] for c in site_cards if c.get("type") == "tile" and c.get("name") in ("Solar now", "Solar today", "Charge now", "Charge today", "Load now", "Load today")]
     assert pair_types == [
         "tile",
-        "statistic",
         "tile",
-        "statistic",
         "tile",
-        "statistic",
+        "tile",
+        "tile",
+        "tile",
     ]
     yaml_pkg = PACKAGE.read_text(encoding="utf-8")
-    assert "utility_meter" not in yaml_pkg
+    assert "utility_meter:" in yaml_pkg
+    assert "site_solar_today:" in yaml_pkg
     assert "site_load_power" not in yaml_pkg
     assert "energy-sources-table" not in DASHBOARD.read_text(encoding="utf-8")
     assert "gauge" not in types
@@ -510,7 +518,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "tile" in text
     assert "Site totals" in text
     assert "site_solar_power" in text
-    assert "stat_type: change" in text or "dashboards/statistic" in text
+    assert "stat_type: change" not in text or "site_solar_today" in text
+    assert "site_solar_today" in text
     assert "mobile_app:" in text
     assert "Do **not** add" in text and "default_config:" in text
     assert "built-in" in text

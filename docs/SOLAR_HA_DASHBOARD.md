@@ -93,8 +93,11 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 | `sensor.solar_component_losses_power` | `combined_losses_w` = T2 MPPT loss + Sungold loss ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)) |
 | `sensor.site_solar_power` | **Site solar now:** T2 `solar_controller_solar` + Sungold `sungold_sph302480a_pv_power` + `max(0, ku_unmetered_pv_est_power)`. Missing addends count as 0. Night KU est. is clamped so solar is not a negative residual. Attributes `t2_w`, `sph_pv_w`, `ku_est_w`, `ku_clamped_w` ([template attributes](https://www.home-assistant.io/integrations/template/)). |
 | `sensor.site_charge_power` | **Site charge now:** into the three packs — `battery_1_charge_power` + `battery_2_charge_power` + `max(0, sungold_sph302480a_charging_power)`. Not T2 MPPT `charging_power` (that can leave T2 on the jumper). |
-| `sensor.site_solar_energy_kwh` | Riemann of `site_solar_power` ([Integral](https://www.home-assistant.io/integrations/integration/#energy), left + 5 min). |
-| `sensor.site_charge_energy_kwh` | Riemann of `site_charge_power` (same method). |
+| `sensor.site_solar_energy_kwh` | Riemann of `site_solar_power` ([Integral](https://www.home-assistant.io/integrations/integration/#energy), left + 5 min). **Lifetime** total; use `sensor.site_solar_today` on Site totals. |
+| `sensor.site_charge_energy_kwh` | Riemann of `site_charge_power` (same method). Lifetime; use `sensor.site_charge_today`. |
+| `sensor.site_solar_today` | [Utility meter](https://www.home-assistant.io/integrations/utility_meter/) daily on `site_solar_energy_kwh` -- **Solar today** tile. |
+| `sensor.site_charge_today` | Daily utility meter on `site_charge_energy_kwh` -- **Charge today** tile. |
+| `sensor.sungold_load_today` | Daily utility meter on `sungold_load_energy_kwh` -- **Load today** tile. |
 
 **Site load** reuses `sensor.sungold_sph302480a_load_power` / `sensor.sungold_load_energy_kwh` (SPH INV OUTPUT). Do **not** add a second load template or integral. Do **not** add dump watts or trailer-outlet (AC-in) into that total -- dump is on SPH OUTPUT; AC-in is the cord, not house load. T2/KU Renogy inverter loads are **not in HA**.
 
@@ -281,7 +284,7 @@ Official cards:
   unit get their own on/off graphs)
 - [Statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/) -- kWh helpers
 - [Tile](https://www.home-assistant.io/dashboards/tile/) -- one live value per tile on **Now**
-- [Statistic](https://www.home-assistant.io/dashboards/statistic/) -- Site totals **today** kWh (calendar day)
+- [Statistic](https://www.home-assistant.io/dashboards/statistic/) -- History / Energy only (not Site totals **today**; use utility meters below)
 - [Heading](https://www.home-assistant.io/dashboards/heading/) -- totals / bus / dump / house section titles
 - [Entities](https://www.home-assistant.io/dashboards/entities/) -- Dump voltages / limits / plug wiring
 - [Thermostat](https://www.home-assistant.io/dashboards/thermostat/) -- house Ecobee indoor setpoint (`climate.417373300314`, name **Ecobee**; not trailer)
@@ -310,7 +313,7 @@ stay on that bus's tiles. Per-plug dump watts stay on **History**.
 
 | Card | Entities |
 |------|----------|
-| Site totals | First **Now** section. Heading + markdown (what is summed) + tiles **Solar now** / **Charge now** / **Load now** + statistic **Solar today** / **Charge today** / **Load today**. Pair now+today on one phone row. Load now/today = Sungold AC out / `sungold_load_energy_kwh`. |
+| Site totals | First **Now** section. Heading + markdown (what is summed) + tiles **Solar now** / **Charge now** / **Load now** + **Solar today** / **Charge today** / **Load today** on `sensor.site_solar_today`, `sensor.site_charge_today`, `sensor.sungold_load_today` ([utility meter](https://www.home-assistant.io/integrations/utility_meter/) daily on each kWh integral). Do **not** use statistic-card `change` on `*_energy_kwh` (lifetime state != today). Load now/today = Sungold AC out / `sungold_load_today`. |
 | Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent); KU PV est. may be negative at night |
 | Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
 | T2 24 V | Heading + tiles: MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, leftover already in Batt 1; negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |

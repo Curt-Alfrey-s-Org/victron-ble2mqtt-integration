@@ -59,40 +59,30 @@ views:
               **Load** = Sungold AC out (same entity; do not add dump, AC-in, or jumper).
               **KU share** = KU PV est / 3. **Jumper** = shunt-to-shunt leftover (not extra watts).
               **Sungold AC-in** = trailer clamp. **UTI V×A** is SPH grid P=VI.
-              **Today** = statistic change this calendar day.
-              If Load now != Sungold AC out, re-seed Site solar Lovelace.
+              **Today** = daily utility meter on each kWh integral (not the lifetime
+              total on `*_energy_kwh`). Solar, charge, and load today do not add up:
+              load is SPH AC-out only; charge is pack inflow; KU Renogy and losses
+              are elsewhere.
             grid_options:
               columns: full
           - type: tile
             entity: sensor.site_solar_power
             name: Solar now
-          - type: statistic
-            entity: sensor.site_solar_energy_kwh
+          - type: tile
+            entity: sensor.site_solar_today
             name: Solar today
-            stat_type: change
-            period:
-              calendar:
-                period: day
           - type: tile
             entity: sensor.site_charge_power
             name: Charge now
-          - type: statistic
-            entity: sensor.site_charge_energy_kwh
+          - type: tile
+            entity: sensor.site_charge_today
             name: Charge today
-            stat_type: change
-            period:
-              calendar:
-                period: day
           - type: tile
             entity: sensor.sungold_sph302480a_load_power
             name: Load now
-          - type: statistic
-            entity: sensor.sungold_load_energy_kwh
+          - type: tile
+            entity: sensor.sungold_load_today
             name: Load today
-            stat_type: change
-            period:
-              calendar:
-                period: day
 
       - type: grid
         cards:

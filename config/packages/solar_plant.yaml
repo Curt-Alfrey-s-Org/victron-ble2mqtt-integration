@@ -359,3 +359,23 @@ sensor:
     method: left
     max_sub_interval:
       minutes: 5
+
+# Calendar-day kWh for Site totals tiles (same source as *_energy_kwh integrals).
+# Statistic-card "change" can disagree with the integration state; use these for Today.
+# https://www.home-assistant.io/integrations/utility_meter/
+utility_meter:
+  site_solar_today:
+    source: sensor.site_solar_energy_kwh
+    name: Site solar today
+    unique_id: site_solar_today_kwh
+    cycle: daily
+  site_charge_today:
+    source: sensor.site_charge_energy_kwh
+    name: Site charge today
+    unique_id: site_charge_today_kwh
+    cycle: daily
+  sungold_load_today:
+    source: sensor.sungold_load_energy_kwh
+    name: Sungold load today
+    unique_id: sungold_load_today_kwh
+    cycle: daily
