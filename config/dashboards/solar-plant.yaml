@@ -22,9 +22,9 @@ views:
           on / 10 min cooldown. Not per-plug Govee watts.
           **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
           outlet clamp. Not cargo LED/vent tiles.
-          **KU PV est.** may be negative at night (balance residual). Do not add A3
-          as utility grid. **Jumper** is shunt-to-shunt (already in Batt 1 and Batt 2);
-          do not add it to Solar / Charge / Load.
+          Do **not** show KU PV est or KU share est (unmetered residual, not a clamp).
+          Do not add A3 as utility grid. **Jumper** is shunt-to-shunt (already in
+          Batt 1 and Batt 2); do not add it to Solar / Charge / Load.
     badges:
       - type: entity
         entity: sensor.battery_1_state_of_charge
@@ -59,11 +59,8 @@ views:
               **Load** = Sungold AC out = all house watts (T2 RV empty; vent/LED/dump on SPH out).
               Do not add AC-in or jumper. **Cart to AC out** is 0 while KU UTI feeds
               the load (mains bypass). Nonzero only if the cart/PV supplies AC-out.
-              **KU Renogy AC** = max(trailer CT, UTI V×A); that is the KU cord into SPH,
-              not house load (cord is a few percent above AC-out).
-              **KU PV est** = Batt2 - jumper + KU Renogy AC (not raw Batt2 net).
-              **KU share** = KU PV est / 3. **Jumper** = shunt-to-shunt leftover (not extra watts).
-              **Sungold AC-in** = trailer CT; cross-check UTI V×A.
+              KU cord into SPH is **Trailer outlet** / **UTI V×A** (measured), not house load.
+              **Jumper** = shunt-to-shunt leftover (not extra watts).
               **Today** = daily utility meter on each kWh integral (not the lifetime
               total on `*_energy_kwh`). Solar, charge, and load today do not add up:
               load is SPH AC-out only; charge is pack inflow; KU Renogy and losses
@@ -166,17 +163,11 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: KU 24 V (est. chargers)
+            heading: KU 24 V
             badges:
               - type: entity
                 entity: sensor.battery_2_state_of_charge
                 show_state: true
-          - type: tile
-            entity: sensor.ku_unmetered_pv_est_power
-            name: KU PV est.
-          - type: tile
-            entity: sensor.ku_charger_equal_share_power
-            name: KU share est.
           - type: tile
             entity: sensor.t2_ku_jumper_power
             name: Jumper from T2
@@ -206,9 +197,6 @@ views:
         cards:
           - type: heading
             heading: KU outlet to SPH
-          - type: tile
-            entity: sensor.ku_renogy_ac_load_power
-            name: KU Renogy AC est
           - type: tile
             entity: sensor.trailer_outlet_power
             name: Trailer outlet
@@ -638,7 +626,7 @@ views:
               - entity: sensor.battery_2_power
                 name: Battery 2
               - entity: sensor.t2_ku_jumper_power
-                name: Jumper est.
+                name: Jumper
               - entity: sensor.trailer_outlet_power
                 name: Sungold AC-in
               - entity: sensor.sim_dump_load_power
@@ -658,10 +646,6 @@ views:
             title: Watts (chargers)
             hours_to_show: 72
             entities:
-              - entity: sensor.ku_unmetered_pv_est_power
-                name: KU PV est.
-              - entity: sensor.ku_charger_equal_share_power
-                name: KU share est.
               - entity: sensor.solar_controller_charging_power
                 name: T2 charge
               - entity: sensor.sungold_sph302480a_charging_power
@@ -678,7 +662,7 @@ views:
             hours_to_show: 72
             entities:
               - entity: sensor.solar_component_losses_power
-                name: Total est.
+                name: Combined
               - entity: sensor.t2_mppt_conversion_loss_power
                 name: T2 MPPT
               - entity: sensor.sungold_conversion_loss_power

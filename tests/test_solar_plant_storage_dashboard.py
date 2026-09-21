@@ -33,7 +33,7 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     blob = str(config)
     assert "sensor.site_solar_power" in blob
     assert "sensor.t2_ku_jumper_power" in blob
-    assert "sensor.ku_unmetered_pv_est_power" in blob
+    assert "sensor.ku_unmetered_pv_est_power" not in blob
     assert "input_boolean.dump_control_enabled" in blob
     assert "input_number.dump_site_confirm_s" in blob
     assert "timer.dump_plug_1_cooldown" in blob

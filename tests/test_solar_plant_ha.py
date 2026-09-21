@@ -334,21 +334,18 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "LED+fan" not in dist_names
     assert "sensor.trailer_outlet_power" not in dist_entities
     assert "Pi4" not in dist_names
-    ku_tiles = _section_tiles(now_view, "KU 24 V (est. chargers)")
+    ku_tiles = _section_tiles(now_view, "KU 24 V")
     ku_names = {t["name"] for t in ku_tiles}
     ku_ids = {t["entity"] for t in ku_tiles}
-    assert "KU share est." in ku_names
-    assert "Jumper from T2" in ku_names
+    assert "KU share est." not in ku_names
+    assert "KU PV est." not in ku_names
     assert "Each charger est." not in ku_names
     assert "Sungold AC-in" not in ku_names
     assert "LED+fan" not in ku_names
-    assert "sensor.ku_charger_equal_share_power" in ku_ids
+    assert "sensor.ku_charger_equal_share_power" not in ku_ids
+    assert "sensor.ku_unmetered_pv_est_power" not in ku_ids
     assert "sensor.t2_ku_jumper_power" in ku_ids
-    ku_pv_tile = next(t for t in ku_tiles if t["name"] == "KU PV est.")
-    ku_share_tile = next(t for t in ku_tiles if t["name"] == "KU share est.")
-    assert ku_pv_tile["entity"] == "sensor.ku_unmetered_pv_est_power"
-    assert ku_share_tile["entity"] == "sensor.ku_charger_equal_share_power"
-    assert ku_pv_tile["entity"] != ku_share_tile["entity"]
+    assert "Jumper from T2" in ku_names
     assert "sensor.trailer_outlet_power" not in ku_ids
     assert not any(c.get("title") == "Conversion losses" for c in cards)
     assert not any(c.get("type") == "gauge" for c in cards)
@@ -480,7 +477,7 @@ def test_dashboard_uses_official_cards_only() -> None:
     cord_tiles = _section_tiles(now_view, "KU outlet to SPH")
     cord_ids = {t["entity"] for t in cord_tiles}
     cord_names = {t["name"] for t in cord_tiles}
-    assert "sensor.ku_renogy_ac_load_power" in cord_ids
+    assert "sensor.ku_renogy_ac_load_power" not in cord_ids
     assert "sensor.trailer_outlet_power" in cord_ids
     assert "sensor.em16_a3_power" in cord_ids
     assert "sensor.sungold_uti_va_power" in cord_ids
@@ -530,7 +527,8 @@ def test_docs_and_install_script_exist() -> None:
     assert "input_boolean.dump_control_enabled" in text
     assert "Dump voltages" in text
     assert "Dump plugs" in text
-    assert "KU share est." in text
+    assert "Do **not** show KU PV est or KU share est" in text
+    assert "KU 24 V (est. chargers)" not in text
     assert "Do **not** put Sungold A/C-in here" in text
     assert "Jumper from T2" in text
     assert "sensor.t2_ku_jumper_at_t2_power" in text
