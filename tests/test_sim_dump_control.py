@@ -58,6 +58,10 @@ def test_docs_and_install_exist() -> None:
     assert "Already-ON leftover" not in docs
     assert "dump_charge_float" in docs
     assert "dump_solar_present" in docs
+    assert "dump_load_exceeds_solar" in docs
+    assert "dump_notify_service" in docs
+    assert "dump_shed_plug" in docs
+    assert "mobile_app_" in docs
     assert "dump_rebulk" in docs
     assert "95%" in docs
     assert INSTALL.is_file()
@@ -97,6 +101,8 @@ def test_kill_switch_and_timers() -> None:
     assert numbers["dump_site_delta_min_w"]["initial"] == 25
     assert numbers["dump_site_delta_min_w"]["min"] == 5
     assert numbers["dump_site_delta_min_w"]["max"] == 500
+    texts = data.get("input_text") or {}
+    assert texts["dump_notify_service"]["initial"] == "persistent_notification"
     assert "dump_plug_1_watts" not in numbers
     booleans = data.get("input_boolean") or {}
     assert booleans["dump_soc_unsynced"].get("initial") is True
@@ -162,6 +168,12 @@ def test_surplus_template_and_charge_ok() -> None:
     assert "absorption" not in flt["state"]
     solar = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_solar_present")
     assert "input_number.dump_min_solar_w" in solar["state"]
+    exceeds = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_load_exceeds_solar")
+    assert "sensor.site_solar_power" in exceeds["state"]
+    assert "sensor.sungold_sph302480a_load_power" in exceeds["state"]
+    shed = next(s for s in sensors if s.get("default_entity_id") == "sensor.dump_shed_plug")
+    assert "switch.sim_ac_plug_" in shed["state"]
+    assert "range(6, 0, -1)" in shed["state"]
     rebulk = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_v_rebulk_t2")
     assert "input_number.dump_rebulk_t2_v" in rebulk["state"]
     t2_ok = next(b for b in binaries if b.get("default_entity_id") == "binary_sensor.dump_batt_t2_ok")
@@ -196,6 +208,8 @@ def test_automations_use_switch_services_and_dwell() -> None:
         "sim_dump_turn_on",
         "sim_dump_turn_off_solar_gone",
         "sim_dump_turn_off_bulk",
+        "sim_dump_shed_load_exceeds_solar",
+        "sim_dump_notify_load_exceeds_solar",
         "sim_dump_turn_off_rebulk_t2",
         "sim_dump_turn_off_rebulk_ku",
         "sim_dump_turn_off_rebulk_sph",
@@ -273,16 +287,28 @@ def test_automations_use_switch_services_and_dwell() -> None:
     assert "timer.dump_plug_1_cooldown" in off_s_txt
     assert "timer.dump_min_on" not in off_s_txt
     assert off_s["actions"][0]["action"] == "switch.turn_off"
-    assert off_b["actions"][0]["action"] == "switch.turn_off"
+    bulk_txt = str(off_b["actions"])
+    assert "sensor.dump_shed_plug" in bulk_txt
+    assert "repeat.index" in bulk_txt
+    assert "timer.dump_plug_" in bulk_txt
+    assert "cooldown" in bulk_txt
+    shed_over = by_id["sim_dump_shed_load_exceeds_solar"]
+    assert shed_over["triggers"][0]["entity_id"] == "binary_sensor.dump_load_exceeds_solar"
+    assert shed_over["triggers"][0]["for"] == "00:01:00"
+    assert "sensor.dump_shed_plug" in str(shed_over["actions"])
+    note = by_id["sim_dump_notify_load_exceeds_solar"]
+    assert note["triggers"][0]["for"] == "00:10:00"
+    assert "notify.persistent_notification" in str(note["actions"])
+    assert "dump_notify_service" in str(note["actions"])
+    assert "switch.turn_off" not in str(note["actions"])
     assert any(
         a.get("action") == "timer.cancel" for a in off_s["actions"]
     ), "solar-gone off must cancel min-on timers"
     assert any(
         a.get("action") == "timer.start" for a in off_s["actions"]
     ), "solar-gone off must start cooldown timers"
-    assert any(
-        a.get("action") == "timer.cancel" for a in off_b["actions"]
-    ), "bulk off must cancel min-on timers"
+    assert "timer.cancel" in bulk_txt
+    assert "timer.start" in bulk_txt
     rebulk_t2_txt = str(by_id["sim_dump_turn_off_rebulk_t2"]["actions"])
     assert "timer.start" in rebulk_t2_txt
     assert "timer.cancel" in rebulk_t2_txt

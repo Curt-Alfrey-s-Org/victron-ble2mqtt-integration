@@ -302,6 +302,8 @@ views:
               Kill switch and gate tiles here. Confirm is **site load** after 5 s
               (`dump_site_confirm_s` / `dump_site_delta_min_w`), not indoor plug watts.
               Confirmed plug: 15 min min-on. After off: 10 min cooldown.
+              If Load now (Sungold AC-out) stays above Solar now, shed one dump plug
+              per minute and text after 10 min (`dump_notify_service`).
               Float/re-bulk, AC limits, and plug wiring are in the sections below.
               Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
             grid_options:
@@ -314,6 +316,12 @@ views:
           - type: tile
             entity: sensor.dump_bus_load_sph
             name: SPH confirm W
+          - type: tile
+            entity: binary_sensor.dump_load_exceeds_solar
+            name: Load > solar
+          - type: tile
+            entity: sensor.dump_shed_plug
+            name: Shed plug
           - type: tile
             entity: binary_sensor.dump_charge_float
             name: MPPT float
@@ -358,6 +366,8 @@ views:
             entities:
               - entity: input_boolean.dump_soc_unsynced
                 name: SoC unsynced
+              - entity: input_text.dump_notify_service
+                name: Notify service
               - entity: input_number.dump_site_confirm_s
                 name: Site confirm s
               - entity: input_number.dump_site_delta_min_w

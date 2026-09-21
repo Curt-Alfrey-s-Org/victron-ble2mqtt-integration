@@ -326,6 +326,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     dump_tile_ids = {t["entity"] for t in dump_tiles}
     assert "input_boolean.dump_control_enabled" in dump_tile_ids
     assert "sensor.dump_bus_load_sph" in dump_tile_ids
+    assert "binary_sensor.dump_load_exceeds_solar" in dump_tile_ids
+    assert "sensor.dump_shed_plug" in dump_tile_ids
     assert "binary_sensor.dump_charge_float" in dump_tile_ids
     assert "sensor.dump_next_plug" in dump_tile_ids
     assert "sensor.dump_surplus_w" in dump_tile_ids
@@ -341,6 +343,7 @@ def test_dashboard_uses_official_cards_only() -> None:
         row.get("entity") for row in dump_voltages["entities"] if isinstance(row, dict)
     }
     assert "input_boolean.dump_soc_unsynced" in voltages_ids
+    assert "input_text.dump_notify_service" in voltages_ids
     assert "input_number.dump_site_confirm_s" in voltages_ids
     assert "input_number.dump_site_delta_min_w" in voltages_ids
     assert "input_number.dump_float_t2_v" in voltages_ids

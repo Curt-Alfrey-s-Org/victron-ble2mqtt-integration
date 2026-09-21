@@ -30,6 +30,8 @@ Official manuals (RULE #1):
 - Dropdown helper (which inverter feeds each plug): [Input select](https://www.home-assistant.io/integrations/input_select/)
 - Live power entity id per plug: [Input text](https://www.home-assistant.io/integrations/input_text/)
 - Staged ON (`repeat` / `while` / `delay` / `if` / `stop`): [Script syntax](https://www.home-assistant.io/docs/scripts/)
+- Notifications: [Notify](https://www.home-assistant.io/integrations/notify/) and [Companion](https://companion.home-assistant.io/docs/notifications/notifications-basic/)
+- State `for:` 10 min / 1 min: [State trigger](https://www.home-assistant.io/docs/automation/trigger/)
 - MQTT discovery (same HA path Victron BLE already uses): [MQTT](https://www.home-assistant.io/integrations/mqtt/)
 - Govee BLE sensors only (**not** H5082 plugs): [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/)
 - Victron charge stages and 1-minute re-bulk: [BlueSolar operation](https://www.victronenergy.com/media/pg/Manual_BlueSolar_MPPT_75-10_up_to_100-20/en/operation.html)
@@ -60,7 +62,8 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one plug, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
-| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; MPPT leaves absorb/float 1 min; `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min |
+| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **SPH Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all six) |
+| **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs `sensor.site_solar_power`) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (default `persistent_notification`; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
 | Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
 | Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
@@ -125,11 +128,17 @@ trigger (float throttles PV watts to the load).
    not stop the whole automation).
 10. If **confirmed**: start that plug's 15 min min-on timer, delay 1 s, stage
     another. Confirmed plugs are **not** fail-closed for missing per-plug watts;
-    they stay on until solar-gone / bulk / re-bulk / batt-not-ok (1 min) as today.
-    PV falling does **not** immediately turn off a confirmed plug.
+    they stay on until solar-gone / re-bulk / batt-not-ok / SPH load > site solar
+    (1 min shed-one) as below. PV falling does **not** immediately turn off a
+    confirmed plug.
 
 That is how leftover PV is claimed: add until voltage sags toward re-bulk or the
-inverter is full -- not until a 200 W surplus helper trips.
+inverter is full -- not until a 200 W surplus helper trips. Clouds: if **Load now**
+(Sungold AC-out, includes dump) stays **above Solar now**, HA sheds dump plugs one
+per minute so dump tracks solar. It does **not** switch trailer A/C. End of day
+or dark storm (`dump_solar_present` off 1 min) still dumps all six off. After the
+first float of the day, leaving absorb/float sheds **one** plug per minute instead
+of all six, so the MPPT is not forced back into a same-day float-idle cycle.
 
 **Govee H5082 (this site's dump hardware):** same *shape* as Victron BLE, not
 the same product. Victron Instant Readout is a documented advertisement;
@@ -159,13 +168,24 @@ Turn-**off** (Victron 1 minute; per-plug 10 min cooldown after any off):
 
 - **All six:** `dump_solar_present` off 1 min (weather / end of day) -- cancels
   all min-on, starts all cooldowns. This is the 95%+ after solar stops rule.
-- **All six:** T2 MPPT leaves absorption/float 1 min (bulk / night) -- cancels
-  all min-on, starts all cooldowns.
+- **One plug per minute:** `dump_load_exceeds_solar` on 1 min (Load now > Solar now)
+  -- highest-number dump switch first (`sensor.dump_shed_plug`), cancel min-on,
+  start cooldown, wait 1 min, repeat while still over.
+- **One plug per minute:** T2 MPPT not absorption/float 1 min -- same shed-one
+  until float returns or no dump is on.
 - **That inverter only:** bus voltage <= re-bulk helper 1 min, or `dump_batt_*_ok`
   off 1 min (pack supplying the inverter) -- turn off matching plugs, cancel each
   plug's min-on, start each plug's cooldown.
 - **Failed site confirm:** turn off that plug only, start its 10 min cooldown
   (no min-on started).
+
+**Text alert (10 min):** `dump_load_exceeds_solar` on for `00:10:00` sends
+`notify.persistent_notification` and, if `input_text.dump_notify_service` is a
+Companion action such as `mobile_app_<device>`, that notify too
+([Companion notifications](https://companion.home-assistant.io/docs/notifications/notifications-basic/)).
+Find the action under **Settings > Tools > Actions**. This is independent of the
+dump kill switch. Trailer A/C on KU is **not** in Load now; KU overdraw still
+uses `dump_batt_ku_ok` / re-bulk.
 
 ### Any load on any inverter (live meters)
 

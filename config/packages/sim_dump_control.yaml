@@ -1,8 +1,9 @@
 # Dump-load CONTROL (HA owns on/off). Opt-in package for Home Assistant on .105.
 # Requires sim_dump_plugs.yaml (switch.sim_ac_plug_*).
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
-# Solar-gone and re-bulk OFF (1 minute).
-# Surplus watts (dump_surplus_w) are briefing only -- not the ON/OFF trigger.
+# Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when SPH load > site solar.
+# Notify when that overdraw lasts 10 minutes (Companion or persistent).
+# Surplus watts (dump_surplus_w) are briefing only -- not the ON trigger.
 # Official:
 #   https://www.home-assistant.io/docs/configuration/packages/
 #   https://www.home-assistant.io/docs/automation/yaml/
@@ -14,6 +15,8 @@
 #   https://www.home-assistant.io/integrations/switch/
 #   https://www.home-assistant.io/integrations/input_number/
 #   https://www.home-assistant.io/integrations/input_select/
+#   https://www.home-assistant.io/integrations/input_text/
+#   https://www.home-assistant.io/integrations/notify/
 #   https://www.home-assistant.io/docs/scripts/
 #   https://www.home-assistant.io/docs/automation/trigger/#template-trigger
 #   https://www.home-assistant.io/triggers/homeassistant/
@@ -32,6 +35,14 @@ input_boolean:
     name: Dump SoC unsynced
     icon: mdi:battery-unknown
     initial: true
+
+input_text:
+  dump_notify_service:
+    name: Dump notify service
+    icon: mdi:message-alert
+    initial: persistent_notification
+    max: 64
+    mode: text
 
 input_number:
   dump_ac_limit_t2_w:
@@ -419,6 +430,19 @@ template:
           dump_load_w: "{{ states('sensor.sim_dump_load_power') | float(0) if is_number(states('sensor.sim_dump_load_power')) else 0 }}"
           charge_float: "{{ is_state('binary_sensor.dump_charge_float', 'on') }}"
           solar_present: "{{ is_state('binary_sensor.dump_solar_present', 'on') }}"
+      - name: Dump shed plug
+        unique_id: dump_shed_plug
+        default_entity_id: sensor.dump_shed_plug
+        icon: mdi:power-socket-us
+        state: >
+          {% set pick = namespace(eid='none') %}
+          {% for n in range(6, 0, -1) %}
+            {% set eid = 'switch.sim_ac_plug_' ~ n %}
+            {% if pick.eid == 'none' and is_state(eid, 'on') %}
+              {% set pick.eid = eid %}
+            {% endif %}
+          {% endfor %}
+          {{ pick.eid }}
   - trigger:
       - trigger: state
         entity_id: sensor.sim_ac_plug_1_power
@@ -559,6 +583,15 @@ template:
           {% set pv = s if is_number(s) else s2 %}
           {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
           {{ is_number(pv) and (pv | float) >= minw }}
+      - name: Dump load exceeds solar
+        unique_id: dump_load_exceeds_solar
+        default_entity_id: binary_sensor.dump_load_exceeds_solar
+        device_class: problem
+        state: >
+          {% set solar = states('sensor.site_solar_power') %}
+          {% set load = states('sensor.sungold_sph302480a_load_power') %}
+          {{ is_number(solar) and is_number(load)
+             and (load | float) > (solar | float) }}
       - name: Dump SoC ok
         unique_id: dump_soc_ok
         default_entity_id: binary_sensor.dump_soc_ok
@@ -793,8 +826,12 @@ automation dump_load:
             - timer.dump_plug_6_cooldown
 
   - id: sim_dump_turn_off_bulk
-    alias: Dump load turn off bulk
-    description: Battery wins. Charge not absorption/float for 1 minute (Victron re-bulk scale) turns dumps off even during min-on.
+    alias: Dump load shed while not float
+    description: >
+      T2 MPPT not absorption/float for 1 minute. Shed one dump plug per minute
+      (highest slot first) until float returns or no dump is on. Do not dump-all-off
+      (that would idle PV into float again the same day). Night/storm all-off is
+      solar-gone. Pack protection is re-bulk and dump_batt_*_ok.
     mode: single
     triggers:
       - trigger: state
@@ -806,33 +843,101 @@ automation dump_load:
         entity_id: input_boolean.dump_control_enabled
         state: "on"
     actions:
-      - action: switch.turn_off
-        target:
-          entity_id:
-            - switch.sim_ac_plug_1
-            - switch.sim_ac_plug_2
-            - switch.sim_ac_plug_3
-            - switch.sim_ac_plug_4
-            - switch.sim_ac_plug_5
-            - switch.sim_ac_plug_6
-      - action: timer.cancel
-        target:
-          entity_id:
-            - timer.dump_plug_1_min_on
-            - timer.dump_plug_2_min_on
-            - timer.dump_plug_3_min_on
-            - timer.dump_plug_4_min_on
-            - timer.dump_plug_5_min_on
-            - timer.dump_plug_6_min_on
-      - action: timer.start
-        target:
-          entity_id:
-            - timer.dump_plug_1_cooldown
-            - timer.dump_plug_2_cooldown
-            - timer.dump_plug_3_cooldown
-            - timer.dump_plug_4_cooldown
-            - timer.dump_plug_5_cooldown
-            - timer.dump_plug_6_cooldown
+      - repeat:
+          while:
+            - condition: state
+              entity_id: binary_sensor.dump_charge_float
+              state: "off"
+            - condition: template
+              value_template: "{{ states('sensor.dump_shed_plug') != 'none' }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 6 }}"
+          sequence:
+            - variables:
+                target: "{{ states('sensor.dump_shed_plug') }}"
+                plug_n: "{{ states('sensor.dump_shed_plug').split('_')[-1] }}"
+            - action: switch.turn_off
+              target:
+                entity_id: "{{ target }}"
+            - action: timer.cancel
+              target:
+                entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+            - action: timer.start
+              target:
+                entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
+            - delay: "00:01:00"
+
+  - id: sim_dump_shed_load_exceeds_solar
+    alias: Dump load shed SPH load above site solar
+    description: >
+      Sungold AC-out (Load now, includes dump) greater than site solar for 1 minute.
+      Shed one dump plug per minute so dump tracks solar. Does not switch trailer
+      A/C or other standing loads.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_load_exceeds_solar
+        to: "on"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+    actions:
+      - repeat:
+          while:
+            - condition: state
+              entity_id: binary_sensor.dump_load_exceeds_solar
+              state: "on"
+            - condition: template
+              value_template: "{{ states('sensor.dump_shed_plug') != 'none' }}"
+            - condition: template
+              value_template: "{{ repeat.index <= 6 }}"
+          sequence:
+            - variables:
+                target: "{{ states('sensor.dump_shed_plug') }}"
+                plug_n: "{{ states('sensor.dump_shed_plug').split('_')[-1] }}"
+            - action: switch.turn_off
+              target:
+                entity_id: "{{ target }}"
+            - action: timer.cancel
+              target:
+                entity_id: "timer.dump_plug_{{ plug_n }}_min_on"
+            - action: timer.start
+              target:
+                entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
+            - delay: "00:01:00"
+
+  - id: sim_dump_notify_load_exceeds_solar
+    alias: Dump notify SPH load above site solar 10 min
+    description: >
+      Text when Load now (Sungold AC-out) stays above Solar now for 10 minutes.
+      Default notify.persistent_notification. Set helper dump_notify_service to
+      the Companion action name (mobile_app_<device>) for phone alerts.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_load_exceeds_solar
+        to: "on"
+        for: "00:10:00"
+    actions:
+      - variables:
+          msg: >
+            Load {{ states('sensor.sungold_sph302480a_load_power') }} W has been
+            above solar {{ states('sensor.site_solar_power') }} W for 10 minutes.
+          svc: "{{ states('input_text.dump_notify_service') | trim }}"
+      - action: notify.persistent_notification
+        data:
+          title: Solar load above solar
+          message: "{{ msg }}"
+      - if:
+          - condition: template
+            value_template: "{{ svc not in ['persistent_notification', '', 'unknown', 'unavailable', 'none'] }}"
+        then:
+          - action: "notify.{{ svc }}"
+            data:
+              title: Solar load above solar
+              message: "{{ msg }}"
 
   - id: sim_dump_turn_off_rebulk_t2
     alias: Dump load turn off T2 re-bulk
