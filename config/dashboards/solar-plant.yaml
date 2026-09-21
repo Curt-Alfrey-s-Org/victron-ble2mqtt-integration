@@ -56,8 +56,11 @@ views:
               **Solar** = T2 clamp + Sungold PV + max(0, KU residual).
               KU residual subtracts jumper so T2 watts already in Batt 2 are not KU PV.
               **Charge** = T2+KU+SPH packs (not T2 MPPT output; jumper already in Batt 1/2).
-              **Load** = Sungold AC out (vent fan + LEDs on SPH out; do not add AC-in or jumper).
-              **KU Renogy AC** = max(trailer CT, UTI V×A) for Sungold on KU outlet.
+              **Load** = Sungold AC out = all house watts (T2 RV empty; vent/LED/dump on SPH out).
+              Do not add AC-in or jumper. **Cart to AC out** is 0 while KU UTI feeds
+              the load (mains bypass). Nonzero only if the cart/PV supplies AC-out.
+              **KU Renogy AC** = max(trailer CT, UTI V×A); that is the KU cord into SPH,
+              not house load (cord is a few percent above AC-out).
               **KU PV est** = Batt2 - jumper + KU Renogy AC (not raw Batt2 net).
               **KU share** = KU PV est / 3. **Jumper** = shunt-to-shunt leftover (not extra watts).
               **Sungold AC-in** = trailer CT; cross-check UTI V×A.
@@ -222,6 +225,9 @@ views:
           - type: tile
             entity: sensor.sungold_sph302480a_charging_power
             name: Cart batt
+          - type: tile
+            entity: sensor.sungold_cart_to_load_power
+            name: Cart to AC out
           - type: tile
             entity: sensor.sungold_sph302480a_battery_voltage
             name: Batt V

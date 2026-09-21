@@ -95,6 +95,29 @@ template:
                if is_number(states('sensor.sungold_uti_va_power')) else none }}
           note: max EM16 A3/B3 and SPH grid V*A; inverter DC in >= AC INPUT
 
+      # SPH AC-out is all house loads (T2 Renogy idle). Cart/PV only supply
+      # the surplus of AC-out over KU UTI/CT. 0 in mains bypass.
+      # https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf
+      - name: Sungold cart to load power
+        unique_id: sungold_cart_to_load_power
+        default_entity_id: sensor.sungold_cart_to_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.sungold_sph302480a_load_power')) }}"
+        state: >-
+          {% set load = states('sensor.sungold_sph302480a_load_power') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_load_power')) else 0 %}
+          {% set ku = states('sensor.ku_renogy_ac_load_power') | float(0)
+             if is_number(states('sensor.ku_renogy_ac_load_power')) else 0 %}
+          {{ [load - ku, 0] | max }}
+        attributes:
+          sph_ac_out_w: "{{ states('sensor.sungold_sph302480a_load_power') }}"
+          ku_feed_w: "{{ states('sensor.ku_renogy_ac_load_power') }}"
+          cart_batt_w: "{{ states('sensor.sungold_sph302480a_charging_power') }}"
+          cart_batt_a: "{{ states('sensor.sungold_sph302480a_battery_current') }}"
+          note: max(0, SPH AC-out - KU UTI/CT); 0 means KU feeds the whole house load
+
       # Isolate KU PV: subtract shunt-to-shunt leftover already in Battery 2.
       - name: KU unmetered PV est power
         unique_id: ku_unmetered_pv_est_power

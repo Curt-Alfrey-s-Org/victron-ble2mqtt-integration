@@ -46,6 +46,10 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "sensor.t2_ku_jumper_power" in ku["state"]
     assert "sensor.ku_renogy_ac_load_power" in ku["state"]
     assert "sensor.trailer_outlet_power" not in ku["state"]
+    cart_to_load = by_id["sensor.sungold_cart_to_load_power"]
+    assert "sensor.sungold_sph302480a_load_power" in cart_to_load["state"]
+    assert "sensor.ku_renogy_ac_load_power" in cart_to_load["state"]
+    assert "| max" in cart_to_load["state"]
     assert by_id["sensor.battery_1_charge_power"]["device_class"] == "power"
     assert by_id["sensor.battery_1_discharge_power"]["device_class"] == "power"
     rest_blocks = data.get("rest") or []
@@ -459,6 +463,8 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "sensor.trailer_outlet_power" in sungold_ids
     assert "sensor.sungold_uti_va_power" in sungold_ids
     assert "sensor.sungold_ac_out_va_power" in sungold_ids
+    assert "sensor.sungold_cart_to_load_power" in sungold_ids
+    assert "Cart to AC out" in sungold_names
     assert "sensor.em16_a3_power" in sungold_ids
     assert "sensor.sungold_conversion_loss_power" in sungold_ids
     assert "Sungold AC-in" in sungold_names
