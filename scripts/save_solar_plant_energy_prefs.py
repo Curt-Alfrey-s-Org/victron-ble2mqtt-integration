@@ -65,11 +65,6 @@ ENERGY_SOURCES: list[dict[str, Any]] = [
 
 DEVICE_CONSUMPTION: list[dict[str, Any]] = [
     {
-        "stat_consumption": "sensor.em16_a3_energy_kwh",
-        "stat_rate": "sensor.trailer_outlet_power",
-        "name": "Sungold A/C-in",
-    },
-    {
         "stat_consumption": "sensor.sungold_load_energy_kwh",
         "stat_rate": "sensor.sungold_sph302480a_load_power",
         "name": "Sungold A/C out",
@@ -78,6 +73,7 @@ DEVICE_CONSUMPTION: list[dict[str, Any]] = [
         "stat_consumption": "sensor.sim_dump_energy_kwh",
         "stat_rate": "sensor.sim_dump_load_power",
         "name": "Sim dump",
+        "included_in_stat": "sensor.sungold_load_energy_kwh",
     },
 ]
 

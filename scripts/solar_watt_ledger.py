@@ -87,6 +87,9 @@ def ku_unmetered_pv_residual(
 
     batt2_W ≈ KU_PV + jumper_into_KU - KU_Renogy_DC
     jumper_w is signed T2 to KU positive (solar_W - T2_Renogy - batt1_W).
+    That leftover is already in both SmartShunt nets (shunt-to-shunt on
+    SYSTEM MINUS). Subtract it here so T2-sourced watts in batt2 are not
+    labeled KU PV. Do not add jumper into site solar/charge/load.
     SmartShunt +charge / -discharge:
     https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
 
@@ -238,15 +241,16 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     sg_grid_a = _first_w(states, _SG_GRID_A_IDS)
     sg_load = _first_w(states, _SG_LOAD_IDS)
     sg_ac_in = _va_w(sg_grid_v, sg_grid_a)
-    # UTI passthrough: P = V*I on grid first; if ~0 but A/C out flows, use AC-out
-    # as lower bound (HA REST). Do not use A3/B3 for Sungold AC-in hop W.
-    if sg_ac_in is None or sg_ac_in < 0.5:
+    # Conversion uses SPH grid V*A (0 is valid). Vent/UTI display may use AC-out
+    # when V*A is missing or ~0 so the trailer clamp is not all "vent".
+    uti_hop_w = sg_ac_in
+    if uti_hop_w is None or uti_hop_w < 0.5:
         if sg_load is not None and abs(sg_load) >= 0.5:
-            sg_ac_in = abs(sg_load)
+            uti_hop_w = abs(sg_load)
     vent_fan_w: float | None = None
     vent_unmetered = False
-    if trailer_w is not None and sg_ac_in is not None:
-        vent_fan_w = max(0.0, trailer_w - sg_ac_in)
+    if trailer_w is not None and uti_hop_w is not None:
+        vent_fan_w = max(0.0, trailer_w - uti_hop_w)
     else:
         vent_unmetered = True
 
@@ -277,7 +281,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     )
 
     jumper_abs = abs(jumper_w) if jumper_w is not None else None
-    jumper_note = "estimate solar_W - batt1_W; no jumper clamp"
+    jumper_note = "shunt-to-shunt leftover solar_W - batt1_W; already in batt1 and batt2"
     if jumper_w is not None and jumper_w > 0:
         jumper_note = "T2 to KU; " + jumper_note
     elif jumper_w is not None and jumper_w < 0:
@@ -333,7 +337,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             "trailer_outlet",
             "Trailer outlet",
             trailer_w,
-            (sg_ac_in + vent_fan_w) if (sg_ac_in is not None and vent_fan_w is not None) else None,
+            (uti_hop_w + vent_fan_w) if (uti_hop_w is not None and vent_fan_w is not None) else None,
             note="A3/B3 hot leg splits to Sungold A/C in and cargo-trailer vent fan",
         )
     )
@@ -383,9 +387,9 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         _hop(
             "ac_a3_uti",
             "A/C trailer to SPH",
-            sg_ac_in,
-            sg_ac_in,
-            note="SPH A/C INPUT branch only; A3 residual is vent fan, not this hop loss",
+            uti_hop_w,
+            uti_hop_w,
+            note="UTI display hop (V*A, or AC-out when V*A ~0); conversion uses sungold_ac_in_w",
             vdrop_v=ac_dv,
             vdrop_loss_w=ac_vdw,
             vdrop_incomplete=ac_vd_inc,
@@ -449,6 +453,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "jumper_w": jumper_w,
         "trailer_outlet_w": trailer_w,
         "sungold_ac_in_w": sg_ac_in,
+        "uti_hop_w": uti_hop_w,
         "vent_fan_w": vent_fan_w,
         "ku_renogy_ac_est_w": trailer_w,
         "ku_unmetered_pv_est_w": ku_pv,
@@ -479,6 +484,7 @@ def apply_ledger_to_meta(
     meta["jumper_w"] = ledger["jumper_w"]
     meta["trailer_outlet_w"] = ledger["trailer_outlet_w"]
     meta["sungold_ac_in_w"] = ledger["sungold_ac_in_w"]
+    meta["uti_hop_w"] = ledger["uti_hop_w"]
     meta["vent_fan_w"] = ledger["vent_fan_w"]
     meta["ku_renogy_ac_est_w"] = ledger["ku_renogy_ac_est_w"]
     meta["ku_unmetered_pv_est_w"] = ledger["ku_unmetered_pv_est_w"]

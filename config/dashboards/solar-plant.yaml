@@ -23,7 +23,8 @@ views:
           **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
           outlet clamp. Not cargo LED/vent tiles.
           **KU PV est.** may be negative at night (balance residual). Do not add A3
-          as utility grid.
+          as utility grid. **Jumper** is shunt-to-shunt (already in Batt 1 and Batt 2);
+          do not add it to Solar / Charge / Load.
     badges:
       - type: entity
         entity: sensor.battery_1_state_of_charge
@@ -52,10 +53,14 @@ views:
             heading: Site totals
           - type: markdown
             content: >
-              **Solar** = T2 clamp + Sungold PV + KU est (night KU >= 0).
-              **Charge** = T2+KU+SPH packs (not T2 MPPT output).
-              **Load** = Sungold AC out (includes dump; do not add dump or AC-in).
+              **Solar** = T2 clamp + Sungold PV + max(0, KU residual).
+              KU residual subtracts jumper so T2 watts already in Batt 2 are not KU PV.
+              **Charge** = T2+KU+SPH packs (not T2 MPPT output; jumper already in Batt 1/2).
+              **Load** = Sungold AC out (same entity; do not add dump, AC-in, or jumper).
+              **KU share** = KU PV est / 3. **Jumper** = shunt-to-shunt leftover (not extra watts).
+              **Sungold AC-in** = trailer clamp. **UTI V×A** is SPH grid P=VI.
               **Today** = statistic change this calendar day.
+              If Load now != Sungold AC out, re-seed Site solar Lovelace.
             grid_options:
               columns: full
           - type: tile
@@ -244,8 +249,14 @@ views:
             entity: sensor.trailer_outlet_power
             name: Sungold AC-in
           - type: tile
+            entity: sensor.sungold_uti_va_power
+            name: UTI V times A
+          - type: tile
             entity: sensor.sungold_sph302480a_load_power
             name: Sungold AC out
+          - type: tile
+            entity: sensor.sungold_ac_out_va_power
+            name: AC out V times A
           - type: tile
             entity: sensor.em16_a3_power
             name: Trailer CT A3

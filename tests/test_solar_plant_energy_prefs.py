@@ -27,13 +27,16 @@ def test_energy_prefs_have_no_grid_or_ku_share_solar() -> None:
     assert solar["stat_rate"] == "sensor.solar_controller_solar"
     assert payload["device_consumption_water"] == []
     consumption = {row["stat_consumption"] for row in payload["device_consumption"]}
-    assert "sensor.em16_a3_energy_kwh" in consumption
+    assert "sensor.em16_a3_energy_kwh" not in consumption
     assert "sensor.sungold_load_energy_kwh" in consumption
     assert "sensor.sim_dump_energy_kwh" in consumption
     rates = {row["stat_rate"] for row in payload["device_consumption"]}
-    assert "sensor.trailer_outlet_power" in rates
+    assert "sensor.trailer_outlet_power" not in rates
     names = {row["name"] for row in payload["device_consumption"]}
-    assert "Sungold A/C-in" in names
+    assert "Sungold A/C-in" not in names
+    assert "Sungold A/C out" in names
     assert "Trailer A/C" not in names
     assert "sensor.em16_a3_power" not in rates
     assert "sensor.ku_charger_equal_share_power" not in rates
+    dump = next(row for row in payload["device_consumption"] if row["name"] == "Sim dump")
+    assert dump["included_in_stat"] == "sensor.sungold_load_energy_kwh"

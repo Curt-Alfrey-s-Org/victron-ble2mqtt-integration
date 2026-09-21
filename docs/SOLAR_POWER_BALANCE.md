@@ -41,11 +41,15 @@ panel → B3 → outlet → vent fan. PWM and Renogy
 inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
 Do not merge Sungold D/C into T2/KU. Do not print 2× T2 watts as live KU Victron.
 Dashboard hop policy: KU Renogy tile shows **0 W** (no HA inverter entity; never `-- W`).
-**T2-KU jumper** on the Overview is an **estimate** (`solar_W - T2_Renogy_W - batt1_W`,
-signed; T2 Renogy **0 W** while idle). Negative Battery 1 W with idle T2 Renogy means
-current is leaving T2 through the jumper toward the KU bus (KU Renogy / trailer A/C),
-not into the T2 RV outlet. The SmartShunt still does **not** measure jumper amps
-([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
+**T2-KU jumper** is **shunt to shunt** (SYSTEM MINUS of HQ2239CQYT2 to SYSTEM MINUS of
+HQ2239JTRKU). Victron counts everything after the shunt
+([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)
+step 2): T2→KU current is already in **Battery 1** (load) and **Battery 2** (charge).
+There is no third clamp. The Lovelace jumper tile is the T2 leftover identity
+`solar_W - T2_Renogy_W - batt1_W` (T2 Renogy **0 W** while idle), signed **+ = T2→KU**.
+Do **not** add that tile into Solar now, Charge now, or Load now -- Batt 1 + Batt 2 already
+carry the transfer (lossless jumper cancels in the sum). Negative Battery 1 W with idle T2
+Renogy means current is leaving T2 through the jumper toward KU, not into the T2 RV outlet.
 **A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). When A3 shows load, **every
 downstream hop** on that path carries the same magnitude until the outlet split (panel →
 B3 → outlet). **B3** = breaker feeding the trailer outlet (`path-panel-b3` / `path-b3-outlet`).
@@ -69,7 +73,7 @@ Eight suitcase panels total: **6** on the three Victron chargers, **2** on the P
 | LiTime 24 V 230 Ah | T2 and KU | One pack per bus. Nominal **25.6 V**, **230 Ah**, **5888 Wh**, charge **28.8 V +/- 0.4 V** ([LiTime 24V 230Ah](https://www.litime.com/products/24v-230ah-truck-lithium-battery)). |
 | SmartShunt HQ2239CQYT2 | T2 | Battery 1. Tracks charger 1. |
 | SmartShunt HQ2239JTRKU | KU | Battery 2. Net of chargers 2+3 + PWM minus KU Renogy. |
-| Batt jumper T2-KU | both | Operator: on because the T2 **30A RV is not connected**. Intended to dump T2 charge into KU. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages match under load. |
+| Batt jumper T2-KU | both | Operator: on because the T2 **30A RV is not connected**. **Shunt to shunt** (each SYSTEM MINUS); watts already in Battery 1 and Battery 2. Intended to dump T2 charge into KU. Nameplate 2P **460 Ah / ~11.8 kWh** only if voltages match under load. |
 | Renogy 2 kW (T2) | T2 | 30A RV outlet. Idle if no RV. |
 | Renogy 2 kW (KU) | KU | Cargo trailer + optional RV, via ATS then manual TS. **This is the path for fan, dehumidifier, and alfa-ai hosts** in the 10-11 Sep EM16 shots. |
 | EM16 A3 | **Panel hot leg** (16 Sep evening) | Feeds cargo-trailer outlets through the panel. **15 Sep:** same 10.40 A as Sungold `AC INPUT` (~1190 W). **Do not add B2** (B2 is the return of A3). 10-11 Sep shots used A3 as KU trailer AC -- do not mix those tables with 15 Sep. |
@@ -100,7 +104,7 @@ Do **not** invent a site derate from these two panels. Revisit only if T2 peak/y
 
 The jumper is **not** "these two packs were always one bank." It is there so T2's charger can help KU while the T2 RV outlet is empty.
 
-Victron's one-bank diagram is still: all battery negatives on a bus, **one** shunt, chargers/loads on SYSTEM MINUS ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)). Two shunts plus a jumper will not show batt-to-batt amps.
+Victron's **one-bank** diagram is: all battery negatives on a bus, **one** shunt, chargers/loads on SYSTEM MINUS ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)). This site is **two banks, two shunts**, with the jumper on **SYSTEM MINUS to SYSTEM MINUS**. That transfer **is** in both SmartShunt nets (T2 sees load, KU sees charge). It is not a Victron one-bank parallel on BATTERY MINUS (that layout would hide jumper amps from the shunt).
 
 If the jumper were low-R on **both** poles, T2 and KU voltages would stay within tens of millivolts. They did not:
 
@@ -136,7 +140,7 @@ What each SmartShunt shows ([operation](https://www.victronenergy.com/media/pg/S
 
 - **Only net current of that LiTime.**
 - **Not** MPPT-to-Renogy current that stays on that bus (absorb/float: shunt toward **0 A** while solar still feeds that inverter).
-- **Not** current in the T2-KU jumper.
+- **Does** include T2-KU jumper current (shunt-to-shunt on SYSTEM MINUS). There is still no dedicated jumper ammeter; the leftover identity `solar_W - batt1_W` *names* that transfer.
 - **Not** the PWM string as its own number (it is folded into KU battery net).
 
 Charger-to-inverter watts: **MPPT solar** (T2 = reporter; KU Victron = 2x reporter) and **EM16** on the AC side. PWM is extra on KU and unmetered. `DC_leftover` below is an estimate, not a clamp.
@@ -176,8 +180,10 @@ SmartShunt Battery 2 is **net** of KU chargers 2+3 + PWM + jumper minus KU Renog
 ```
 batt2_W ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
 KU_PV_DC ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
-jumper_into_KU ≈ solar_W − T2_Renogy_W − batt1_W   # + = T2 to KU; T2 Renogy 0 W while idle
+jumper_into_KU ≈ solar_W − T2_Renogy_W − batt1_W   # leftover identity; already in both shunts
 ```
+
+Subtract jumper when isolating **KU PV** so T2-sourced watts that already arrived in Battery 2 are not labeled KU generation. Do **not** add jumper into site Solar / Charge / Load -- Charge now is pack nets (jumper cancels in Batt1+Batt2).
 
 **Live HA cannot clamp `KU_Renogy_DC`.** There is no inverter DC entity. EM16 A3 is trailer
 **A/C** (Sungold + vent). That A/C is still the KU Renogy **load**: if A3 is 25 W, Battery 2
@@ -216,21 +222,56 @@ lower bound above.
 **Sungold cart (15 Sep, AC charge, PV = 0)** -- LCD names from the SPH302480A manual ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1). `INPUT BATT` is battery **input** power; `INV OUTPUT LOAD KW` is AC load; `AC INPUT` is mains. HA **Output mode** `4` is not in the sidecar lookup (0-3 only) -- leave it as the raw integer ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)).
 
 ```
-SG_AC_in   = utiHopW(SG_grid V×A, SG_load_active_power)   # passthrough; do NOT use A3
+SG_AC_in   = |SG_grid V × A|                   # reprint AC INPUT; 0 is valid (inverting)
 SG_batt_in = Sungold battery input power       # LCD INPUT BATT KW (Boost charge = charging)
 SG_AC_out  = Sungold load active power         # LCD INV OUTPUT LOAD KW (total A/C-out outlet)
 SG_PV      = Sungold PV output power
 trailer_outlet_W = |EM16 B3| if B3 >= 0.5 W else |EM16 A3|
+utiHopW    = SG_AC_in if SG_AC_in >= 0.5 W else SG_AC_out   # vent split / UTI display only
 vent_fan_W = max(0, trailer_outlet_W - utiHopW)   # sibling on KU trailer outlet; load not loss
-SG_loss    = (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out
+SG_loss    = max(0, (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out)
 ```
 
-**`utiHopW` (17 Sep):** let `grid_w = SG_grid V × A`. If `grid_w` ≥ 0.5 W, use `grid_w`.
-Else if `SG_AC_out` ≥ 0.5 W (Pi4 on A/C out), UTI must show at least the power feeding
-that load (use `SG_AC_out` plus a small conversion allowance — do not show **0 W** on UTI
-while A/C out is ~5 W). Never substitute \|A3\| for UTI hop W.
+**`SG_AC_in` vs `utiHopW`:** conversion loss uses **SPH grid V×A only**.
+`0 W` is a real AC INPUT while the hybrid is inverting
+([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1).
+Do **not** substitute `SG_AC_out` into `SG_loss` -- that identity is
+`(AC_out + PV) - batt - AC_out = PV` and reports PV as conversion loss.
 
-**A3 downstream (17 Sep):** when \|A3\| ≥ 0.5 W, KU Renogy → panel → B3 → outlet hops
+**`utiHopW` (17 Sep, vent / UTI display only):** let `grid_w = SG_grid V × A`.
+If `grid_w` >= 0.5 W, use `grid_w`. Else if `SG_AC_out` >= 0.5 W (Pi4 on A/C out),
+use `SG_AC_out` so the vent split is not the whole trailer clamp. Never substitute
+\|A3\| for UTI hop W. Never feed this fallback into `SG_loss`.
+
+### Site totals vs Sungold (21 Sep 2026 shot)
+
+Live Site solar tiles vs git identities (same moment as Instant W / Sungold tiles).
+SPH AC-out V×A and both SmartShunt V×A close. The rest does **not**.
+
+| Identity | Git formula | Shot | Holds? |
+|----------|-------------|------|--------|
+| SPH AC-out | LCD load W vs `AC out V × Load A` | 324.8 vs 120.4 × 2.7 = 325.1 | Yes |
+| Battery 2 | shunt W vs `V × A` | -75.2 vs 26.6 × -2.8 = -74.5 | Yes |
+| Battery 1 | shunt W vs `V × A` | T2 **Jumper to KU** showed 41.9 = 27.9 × 1.5 | Tile mixup: that is Batt 1 W |
+| Jumper | Shunt-to-shunt leftover `T2 solar - batt1` (already in both shunts; T2 tile = `-` KU tile) | formula **185.7 W**; KU tile **248.3** (looks like leftover + \|A3\|); T2 tile **41.9** (Batt 1 W) | Tile mixup; do not add jumper to Solar/Charge/Load |
+| Trailer / AC-in | `\|B3\|` if >= 0.5 else `\|A3\|` | B3 0, A3 -62.5 → 62.5; tile **Sungold AC-in 653.4** | No (653 ≈ UTI V×A) |
+| KU PV est | `batt2 - jumper + trailer` | -75.2 - 185.7 + 62.5 = **-198.4**; tile **136.1** | No |
+| KU share | KU PV / 3 | tile **136.1** (same as KU PV) | No (share must be /3) |
+| Site solar | T2 + SPH PV + max(0, KU est) | 227.6 + 107.2 + 0 = **334.8**; tile **147** | No |
+| Site load | SPH `load_power` (same as Sungold AC out) | AC-out **324.8**; Load now **656.5** ≈ AC-in 653.4 ≈ Instant W sum 659.6 | No |
+| Site charge | batt1+ + batt2+ + SPH charge+ | batt1 ~41.9; tile **1** | No |
+| SG_loss if AC-in = V×A 653 | (653 + 107) - 0 - 325 | **435 W** (meter disagree vs A3 62.5) | Do not treat as physics |
+
+**Energy `power-sankey` home** was summing individual devices **Sungold A/C-in + A/C out + dump**
+([individual devices](https://www.home-assistant.io/docs/energy/individual-devices/)).
+That is the cord plus INV OUTPUT, so house watts read ~2× SPH load. AC-in is **not**
+a house-load device. Dump is nested under AC-out via `included_in_stat`
+([HA energy `DeviceConsumption`](https://github.com/home-assistant/core/blob/master/homeassistant/components/energy/data.py)).
+
+Re-seed Site solar Lovelace after package install if Load now ≠ Sungold AC out or
+KU PV est = KU share est ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
+
+**A3 downstream (17 Sep):** when \|A3\| >= 0.5 W, KU Renogy → panel → B3 → outlet hops
 display that magnitude until the split; vent and UTI branches split from `trailer_outlet_W`.
 
 **Cart tare (17 Sep):** cart battery **0.1 A** (or similar) while SPH is on **UTI/grid**
@@ -277,7 +318,7 @@ surplus_after_path_losses_w = surplus_w - combined_path_losses_w
 ```
 
 - **T2 MPPT:** `solar_W - charging_power - load_power` when charging_power is present. If charging_power is 0/missing while the T2-KU jumper estimate is flowing, skip MPPT conversion loss (the bus is carrying watts the charge sensor did not report).
-- **T2-KU jumper:** `solar_W - batt1_W` (signed estimate; no clamp). Not a conversion hop.
+- **T2-KU jumper:** leftover `solar_W - batt1_W` (shunt-to-shunt; already in Batt 1 and Batt 2). Not a conversion hop and not extra site watts.
 - **KU Victron + PWM D/C:** tiles show equal-share **est.** of the combined
   lower bound (batt2 − jumper + |A3|); that estimate is **not** in `combined_losses_w`.
 - Dump-load ON/OFF in alfa-ai and this dashboard uses `surplus_after_path_losses_w` ([Morningstar diversion §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf) -- divert excess source energy after the battery is full).
@@ -293,7 +334,7 @@ Battery 2 is **net** of KU Victron 2+3 + PWM + jumper minus KU Renogy DC
 ```
 batt2_W    ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
 KU_PV_DC   ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
-jumper_est ≈ T2_solar − T2_Renogy − batt1_W     # T2 Renogy 0 W while idle; + = T2 to KU
+jumper_est ≈ T2_solar − T2_Renogy − batt1_W     # shunt-to-shunt leftover; + = T2 to KU
 ```
 
 That combined residual is the only KU PV estimate, and **live HA has no KU Renogy DC
@@ -301,6 +342,7 @@ clamp.** EM16 A3 is trailer **A/C** (Sungold + vent) and is still the KU Renogy 
 Battery 2 **load** = hop Battery 2 to Renogy = |A3| (DC in >= AC out; no invented
 efficiency). Do **not** paint SmartShunt net (e.g. +276 W charge) on that hop.
 `ku_unmetered_pv_est_w` = batt2 − jumper + |A3| is a **combined lower bound** only.
+Subtract jumper so T2-sourced shunt-to-shunt watts in Battery 2 are not labeled KU PV.
 If A3 is missing, residual stays **None** (do not substitute 0).
 `(batt2 + load) / 3` **drops the jumper** (276+25 → 100.3 W each vs 376/3 ≈ 125 W).
 

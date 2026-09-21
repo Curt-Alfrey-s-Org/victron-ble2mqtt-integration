@@ -4,7 +4,7 @@
 #           https://www.home-assistant.io/integrations/integration/
 #           https://www.home-assistant.io/integrations/rest/
 #           https://www.home-assistant.io/docs/configuration/packages/
-# Physics: docs/SOLAR_POWER_BALANCE.md (jumper est., KU equal-share est.)
+# Physics: docs/SOLAR_POWER_BALANCE.md (jumper shunt-to-shunt leftover, KU equal-share est.)
 # NWS: https://www.weather.gov/documentation/services-web-api (User-Agent required)
 # This package is read-only sensors. Dump on/off is sim_dump_control.yaml.
 
@@ -37,6 +37,10 @@ template:
         state_class: measurement
         availability: "{{ is_number(states('sensor.solar_controller_solar')) and is_number(states('sensor.battery_1_power')) }}"
         state: "{{ (states('sensor.solar_controller_solar') | float(0)) - (states('sensor.battery_1_power') | float(0)) }}"
+        attributes:
+          t2_solar_w: "{{ states('sensor.solar_controller_solar') | float(0) }}"
+          batt1_w: "{{ states('sensor.battery_1_power') | float(0) }}"
+          note: shunt-to-shunt leftover; already in batt1 and batt2
 
       # T2 glance sign only. Canonical jumper stays + = T2->KU for KU PV / History.
       # https://www.home-assistant.io/integrations/template/
@@ -65,6 +69,7 @@ template:
             unknown
           {% endif %}
 
+      # Isolate KU PV: subtract shunt-to-shunt leftover already in Battery 2.
       - name: KU unmetered PV est power
         unique_id: ku_unmetered_pv_est_power
         default_entity_id: sensor.ku_unmetered_pv_est_power
@@ -145,29 +150,47 @@ template:
             0
           {% endif %}
 
-      # Sungold: SG_loss = (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out (nonnegative).
+      # Sungold: SG_loss = (UTI V*A + SG_PV) - SG_batt_in - SG_AC_out (nonnegative).
+      # 0 V*A is valid AC INPUT while inverting. Do not substitute AC-out.
+      # https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf
+      - name: Sungold UTI V times A
+        unique_id: sungold_uti_va_power
+        default_entity_id: sensor.sungold_uti_va_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.sungold_sph302480a_grid_voltage'))
+             and is_number(states('sensor.sungold_sph302480a_grid_current')) }}
+        state: >-
+          {{ ((states('sensor.sungold_sph302480a_grid_voltage') | float(0))
+              * (states('sensor.sungold_sph302480a_grid_current') | float(0))) | abs }}
+
+      - name: Sungold AC out V times A
+        unique_id: sungold_ac_out_va_power
+        default_entity_id: sensor.sungold_ac_out_va_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.sungold_sph302480a_ac_output_voltage'))
+             and is_number(states('sensor.sungold_sph302480a_load_current')) }}
+        state: >-
+          {{ ((states('sensor.sungold_sph302480a_ac_output_voltage') | float(0))
+              * (states('sensor.sungold_sph302480a_load_current') | float(0))) | abs }}
+
       - name: Sungold conversion loss
         unique_id: sungold_conversion_loss_power
         default_entity_id: sensor.sungold_conversion_loss_power
         unit_of_measurement: W
         device_class: power
         state_class: measurement
-        availability: >-
-          {{ is_number(states('sensor.sungold_sph302480a_grid_voltage'))
-             or is_number(states('sensor.sungold_sph302480a_load_power')) }}
+        availability: "{{ is_number(states('sensor.sungold_uti_va_power')) }}"
         state: >-
-          {% set gv = states('sensor.sungold_sph302480a_grid_voltage') | float(0)
-             if is_number(states('sensor.sungold_sph302480a_grid_voltage')) else none %}
-          {% set ga = states('sensor.sungold_sph302480a_grid_current') | float(0)
-             if is_number(states('sensor.sungold_sph302480a_grid_current')) else none %}
+          {% set sg_ac_in = states('sensor.sungold_uti_va_power') | float(0)
+             if is_number(states('sensor.sungold_uti_va_power')) else none %}
           {% set sg_load = states('sensor.sungold_sph302480a_load_power') | float(0)
              if is_number(states('sensor.sungold_sph302480a_load_power')) else none %}
-          {% set sg_ac_in = ((gv * ga) | abs) if gv is not none and ga is not none else none %}
-          {% if sg_ac_in is none or sg_ac_in < 0.5 %}
-            {% if sg_load is not none and (sg_load | abs) >= 0.5 %}
-              {% set sg_ac_in = sg_load | abs %}
-            {% endif %}
-          {% endif %}
           {% set sg_pv = states('sensor.sungold_sph302480a_pv_power') | float(0)
              if is_number(states('sensor.sungold_sph302480a_pv_power')) else 0 %}
           {% set sg_batt = states('sensor.sungold_sph302480a_charging_power') | float(0)
@@ -210,6 +233,19 @@ template:
                 if is_number(states('sensor.sungold_sph302480a_pv_power')) else 0)
              + ([states('sensor.ku_unmetered_pv_est_power') | float(0)
                 if is_number(states('sensor.ku_unmetered_pv_est_power')) else 0, 0] | max) }}
+        attributes:
+          t2_w: >-
+            {{ states('sensor.solar_controller_solar') | float(0)
+               if is_number(states('sensor.solar_controller_solar')) else 0 }}
+          sph_pv_w: >-
+            {{ states('sensor.sungold_sph302480a_pv_power') | float(0)
+               if is_number(states('sensor.sungold_sph302480a_pv_power')) else 0 }}
+          ku_est_w: >-
+            {{ states('sensor.ku_unmetered_pv_est_power') | float(0)
+               if is_number(states('sensor.ku_unmetered_pv_est_power')) else 0 }}
+          ku_clamped_w: >-
+            {{ [states('sensor.ku_unmetered_pv_est_power') | float(0)
+                if is_number(states('sensor.ku_unmetered_pv_est_power')) else 0, 0] | max }}
 
       - name: Site charge power
         unique_id: site_charge_power

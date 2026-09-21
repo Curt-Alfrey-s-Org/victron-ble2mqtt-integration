@@ -90,7 +90,8 @@ def test_vent_fan_residual_matches_trailer_minus_uti_hop() -> None:
         ),
     }
     ledger = build_watt_ledger(states)
-    assert ledger["sungold_ac_in_w"] == 5.0
+    assert ledger["sungold_ac_in_w"] == 0.0
+    assert ledger["uti_hop_w"] == 5.0
     assert ledger["vent_fan_w"] == 20.0
     hops = {h["id"]: h for h in ledger["watt_hops"]}
     assert hops["vent_fan"]["watts_in"] == 20.0
@@ -110,9 +111,11 @@ def test_sungold_ac_in_passthrough_from_load_when_grid_va_zero() -> None:
         ),
     }
     ledger = build_watt_ledger(states)
-    assert ledger["sungold_ac_in_w"] == 5.0
+    assert ledger["sungold_ac_in_w"] == 0.0
+    assert ledger["uti_hop_w"] == 5.0
     hops = {h["id"]: h for h in ledger["watt_hops"]}
     assert hops["ac_a3_uti"]["watts_in"] == 5.0
+    assert hops["sungold"]["watts_in"] == 0.0
 
 
 def test_combined_path_losses_and_vent_fan_not_conversion() -> None:

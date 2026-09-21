@@ -28,6 +28,9 @@ def test_package_pins_jumper_and_ku_share() -> None:
     jumper = by_id["sensor.t2_ku_jumper_power"]
     assert "sensor.solar_controller_solar" in jumper["state"]
     assert "sensor.battery_1_power" in jumper["state"]
+    assert "trailer_outlet" not in jumper["state"]
+    assert "t2_solar_w" in (jumper.get("attributes") or {})
+    assert "shunt-to-shunt" in str((jumper.get("attributes") or {}).get("note", ""))
     jumper_t2 = by_id["sensor.t2_ku_jumper_at_t2_power"]
     assert "sensor.t2_ku_jumper_power" in jumper_t2["state"]
     assert jumper_t2["state"].lstrip().startswith("{{ -(") or "-(" in jumper_t2["state"]
@@ -58,16 +61,31 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "| max" in t2_loss["state"]
     sg_loss = by_id["sensor.sungold_conversion_loss_power"]
     assert "sensor.sungold_sph302480a_charging_power" in sg_loss["state"]
+    assert "sensor.sungold_uti_va_power" in sg_loss["state"]
+    assert "sg_ac_in = sg_load" not in sg_loss["state"]
+    uti_va = by_id["sensor.sungold_uti_va_power"]
+    assert "grid_voltage" in uti_va["state"]
+    assert "grid_current" in uti_va["state"]
+    ac_out_va = by_id["sensor.sungold_ac_out_va_power"]
+    assert "ac_output_voltage" in ac_out_va["state"]
+    assert "load_current" in ac_out_va["state"]
     site_solar = by_id["sensor.site_solar_power"]
     assert "sensor.solar_controller_solar" in site_solar["state"]
     assert "sensor.sungold_sph302480a_pv_power" in site_solar["state"]
     assert "sensor.ku_unmetered_pv_est_power" in site_solar["state"]
+    assert "sensor.t2_ku_jumper_power" not in site_solar["state"]
     assert "| max" in site_solar["state"]
+    solar_attrs = site_solar.get("attributes") or {}
+    assert "t2_w" in solar_attrs
+    assert "sph_pv_w" in solar_attrs
+    assert "ku_est_w" in solar_attrs
+    assert "ku_clamped_w" in solar_attrs
     site_charge = by_id["sensor.site_charge_power"]
     assert "sensor.battery_1_charge_power" in site_charge["state"]
     assert "sensor.battery_2_charge_power" in site_charge["state"]
     assert "sensor.sungold_sph302480a_charging_power" in site_charge["state"]
     assert "sensor.solar_controller_charging_power" not in site_charge["state"]
+    assert "sensor.t2_ku_jumper_power" not in site_charge["state"]
     assert "| max" in site_charge["state"]
 
 
@@ -225,6 +243,8 @@ def test_dashboard_uses_official_cards_only() -> None:
         "sensor.site_charge_power",
         "sensor.sungold_sph302480a_load_power",
     }
+    load_now = next(t for t in site_tiles if t["name"] == "Load now")
+    assert load_now["entity"] == "sensor.sungold_sph302480a_load_power"
     pair_types = [c["type"] for c in site_cards if c.get("type") in ("tile", "statistic")]
     assert pair_types == [
         "tile",
@@ -307,6 +327,11 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "LED+fan" not in ku_names
     assert "sensor.ku_charger_equal_share_power" in ku_ids
     assert "sensor.t2_ku_jumper_power" in ku_ids
+    ku_pv_tile = next(t for t in ku_tiles if t["name"] == "KU PV est.")
+    ku_share_tile = next(t for t in ku_tiles if t["name"] == "KU share est.")
+    assert ku_pv_tile["entity"] == "sensor.ku_unmetered_pv_est_power"
+    assert ku_share_tile["entity"] == "sensor.ku_charger_equal_share_power"
+    assert ku_pv_tile["entity"] != ku_share_tile["entity"]
     assert "sensor.trailer_outlet_power" not in ku_ids
     assert not any(c.get("title") == "Conversion losses" for c in cards)
     assert not any(c.get("type") == "gauge" for c in cards)
@@ -419,10 +444,14 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "binary_sensor.sungold_sph302480a_fault_active" in sungold_ids
     assert "sensor.sungold_sph302480a_load_power" in sungold_ids
     assert "sensor.trailer_outlet_power" in sungold_ids
+    assert "sensor.sungold_uti_va_power" in sungold_ids
+    assert "sensor.sungold_ac_out_va_power" in sungold_ids
     assert "sensor.em16_a3_power" in sungold_ids
     assert "sensor.sungold_conversion_loss_power" in sungold_ids
     assert "Sungold AC-in" in sungold_names
     assert "Sungold AC out" in sungold_names
+    ac_out = next(t for t in sungold_tiles if t["name"] == "Sungold AC out")
+    assert ac_out["entity"] == "sensor.sungold_sph302480a_load_power"
     assert "Trailer CT A3" in sungold_names
     assert "Sungold breaker" in sungold_names
     assert "A3 hot leg" not in sungold_names
@@ -436,6 +465,11 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert "Jumper to KU" in t2_names
     assert "sensor.t2_ku_jumper_at_t2_power" in t2_ids
     assert "sensor.t2_ku_jumper_power" not in t2_ids
+    jumper_t2 = next(t for t in t2_tiles if t["name"] == "Jumper to KU")
+    batt1_w = next(t for t in t2_tiles if t["name"] == "Batt 1 W")
+    assert jumper_t2["entity"] == "sensor.t2_ku_jumper_at_t2_power"
+    assert batt1_w["entity"] == "sensor.battery_1_power"
+    assert jumper_t2["entity"] != batt1_w["entity"]
     assert not any(c.get("title") == "Sungold cart" for c in cards)
     assert not any(c.get("title") == "Sungold AC" for c in cards)
     for graph in [c for c in cards if c.get("type") in ("history-graph", "statistics-graph")]:
