@@ -42,12 +42,12 @@ Vendor dump/diversion role: Morningstar TriStar [Diversion Manual §6.0](https:/
 | | |
 |---|---|
 | **Is** | HA YAML: `input_boolean` + template switches + optional mapped power sensors |
-| **Is** | Confirm = SPH AC-out / T2 / KU pack sign after `dump_site_confirm_s` |
+| **Is** | Confirm = Sungold AC-out / T2 / KU pack sign after `dump_site_confirm_s` |
 | **Is not** | A typed watt rating, HACS Govee plugin, or Lovelace scraping |
 | **Is not** | Loaded until the operator copies the package onto `.105` and restarts HA |
 
 Dump **on/off** and staged add live in [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md).
-HA confirms **site load delta** (SPH `sensor.sungold_sph302480a_load_power`;
+HA confirms **site load delta** (Sungold `sensor.sungold_sph302480a_load_power`;
 T2/KU signed pack power) after `dump_site_confirm_s` before adding another plug.
 Inverter assignment is `input_select.dump_plug_N_inverter`.
 

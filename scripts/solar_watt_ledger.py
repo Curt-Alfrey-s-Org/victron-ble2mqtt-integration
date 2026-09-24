@@ -7,7 +7,7 @@ combined loss total is incomplete until those strings have HA power.
 
 Formula source: victron docs/SOLAR_POWER_BALANCE.md. SmartShunt sign:
 https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
-SPH energy split: reprint §4.1 AC INPUT + PV vs battery input + INV OUTPUT LOAD.
+Sungold energy split: reprint §4.1 AC INPUT + PV vs battery input + INV OUTPUT LOAD.
 """
 
 from __future__ import annotations
@@ -241,7 +241,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     sg_grid_a = _first_w(states, _SG_GRID_A_IDS)
     sg_load = _first_w(states, _SG_LOAD_IDS)
     sg_ac_in = _va_w(sg_grid_v, sg_grid_a)
-    # Conversion uses SPH grid V*A (0 is valid). Vent/UTI display may use AC-out
+    # Conversion uses Sungold grid V*A (0 is valid). Vent/UTI display may use AC-out
     # when V*A is missing or ~0 so the trailer clamp is not all "vent".
     uti_hop_w = sg_ac_in
     if uti_hop_w is None or uti_hop_w < 0.5:
@@ -250,7 +250,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     trailer_w: float | None = None
     if trailer_ct_w is not None or uti_hop_w is not None:
         trailer_w = max(trailer_ct_w or 0.0, uti_hop_w or 0.0)
-    # Operator 2026-09-21: cargo vent fan and LEDs on SPH AC out (not A3 sibling).
+    # Operator 2026-09-21: cargo vent fan and LEDs on Sungold AC out (not A3 sibling).
     vent_fan_w: float | None = 0.0
     vent_unmetered = False
 
@@ -338,7 +338,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             "Trailer outlet",
             trailer_w,
             uti_hop_w,
-            note="max(A3/B3 CT, SPH UTI V*A); Sungold-only on KU Renogy outlet",
+            note="max(A3/B3 CT, Sungold UTI V*A); Sungold-only on KU Renogy outlet",
         )
     )
     hops.append(
@@ -348,7 +348,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             vent_fan_w,
             vent_fan_w,
             unmetered=vent_unmetered,
-            note="Vent fan and LEDs on SPH AC out since 2026-09-21; not on A3 sibling",
+            note="Vent fan and LEDs on Sungold AC out since 2026-09-21; not on A3 sibling",
         )
     )
 
@@ -358,7 +358,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         sg_in = sg_ac_in + (sg_pv or 0.0)
         if sg_batt is not None or sg_load is not None:
             sg_out = (sg_batt or 0.0) + (sg_load or 0.0)
-    sg_batt_note = "SPH A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3"
+    sg_batt_note = "Sungold A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3"
     if (
         sg_grid_v is not None
         and sg_grid_v > 50
@@ -373,7 +373,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     hops.append(
         _hop(
             "sungold",
-            "Sungold SPH",
+            "Sungold",
             sg_in,
             sg_out,
             note=sg_batt_note,
@@ -382,7 +382,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     hops.append(
         _hop(
             "ac_a3_uti",
-            "A/C trailer to SPH",
+            "A/C trailer to Sungold",
             uti_hop_w,
             uti_hop_w,
             note="UTI display hop (V*A, or AC-out when V*A ~0); conversion uses sungold_ac_in_w",
@@ -395,7 +395,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     hops.append(
         _hop(
             "pi4",
-            "Pi4 on SPH A/C out",
+            "Pi4 on Sungold A/C out",
             sg_load,
             sg_load,
             unmetered=True,

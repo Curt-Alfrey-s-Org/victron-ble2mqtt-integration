@@ -139,7 +139,7 @@ Official: [SunGoldPower SPH302480A product page](https://sungoldpower.com/produc
 | Battery input voltage | LCD `INPUT BATT V` |
 | Input battery current | LCD `INPUT BATT A` |
 | Battery temperature | Not an LCD page; SRNE holding register (keep as diagnostic) |
-| Charge state | CHARGE LED (charging / charging completed) plus setup boost / constant-voltage / floating; Modbus integers are SRNE-class, not printed in the SPH manual |
+| Charge state | CHARGE LED (charging / charging completed) plus setup boost / constant-voltage / floating; Modbus integers are SRNE-class, not printed in the Sungold manual |
 | Battery input power | LCD `INPUT BATT KW` |
 | Output mode | AC/INV LED: Mains output / Inverter output. LCD does not name Initialization / Standby; unknown codes publish as the raw integer |
 | Inverter error flags | Not an LCD page; SRNE diagnostic |
@@ -160,7 +160,7 @@ Not published for this model (manual + this hardware):
 - **PV total power** — one PV port / one MPPT (`PV+` / `PV-` only).
 - **Grid power** — SPH302480A rejected holding register `0x023A` (illegal data address).
 - **Transformer temperature** — product is **high frequency transformer-less**.
-- LCD pages **OUTPUT BATT A / KW** and **OUTPUT LOAD KVA** — no verified Modbus address in the SPH manual (manual does not publish a map).
+- LCD pages **OUTPUT BATT A / KW** and **OUTPUT LOAD KVA** — no verified Modbus address in the Sungold manual (manual does not publish a map).
 
 Slave **illegal request** (unsupported address) still **skips** that register for `MODBUS_SKIP_RETRY_INTERVAL` ([IllegalRequestError](https://minimalmodbus.readthedocs.io/en/stable/apiminimalmodbus.html#minimalmodbus.IllegalRequestError)). USB timeouts (`NoResponseError` / "no communication with the instrument") do **not** skip: every curated register is polled again on the next cycle so a brief USB drop does not blank half the Solar tiles for an hour. Skip does **not** publish an empty MQTT discovery payload. Home Assistant [removes the entity](https://www.home-assistant.io/integrations/mqtt/#discovery-messages) when the discovery topic is an empty retained string; that is used only for `RETIRED_DISCOVERY`. Last Modbus values are published with MQTT **retain** so an HA restart keeps the last reading until the next poll.
 

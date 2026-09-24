@@ -1,7 +1,7 @@
 # Dump-load CONTROL (HA owns on/off). Opt-in package for Home Assistant on .105.
 # Requires sim_dump_plugs.yaml (switch.sim_ac_plug_*).
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
-# Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when SPH load > site solar.
+# Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
 # Notify when that overdraw lasts 10 minutes (Companion or persistent).
 # Surplus watts (dump_surplus_w) are briefing only -- not the ON trigger.
 # Official:
@@ -64,7 +64,7 @@ input_number:
     mode: box
     icon: mdi:current-ac
   dump_ac_limit_sph_w:
-    name: SPH AC limit
+    name: Sungold AC limit
     min: 500
     max: 4000
     step: 50
@@ -91,7 +91,7 @@ input_number:
     mode: box
     icon: mdi:battery-minus
   dump_max_discharge_sph_w:
-    name: SPH max battery discharge
+    name: Sungold max battery discharge
     min: 0
     max: 500
     step: 10
@@ -136,7 +136,7 @@ input_number:
     mode: box
     icon: mdi:sine-wave
   dump_float_sph_v:
-    name: SPH float volts
+    name: Sungold float volts
     min: 26.0
     max: 29.5
     step: 0.05
@@ -145,7 +145,7 @@ input_number:
     mode: box
     icon: mdi:sine-wave
   dump_rebulk_sph_v:
-    name: SPH re-bulk volts
+    name: Sungold re-bulk volts
     min: 25.5
     max: 29.0
     step: 0.05
@@ -196,48 +196,48 @@ input_select:
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
   dump_plug_2_inverter:
     name: Plug 2 inverter
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
   dump_plug_3_inverter:
     name: Plug 3 inverter
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
   dump_plug_4_inverter:
     name: Plug 4 inverter
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
   dump_plug_5_inverter:
     name: Plug 5 inverter
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
   dump_plug_6_inverter:
     name: Plug 6 inverter
     options:
       - T2
       - KU
-      - SPH
-    initial: SPH
+      - Sungold
+    initial: Sungold
     icon: mdi:transmission-tower
 
 timer:
@@ -326,7 +326,7 @@ template:
         state: >
           {% set p = states('sensor.battery_2_power') %}
           {{ (-1 * (p | float)) if is_number(p) else none }}
-      - name: Dump bus load SPH
+      - name: Dump bus load Sungold
         unique_id: dump_bus_load_sph
         default_entity_id: sensor.dump_bus_load_sph
         unit_of_measurement: W
@@ -373,22 +373,22 @@ template:
           {% set head = {
             'T2': lim_t2 - ns.t2 - t2_from_batt,
             'KU': lim_ku - ns.ku - ku_from_batt,
-            'SPH': lim_sph - sg - ns.sph,
+            'Sungold': lim_sph - sg - ns.sph,
           } %}
           {% set batt = {
             'T2': is_state('binary_sensor.dump_batt_t2_ok', 'on'),
             'KU': is_state('binary_sensor.dump_batt_ku_ok', 'on'),
-            'SPH': is_state('binary_sensor.dump_batt_sph_ok', 'on'),
+            'Sungold': is_state('binary_sensor.dump_batt_sph_ok', 'on'),
           } %}
           {% set vfloat = {
             'T2': is_state('binary_sensor.dump_v_float_t2', 'on'),
             'KU': is_state('binary_sensor.dump_v_float_ku', 'on'),
-            'SPH': is_state('binary_sensor.dump_v_float_sph', 'on'),
+            'Sungold': is_state('binary_sensor.dump_v_float_sph', 'on'),
           } %}
           {% set vrebulk = {
             'T2': is_state('binary_sensor.dump_v_rebulk_t2', 'on'),
             'KU': is_state('binary_sensor.dump_v_rebulk_ku', 'on'),
-            'SPH': is_state('binary_sensor.dump_v_rebulk_sph', 'on'),
+            'Sungold': is_state('binary_sensor.dump_v_rebulk_sph', 'on'),
           } %}
           {% if not is_state('binary_sensor.dump_solar_present', 'on')
              or not is_state('binary_sensor.dump_charge_float', 'on')
@@ -554,7 +554,7 @@ template:
           {% set p = states('sensor.battery_2_power') %}
           {% set lim = states('input_number.dump_max_discharge_ku_w') | float(0) %}
           {{ is_number(p) and (p | float) >= -lim }}
-      - name: Dump batt SPH ok
+      - name: Dump batt Sungold ok
         unique_id: dump_batt_sph_ok
         default_entity_id: binary_sensor.dump_batt_sph_ok
         state: >
@@ -634,14 +634,14 @@ template:
           {% set v = states('sensor.battery_2_voltage') %}
           {% set rb = states('input_number.dump_rebulk_ku_v') %}
           {{ is_number(v) and is_number(rb) and (v | float) <= (rb | float) }}
-      - name: Dump SPH float hold
+      - name: Dump Sungold float hold
         unique_id: dump_v_float_sph
         default_entity_id: binary_sensor.dump_v_float_sph
         state: >
           {% set v = states('sensor.sungold_sph302480a_battery_voltage') %}
           {% set fl = states('input_number.dump_float_sph_v') %}
           {{ is_number(v) and is_number(fl) and (v | float) >= (fl | float) }}
-      - name: Dump SPH re-bulk
+      - name: Dump Sungold re-bulk
         unique_id: dump_v_rebulk_sph
         default_entity_id: binary_sensor.dump_v_rebulk_sph
         state: >
@@ -871,7 +871,7 @@ automation dump_load:
             - delay: "00:01:00"
 
   - id: sim_dump_shed_load_exceeds_solar
-    alias: Dump load shed SPH load above site solar
+    alias: Dump load shed Sungold load above site solar
     description: >
       Sungold AC-out (Load now, includes dump) greater than site solar for 1 minute.
       Shed one dump plug per minute so dump tracks solar. Does not switch trailer
@@ -912,7 +912,7 @@ automation dump_load:
             - delay: "00:01:00"
 
   - id: sim_dump_notify_load_exceeds_solar
-    alias: Dump notify SPH load above site solar 10 min
+    alias: Dump notify Sungold load above site solar 10 min
     description: >
       Text when Load now (Sungold AC-out) stays above Solar now for 10 minutes.
       Default notify.persistent_notification. Set helper dump_notify_service to
@@ -1033,8 +1033,8 @@ automation dump_load:
                     entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_rebulk_sph
-    alias: Dump load turn off SPH re-bulk
-    description: SPH cart voltage at or below dump_rebulk_sph_v for 1 minute. Turn off SPH plugs even during min-on.
+    alias: Dump load turn off Sungold re-bulk
+    description: Sungold cart voltage at or below dump_rebulk_sph_v for 1 minute. Turn off Sungold plugs even during min-on.
     mode: single
     triggers:
       - trigger: state
@@ -1063,7 +1063,7 @@ automation dump_load:
           sequence:
             - if:
                 - condition: template
-                  value_template: "{{ is_state(repeat.item.select, 'SPH') }}"
+                  value_template: "{{ is_state(repeat.item.select, 'Sungold') }}"
               then:
                 - action: switch.turn_off
                   target:
@@ -1168,8 +1168,8 @@ automation dump_load:
                     entity_id: "timer.dump_plug_{{ plug_n }}_cooldown"
 
   - id: sim_dump_turn_off_batt_sph
-    alias: Dump load turn off SPH battery
-    description: SPH cart battery discharging beyond helper. Turn off SPH-assigned plugs even during min-on.
+    alias: Dump load turn off Sungold battery
+    description: Sungold cart battery discharging beyond helper. Turn off Sungold-assigned plugs even during min-on.
     mode: single
     triggers:
       - trigger: state
@@ -1198,7 +1198,7 @@ automation dump_load:
           sequence:
             - if:
                 - condition: template
-                  value_template: "{{ is_state(repeat.item.select, 'SPH') }}"
+                  value_template: "{{ is_state(repeat.item.select, 'Sungold') }}"
               then:
                 - action: switch.turn_off
                   target:

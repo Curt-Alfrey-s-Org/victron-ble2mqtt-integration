@@ -22,9 +22,9 @@ physical reading** (Victron BLE, Sungold Modbus, EM16, sim dump).
 | KU pack W | `sensor.battery_2_power` |
 | Sungold PV | `sensor.sungold_sph302480a_pv_power` |
 | Cart charge W | `sensor.sungold_sph302480a_charging_power` |
-| SPH AC out | `sensor.sungold_sph302480a_load_power` |
+| Sungold AC out | `sensor.sungold_sph302480a_load_power` |
 | Trailer / breaker clamp | `sensor.em16_a3_power`, `sensor.em16_b3_power` |
-| SPH AC-in (inverter) | `sensor.sungold_sph302480a_grid_voltage` / `grid_current` |
+| Sungold AC-in (inverter) | `sensor.sungold_sph302480a_grid_voltage` / `grid_current` |
 
 Dump automations still use **small templates inside** `sim_dump_control.yaml`
 (for staging confirm and T2+PV compare). Those are not shown on the Site solar tiles.

@@ -29,7 +29,7 @@ views:
         show_name: true
       - type: entity
         entity: sensor.sungold_sph302480a_battery_soc
-        name: SPH SoC
+        name: Sungold SoC
         show_name: true
       - type: entity
         entity: sensor.nws_watauga_lake_alerts
@@ -64,16 +64,16 @@ views:
             name: KU shunt W
           - type: tile
             entity: sensor.sungold_sph302480a_charging_power
-            name: SPH batt in W
+            name: Sungold batt in W
           - type: tile
             entity: sensor.sungold_sph302480a_load_power
-            name: SPH AC out W
+            name: Sungold AC out W
           - type: tile
             entity: sensor.em16_b3_power
             name: EM16 B3 W
           - type: tile
             entity: sensor.sungold_load_today
-            name: SPH AC out today kWh
+            name: Sungold AC out today kWh
 
       - type: grid
         cards:
@@ -99,9 +99,9 @@ views:
               - entity: sensor.battery_2_power
                 name: KU shunt
               - entity: sensor.sungold_sph302480a_charging_power
-                name: SPH batt in
+                name: Sungold batt in
               - entity: sensor.sungold_sph302480a_load_power
-                name: SPH AC out
+                name: Sungold AC out
               - entity: sensor.em16_a3_power
                 name: EM16 A3
               - entity: sensor.em16_b3_power
@@ -186,7 +186,7 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: KU outlet to SPH
+            heading: KU outlet to Sungold
           - type: tile
             entity: sensor.em16_a3_power
             name: EM16 A3 W
@@ -195,16 +195,16 @@ views:
             name: EM16 B3 W
           - type: tile
             entity: sensor.sungold_sph302480a_grid_voltage
-            name: SPH AC-in V
+            name: Sungold AC-in V
           - type: tile
             entity: sensor.sungold_sph302480a_grid_current
-            name: SPH AC-in A
+            name: Sungold AC-in A
           - type: tile
             entity: sensor.sungold_sph302480a_load_power
-            name: SPH AC out W
+            name: Sungold AC out W
           - type: tile
             entity: sensor.sungold_sph302480a_load_current
-            name: SPH AC out A
+            name: Sungold AC out A
 
       - type: grid
         cards:
@@ -304,7 +304,7 @@ views:
               - type: toggle
           - type: tile
             entity: sensor.dump_bus_load_sph
-            name: SPH confirm W
+            name: Sungold confirm W
           - type: tile
             entity: binary_sensor.dump_load_exceeds_solar
             name: Load > solar
@@ -334,10 +334,10 @@ views:
             name: KU re-bulk
           - type: tile
             entity: binary_sensor.dump_v_float_sph
-            name: SPH float hold
+            name: Sungold float hold
           - type: tile
             entity: binary_sensor.dump_v_rebulk_sph
-            name: SPH re-bulk
+            name: Sungold re-bulk
           - type: tile
             entity: sensor.dump_next_plug
             name: Next plug
@@ -374,9 +374,9 @@ views:
               - entity: input_number.dump_rebulk_ku_v
                 name: KU re-bulk V
               - entity: input_number.dump_float_sph_v
-                name: SPH float V
+                name: Sungold float V
               - entity: input_number.dump_rebulk_sph_v
-                name: SPH re-bulk V
+                name: Sungold re-bulk V
               - type: weblink
                 name: DUMP_LOAD_HA_CONTROL.md (what this does)
                 url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
@@ -399,19 +399,19 @@ views:
               - entity: input_number.dump_ac_limit_ku_w
                 name: KU AC limit
               - entity: input_number.dump_ac_limit_sph_w
-                name: SPH AC limit
+                name: Sungold AC limit
               - entity: input_number.dump_max_discharge_t2_w
                 name: T2 max batt discharge
               - entity: input_number.dump_max_discharge_ku_w
                 name: KU max batt discharge
               - entity: input_number.dump_max_discharge_sph_w
-                name: SPH max batt discharge
+                name: Sungold max batt discharge
               - entity: binary_sensor.dump_batt_t2_ok
                 name: T2 batt ok
               - entity: binary_sensor.dump_batt_ku_ok
                 name: KU batt ok
               - entity: binary_sensor.dump_batt_sph_ok
-                name: SPH batt ok
+                name: Sungold batt ok
 
       - type: grid
         cards:

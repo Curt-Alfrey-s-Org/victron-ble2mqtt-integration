@@ -109,8 +109,8 @@ def test_kill_switch_and_timers() -> None:
     selects = data.get("input_select") or {}
     for n in range(1, 7):
         sel = selects[f"dump_plug_{n}_inverter"]
-        assert sel["options"] == ["T2", "KU", "SPH"]
-        assert sel["initial"] == "SPH"
+        assert sel["options"] == ["T2", "KU", "Sungold"]
+        assert sel["initial"] == "Sungold"
     timers = data.get("timer") or {}
     assert "dump_min_on" not in timers
     assert "dump_min_off" not in timers

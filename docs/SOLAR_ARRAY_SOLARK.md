@@ -109,7 +109,7 @@ LiTime allows **two identical** 24 V units in series ([24V 230Ah](https://www.li
 
 Operator Amazon listings (11 Sep 2026). Official SKUs: inverter **SPH10048P** ([product](https://sungoldpower.com/products/10kw-48v-split-phase-solar-inverter)), panels **SG550WM** ([product](https://sungoldpower.com/products/550-watt-monocrystalline-solar-panel), [datasheet](https://cdn.enfsolar.com/z/z/2025/2/p15lyv5b8r/182Mono550W-SG550WM-20250120.pdf)). Do not order the listing variants that bundle **SG48100P** batteries if the bank is LiTime 2S.
 
-Same island: off-grid, 2S LiTime 11.78 kWh, well 240 V + servers 120 V, 500 W / 400 gal as peaks. Existing cart **SPH302480A** stays a **separate** 24 V / 120 V island -- SPH parallel rules require identical SPH 8/10k units, same battery, one AC source.
+Same island: off-grid, 2S LiTime 11.78 kWh, well 240 V + servers 120 V, 500 W / 400 gal as peaks. Existing cart **SPH302480A** stays a **separate** 24 V / 120 V island -- Sungold parallel rules require identical Sungold 8/10k units, same battery, one AC source.
 
 | | Sol-Ark 12K-2P-LL + 10 x 450 W | SPH10048P + 10 x SG550WM |
 |--|-------------------------------|---------------------------|
@@ -131,7 +131,7 @@ Same island: off-grid, 2S LiTime 11.78 kWh, well 240 V + servers 120 V, 500 W / 
 
 **Well + 279 W servers:** both inverters can run the amps. The 1.5 HP pump is not why you pick Sol-Ark.
 
-**Night:** 279 W x 17.5 h = 4.88 kWh AC. At 97.6% that is ~5.0 kWh from the LiTimes plus 96 W idle (1.68 kWh) = **~6.7 kWh**. At 92% the same AC is ~5.3 kWh from the pack **before** idle. SPH idle is unpublished -- that is the wrong unknown on a 17.5 h island. Do not enable SPH energy-save (manual: AC **off** if load < 50 W for 5 min) -- servers are above 50 W, but a cluster reboot dip could still trip it.
+**Night:** 279 W x 17.5 h = 4.88 kWh AC. At 97.6% that is ~5.0 kWh from the LiTimes plus 96 W idle (1.68 kWh) = **~6.7 kWh**. At 92% the same AC is ~5.3 kWh from the pack **before** idle. Sungold idle is unpublished -- that is the wrong unknown on a 17.5 h island. Do not enable Sungold energy-save (manual: AC **off** if load < 50 W for 5 min) -- servers are above 50 W, but a cluster reboot dip could still trip it.
 
 **Recommendation for this island:** keep the **12K-2P-LL**. Spend the ~2400 inverter delta on **more LiTime kWh** (official 4P2S) if you want a cheaper path that actually helps night, not on SPH10048P. **Panels are separable:** 10 x SG550WM on Sol-Ark (5S+5S) is extra harvest (~+4.5 kWh/day) if the 62.4 lb / 89.7 x 44.8 in modules fit. Amazon weight 56.9 lb does not match the datasheet.
 
@@ -168,13 +168,13 @@ This is **not** extra harvest. Ten 450 W modules are **4.5 kW STC / ~20.5 kWh** 
 |--------|---------|
 | **10S** one MPPT | **Yes** -- Voc 417 V STC, ~**467 V** at -10 C (still under 550 V and under Sol-Ark 500 V). Vmp 342 V. Isc 13.82 A &lt; 18 A. Power 4.5 kW &lt; 5 kW. |
 | 5S + 5S | **Avoid in heat** -- 5 x 34.2 = **171 V** STC; ~70 C cell drops Vmp under the **150 V** MPPT window. |
-| 5S2P on one SPH MPPT | **No** -- Isc ~27.6 A **&gt; 18 A**. |
+| 5S2P on one Sungold MPPT | **No** -- Isc ~27.6 A **&gt; 18 A**. |
 
 Electrician still runs NEC 690.7 on site min temp. **KBS-450 10S stays illegal** on the 500 V Sol-Ark (500.3 V at 25 C).
 
-**Well + 279 W:** 6.5 kW / 13 kVA can run ~1.6 kW and start a typical 3-5 kW class inrush -- confirm **LRA** on the pump nameplate. Sol-Ark has more surge headroom; the 1.5 HP motor is not why you pay $3999 if LRA fits 13 kVA. Do **not** enable SPH energy-save (servers can dip under 50 W on reboot).
+**Well + 279 W:** 6.5 kW / 13 kVA can run ~1.6 kW and start a typical 3-5 kW class inrush -- confirm **LRA** on the pump nameplate. Sol-Ark has more surge headroom; the 1.5 HP motor is not why you pay $3999 if LRA fits 13 kVA. Do **not** enable Sungold energy-save (servers can dip under 50 W on reboot).
 
-**Night:** 279 W x 17.5 h = 4.88 kWh AC. Sol-Ark pack draw at 97.6% + 96 W idle = **~6.7 kWh** of 11.78 kWh. SPH at 93% is **~5.3 kWh** for that AC **before** idle. SPH no-load watts are official-silent -- that is the same class of risk as SPH10048P, not a reason to assume 80 W from forums.
+**Night:** 279 W x 17.5 h = 4.88 kWh AC. Sol-Ark pack draw at 97.6% + 96 W idle = **~6.7 kWh** of 11.78 kWh. Sungold at 93% is **~5.3 kWh** for that AC **before** idle. Sungold no-load watts are official-silent -- that is the same class of risk as SPH10048P, not a reason to assume 80 W from forums.
 
 **Recommendation:** if the **12K-2P-LL is not purchased**, SPH6548P is the cost path for this well + 279 W island; put the **~$2850** inverter delta into **LiTime kWh**, not into SPH10048P. Ground-mount ten SG450WM as **one 10S**. Inverter stays **indoors**. If the 12K-2P-LL is **already bought**, do not swap it -- harvest is identical; you would only lose idle documentation, IP65, 10 yr, and GEN AC-couple. Panels stay separable: SG450WM can hang on the Sol-Ark as **10S**; KBS-450 stays **5S + 5S**.
 

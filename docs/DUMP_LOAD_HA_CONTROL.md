@@ -12,7 +12,7 @@ HA states, keeps the watt-ledger for Ask ALFa, and may write dump **helpers**
 (float/re-bulk volts, AC caps, inverter assign) immediately.
 
 This site: LiTime 24 V 230 Ah on T2 and KU ([product](https://www.litime.com/products/24v-230ah-truck-lithium-battery)
-charge **28.8 V +/- 0.4 V**). SPH cart is a separate LiTime 24 V pair.
+charge **28.8 V +/- 0.4 V**). Sungold cart is a separate LiTime 24 V pair.
 
 Official manuals (RULE #1):
 
@@ -62,7 +62,7 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one plug, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
-| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **SPH Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all six) |
+| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all six) |
 | **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs `sensor.site_solar_power`) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (default `persistent_notification`; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
 | Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
 | Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
@@ -116,7 +116,7 @@ trigger (float throttles PV watts to the load).
    `input_number.dump_site_confirm_s` seconds (default **5**; Sungold Modbus poll
    default is also 5 s).
 7. **Site confirm** (solar-system load, not indoor Govee energy monitoring):
-   - **SPH:** `sensor.sungold_sph302480a_load_power` must rise by >=
+   - **Sungold:** `sensor.sungold_sph302480a_load_power` must rise by >=
      `dump_site_delta_min_w` (default 25 W).
    - **T2:** signed `-sensor.battery_1_power` (more AC load => more negative pack
      power / less charge).
@@ -128,7 +128,7 @@ trigger (float throttles PV watts to the load).
    not stop the whole automation).
 10. If **confirmed**: start that plug's 15 min min-on timer, delay 1 s, stage
     another. Confirmed plugs are **not** fail-closed for missing per-plug watts;
-    they stay on until solar-gone / re-bulk / batt-not-ok / SPH load > site solar
+    they stay on until solar-gone / re-bulk / batt-not-ok / Sungold load > site solar
     (1 min shed-one) as below. PV falling does **not** immediately turn off a
     confirmed plug.
 
@@ -149,14 +149,14 @@ only). Forums/GitHub drive it with extra software (HACS or a BLE/cloud MQTT
 bridge). A **sidecar that publishes MQTT switches** (like this repo already
 does for Victron) would keep HA on official MQTT. That sidecar is **not** in
 the repo yet. Template `switch.sim_ac_plug_*` stay until it is. Confirm stays
-**SPH AC-out** (and T2/KU pack sign), not Govee energy monitoring. HACS Govee
+**Sungold AC-out** (and T2/KU pack sign), not Govee energy monitoring. HACS Govee
 plugins are not used on this HA.
 
-Until MQTT (or another official HA switch) actually toggles a load on SPH AC
+Until MQTT (or another official HA switch) actually toggles a load on Sungold AC
 out, site-delta fails confirm and that slot cools 10 min.
 
 Default AC caps are **2000 W** per inverter (operator / Renogy 2 kW class).
-SPH nameplate is **3000 W**; raise **SPH AC limit** only if dumps are on that
+Sungold nameplate is **3000 W**; raise **Sungold AC limit** only if dumps are on that
 inverter and you want the higher cap. Do not set a helper above the inverter
 that feeds those plugs.
 
@@ -189,24 +189,24 @@ uses `dump_batt_ku_ok` / re-bulk.
 
 ### Any load on any inverter (live meters)
 
-You do **not** type the wattage of a heater/fan/PC you plug into T2, KU, or SPH.
+You do **not** type the wattage of a heater/fan/PC you plug into T2, KU, or Sungold.
 HA already has the live meters:
 
 | Inverter | How HA sees a new AC load |
 |----------|---------------------------|
 | T2 Renogy | Battery 1 SmartShunt `sensor.battery_1_power` / `_current` (negative = pack supplying the load) |
 | KU Renogy | Battery 2 SmartShunt `sensor.battery_2_power` / `_current` (same sign) |
-| SPH cart | `sensor.sungold_sph302480a_load_power` (AC out) and cart battery V×A |
+| Sungold cart | `sensor.sungold_sph302480a_load_power` (AC out) and cart battery V×A |
 
 If that bus's pack starts discharging, `dump_batt_*_ok` goes off: no new dumps on
 that inverter, and existing dumps on **that** inverter turn off after 1 minute.
-SPH AC-out watts also shrink SPH headroom immediately.
+Sungold AC-out watts also shrink Sungold headroom immediately.
 
 Dump-plug watts are the **smart plug power sensor** (via
 `input_text.dump_plug_N_power_entity` → `sensor.sim_ac_plug_N_power`). There is
 no typed rating helper.
 
-Ask ALFa may **observe** shunt/SPH/plug power and voltage (`ha_get_states` /
+Ask ALFa may **observe** shunt/Sungold/plug power and voltage (`ha_get_states` /
 `ha_dump_tick`) and write float/re-bulk/AC-cap/inverter helpers immediately.
 It does not invent plug watts and does not own dump on/off.
 
@@ -233,7 +233,7 @@ exists). A stale copy leaves helpers such as
 `/api/states` while Energy / Helpers still expect them.
 
 Operator dump UI is **Energy** (individual device Sim dump), **Site solar**
-(`/site-solar` storage tiles: SPH confirm W, site confirm/delta helpers, per-plug
+(`/site-solar` storage tiles: Sungold confirm W, site confirm/delta helpers, per-plug
 15 min min-on / 10 min cooldown), plus **Settings > Devices & services > Helpers**.
 Disable: `input_boolean.dump_control_enabled` (Dump Automations helper), or delete
 the package file and restart HA. YAML Lovelace is not the daily dump control.

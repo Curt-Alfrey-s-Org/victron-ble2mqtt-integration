@@ -54,15 +54,15 @@ Renogy means current is leaving T2 through the jumper toward KU, not into the T2
 downstream hop** on that path carries the same magnitude until the outlet split (panel →
 B3 → outlet). **B3** = breaker feeding the trailer outlet (`path-panel-b3` / `path-b3-outlet`).
 **UTI hop** (`path-outlet-uti`, `path-sg-uti-sph`) uses **`utiHopW`** (passthrough — not A3).
-**Vent fan and LEDs** (operator 2026-09-21) are on **SPH AC out**, not a separate A3 sibling.
-T2 Renogy has **no AC load**. Site **Load now** is SPH INV OUTPUT -- that is every
-house watt fed from KU through Sungold. SPH cart batteries supply AC-out only when
+**Vent fan and LEDs** (operator 2026-09-21) are on **Sungold AC out**, not a separate A3 sibling.
+T2 Renogy has **no AC load**. Site **Load now** is Sungold INV OUTPUT -- that is every
+house watt fed from KU through Sungold. Sungold cart batteries supply AC-out only when
 `max(0, AC-out − KU UTI/CT)` is nonzero (inverter output). In **mains output**
 (AC/INV steady, [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf))
 that residual is 0 and UTI is a few percent above AC-out (bypass/conversion).
 Battery 2 net is **not** that load: it is KU PV + jumper − Renogy DC.
 **Dump loads** (Morningstar diversion; not "soak"): fed from
-**Sungold A/C out** (SPH INV OUTPUT / `node-sg-acout`,
+**Sungold A/C out** (Sungold INV OUTPUT / `node-sg-acout`,
 `sensor.sungold_sph302480a_load_active_power` per
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
 from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or **0 W**) -- branch
@@ -143,8 +143,8 @@ site_load_unaccounted = site_total_load_power - site_load_metered
 into T2, KU, and Sungold cart packs. **Loss** is metered T2 MPPT + Sungold conversion only
 (KU Renogy and PWM stay unmetered). **Total load** is everything left: useful AC/DC loads plus
 overhead on unmetered inverters. **Unaccounted** is the gap between that total and the small set
-of clamped loads (SPH AC out, T2 MPPT load out). A large positive unaccounted with
-`ku_renogy_ac_load` >> `SPH AC out` usually means cart charging + Sungold/KU inverter overhead,
+of clamped loads (Sungold AC out, T2 MPPT load out). A large positive unaccounted with
+`ku_renogy_ac_load` >> `Sungold AC out` usually means cart charging + Sungold/KU inverter overhead,
 not a mystery load -- compare `sungold_conversion_loss` and `site_charge`.
 
 ## How to read the meters
@@ -259,7 +259,7 @@ vent_fan_W = max(0, trailer_outlet_W - utiHopW)   # sibling on KU trailer outlet
 SG_loss    = max(0, (SG_AC_in + SG_PV) - SG_batt_in - SG_AC_out)
 ```
 
-**`SG_AC_in` vs `utiHopW`:** conversion loss uses **SPH grid V×A only**.
+**`SG_AC_in` vs `utiHopW`:** conversion loss uses **Sungold grid V×A only**.
 `0 W` is a real AC INPUT while the hybrid is inverting
 ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1).
 Do **not** substitute `SG_AC_out` into `SG_loss` -- that identity is
@@ -273,25 +273,25 @@ use `SG_AC_out` so the vent split is not the whole trailer clamp. Never substitu
 ### Site totals vs Sungold (21 Sep 2026 shot)
 
 Live Site solar tiles vs git identities (same moment as Instant W / Sungold tiles).
-SPH AC-out V×A and both SmartShunt V×A close. The rest does **not**.
+Sungold AC-out V×A and both SmartShunt V×A close. The rest does **not**.
 
 | Identity | Git formula | Shot | Holds? |
 |----------|-------------|------|--------|
-| SPH AC-out | LCD load W vs `AC out V × Load A` | 324.8 vs 120.4 × 2.7 = 325.1 | Yes |
+| Sungold AC-out | LCD load W vs `AC out V × Load A` | 324.8 vs 120.4 × 2.7 = 325.1 | Yes |
 | Battery 2 | shunt W vs `V × A` | -75.2 vs 26.6 × -2.8 = -74.5 | Yes |
 | Battery 1 | shunt W vs `V × A` | T2 **Jumper to KU** showed 41.9 = 27.9 × 1.5 | Tile mixup: that is Batt 1 W |
 | Jumper | Shunt-to-shunt leftover `T2 solar - batt1` (already in both shunts; T2 tile = `-` KU tile) | formula **185.7 W**; KU tile **248.3** (looks like leftover + \|A3\|); T2 tile **41.9** (Batt 1 W) | Tile mixup; do not add jumper to Solar/Charge/Load |
 | Trailer / AC-in | `\|B3\|` if >= 0.5 else `\|A3\|` | B3 0, A3 -62.5 → 62.5; tile **Sungold AC-in 653.4** | No (653 ≈ UTI V×A) |
 | KU PV est | `batt2 - jumper + trailer` | -75.2 - 185.7 + 62.5 = **-198.4**; tile **136.1** | No |
 | KU share | KU PV / 3 | tile **136.1** (same as KU PV) | No (share must be /3) |
-| Site solar | T2 + SPH PV + max(0, KU est) | 227.6 + 107.2 + 0 = **334.8**; tile **147** | No |
-| Site load | SPH `load_power` (same as Sungold AC out) | AC-out **324.8**; Load now **656.5** ≈ AC-in 653.4 ≈ Instant W sum 659.6 | No |
-| Site charge | batt1+ + batt2+ + SPH charge+ | batt1 ~41.9; tile **1** | No |
+| Site solar | T2 + Sungold PV + max(0, KU est) | 227.6 + 107.2 + 0 = **334.8**; tile **147** | No |
+| Site load | Sungold `load_power` (same as Sungold AC out) | AC-out **324.8**; Load now **656.5** ≈ AC-in 653.4 ≈ Instant W sum 659.6 | No |
+| Site charge | batt1+ + batt2+ + Sungold charge+ | batt1 ~41.9; tile **1** | No |
 | SG_loss if AC-in = V×A 653 | (653 + 107) - 0 - 325 | **435 W** (meter disagree vs A3 62.5) | Do not treat as physics |
 
 **Energy `power-sankey` home** was summing individual devices **Sungold A/C-in + A/C out + dump**
 ([individual devices](https://www.home-assistant.io/docs/energy/individual-devices/)).
-That is the cord plus INV OUTPUT, so house watts read ~2× SPH load. AC-in is **not**
+That is the cord plus INV OUTPUT, so house watts read ~2× Sungold load. AC-in is **not**
 a house-load device. Dump is nested under AC-out via `included_in_stat`
 ([HA energy `DeviceConsumption`](https://github.com/home-assistant/core/blob/master/homeassistant/components/energy/data.py)).
 
@@ -301,7 +301,7 @@ KU PV est = KU share est ([SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)).
 **A3 downstream (17 Sep):** when \|A3\| >= 0.5 W, KU Renogy → panel → B3 → outlet hops
 display that magnitude until the split; vent and UTI branches split from `trailer_outlet_W`.
 
-**Cart tare (17 Sep):** cart battery **0.1 A** (or similar) while SPH is on **UTI/grid**
+**Cart tare (17 Sep):** cart battery **0.1 A** (or similar) while Sungold is on **UTI/grid**
 is inverter DC standby, **not** pack discharge supplying Pi4. Do not treat as bus discharge
 for dump-load math (alfa-ai `solar_dump.py` should ignore cart tare in UTI mode — gate
 rewrite out of scope for this doc pass).
@@ -318,18 +318,18 @@ auto-toggle from forecast (alfa-ai observe/Ask ALFa read only; see
 **Operator 18 Sep 2026 (afternoon):** Cargo **LED** (~0.01 W) and **vent fan** on low
 (~0.1 W) are not Instant W slices. `sensor.trailer_outlet_power` (hundreds of W) is the
 trailer outlet feeding **Sungold A/C-in**. Instant W uses **Sungold A/C out** for where
-those watts are consumed (Pi4 plus anything on SPH OUTPUT). Do not put trailer-outlet W
-on Instant W next to SPH A/C out (same energy path, A/C-in vs A/C-out). Energy /
+those watts are consumed (Pi4 plus anything on Sungold OUTPUT). Do not put trailer-outlet W
+on Instant W next to Sungold A/C out (same energy path, A/C-in vs A/C-out). Energy /
 MQTT names: [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 
 **Operator 18 Sep 2026:** `sensor.sungold_sph302480a_load_power` is LCD **INV OUTPUT LOAD KW**
 ([reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)) -- **all**
-loads on SPH A/C OUTPUT, not Pi4 alone. Pi4 is a few watts. Fan and dehumidifier on the same
+loads on Sungold A/C OUTPUT, not Pi4 alone. Pi4 is a few watts. Fan and dehumidifier on the same
 outlet add into that reading. Night ~5 W was Pi4-only.
 
-**Operator 17 Sep 2026:** Pi4 stays on SPH **A/C OUTPUT** (always-on Victron BLE radio). Cargo-trailer **vent fan** shares the
+**Operator 17 Sep 2026:** Pi4 stays on Sungold **A/C OUTPUT** (always-on Victron BLE radio). Cargo-trailer **vent fan** shares the
 **KU Renogy trailer outlet** with Sungold UTI (UTI tile in **Sungold cart lane**). EM16 A3
-is that hot-leg **total** — **not** Sungold-only. Do not force A3 = SPH A/C in. Do not
+is that hot-leg **total** — **not** Sungold-only. Do not force A3 = Sungold A/C in. Do not
 use A3 as `ha_load_entity`.
 
 When `SG_PV` is 0 this matches the 15 Sep LCD split on the hybrid itself. With PV present, add PV to the input side (reprint §4.1). Do not subtract `SG_PV` from the right-hand side.
@@ -448,7 +448,7 @@ Expect BLE fields from different advertisements to disagree by a few watts. A3 a
 | ~720-940 W extra PV from a Sungold hybrid MPPT | Sungold is the **dolly cart** (2x 24 V 100 Ah), not on T2/KU. |
 | Used = A3 + B2 (~1,380 W) | **Never add A3+B2.** 10-11 Sep: A3 trailer total, B2 branch. **15 Sep:** A3/B2 are the Sungold AC-input feed (same amps as `AC INPUT`). |
 | A3 and B2 "two CTs on the same feed" as the only explanation | They read almost equal because they are on the **same leg**. Sign can flip (15 Sep B2 negative). |
-| A3 is always KU Renogy / cluster idle | **15 Sep 15:53** A3 **10.4 A / 1190 W** matched Sungold AC in that day. **17 Sep:** A3 is trailer-outlet hot leg = SPH A/C in **plus** cargo-trailer vent fan. |
+| A3 is always KU Renogy / cluster idle | **15 Sep 15:53** A3 **10.4 A / 1190 W** matched Sungold AC in that day. **17 Sep:** A3 is trailer-outlet hot leg = Sungold A/C in **plus** cargo-trailer vent fan. |
 | Shunt 2 negative => the two silent MPPTs are fully on BATTERY MINUS | Shunt 2 is **KU net** (Victron 2+3 + PWM minus KU Renogy). |
 | Shunt should show charger-to-inverter amps at float | Battery monitor shows **that LiTime** only. Chargers on the SYSTEM MINUS bus of that shunt is correct. |
 | Battery 2 capacity ~185 Ah from 91.7% / 15.4 Ah | **230 Ah** LiTime. 15.4 / 230 = 6.7% used, implied **93.3%**. |
@@ -616,7 +616,7 @@ Govee **Thermo-Hygrometer-CAAF6F** tiles **Unknown** is expected (dead cells). I
 
 ### Sungold cart (AC charge, PV = 0)
 
-HA names = LCD fields ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md), [SPH reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)).
+HA names = LCD fields ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md), [Sungold reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)).
 
 | Tile | Value |
 |------|-------|
