@@ -4,4 +4,4 @@ RUN apk add --no-cache git
 USER node-red
 WORKDIR /usr/src/node-red
 RUN npm install --omit=dev --no-audit --no-fund \
-    node-red-contrib-home-assistant@0.73.2
+    node-red-contrib-home-assistant-websocket@0.80.3

@@ -874,5 +874,344 @@
     "wires": [
       []
     ]
+  },
+  {
+    "id": "solar-panels-8-group",
+    "type": "group",
+    "z": "solar-plant-diagram-tab",
+    "name": "Solar panels (8x 2s strings)",
+    "style": {
+      "label": true,
+      "fill": "#fff3e0",
+      "color": "#000000"
+    },
+    "nodes": [
+      "panel-comment",
+      "panel-inject",
+      "panel-prep",
+      "panel-http",
+      "panel-calc",
+      "panel-1-box",
+      "panel-2-box",
+      "panel-3-box",
+      "panel-4-box",
+      "panel-5-box",
+      "panel-6-box",
+      "panel-7-box",
+      "panel-8-box",
+      "panel-link-1",
+      "panel-link-2",
+      "panel-link-3",
+      "panel-link-4"
+    ],
+    "x": 54,
+    "y": 340,
+    "w": 980,
+    "h": 320
+  },
+  {
+    "id": "panel-comment",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Est W per panel = half string W (T2 MPPT | 2x T2 est on KU MPPT2/3 | PWM est). Drag boxes to match roof layout.",
+    "info": "",
+    "x": 420,
+    "y": 380,
+    "wires": []
+  },
+  {
+    "id": "panel-inject",
+    "type": "inject",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Poll panels 5s",
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 130,
+    "y": 420,
+    "wires": [
+      [
+        "panel-prep"
+      ]
+    ]
+  },
+  {
+    "id": "panel-prep",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "GET all HA states",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 320,
+    "y": 420,
+    "wires": [
+      [
+        "panel-http"
+      ]
+    ]
+  },
+  {
+    "id": "panel-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "HA /api/states",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 500,
+    "y": 420,
+    "wires": [
+      [
+        "panel-calc"
+      ]
+    ]
+  },
+  {
+    "id": "panel-calc",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "compute + fan-out 8",
+    "func": "const lib = global.get('solarComputed');\nif (!lib || !lib.computeSolarDerived) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no solarComputed lib' });\n    return null;\n}\nif (!Array.isArray(msg.payload)) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad /api/states' });\n    return null;\n}\nconst d = lib.computeSolarDerived(msg.payload);\nflow.set('solarComputedLast', d);\nnode.status({ fill: 'green', shape: 'dot', text: 'derived ok' });\nconst panels = d.panels || [];\nwhile (panels.length < 8) panels.push({ label: '?', est_w: null, connects: '' });\nreturn panels.map((p) => [{ payload: p }]);",
+    "outputs": 8,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 700,
+    "y": 420,
+    "wires": [
+      [
+        "panel-1-box"
+      ],
+      [
+        "panel-2-box"
+      ],
+      [
+        "panel-3-box"
+      ],
+      [
+        "panel-4-box"
+      ],
+      [
+        "panel-5-box"
+      ],
+      [
+        "panel-6-box"
+      ],
+      [
+        "panel-7-box"
+      ],
+      [
+        "panel-8-box"
+      ]
+    ]
+  },
+  {
+    "id": "panel-1-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 1",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 820,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "panel-2-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 2",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 980,
+    "y": 440,
+    "wires": []
+  },
+  {
+    "id": "panel-3-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 3",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 820,
+    "y": 500,
+    "wires": []
+  },
+  {
+    "id": "panel-4-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 4",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 980,
+    "y": 500,
+    "wires": []
+  },
+  {
+    "id": "panel-5-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 5",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 820,
+    "y": 560,
+    "wires": []
+  },
+  {
+    "id": "panel-6-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 6",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 980,
+    "y": 560,
+    "wires": []
+  },
+  {
+    "id": "panel-7-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 7",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 820,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "panel-8-box",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Panel 8",
+    "func": "const p = msg.payload || {};\nconst w = p.est_w == null ? 'n/a' : String(p.est_w) + ' W';\nconst dest = (p.connects || '').split('->').pop();\nconst tail = dest ? dest.trim() : '';\nnode.status({\n    fill: p.est_w != null && p.est_w > 0 ? 'green' : 'grey',\n    shape: 'dot',\n    text: (p.label || 'P') + ' ' + w + '\\n' + tail\n});\nreturn null;",
+    "outputs": 0,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 980,
+    "y": 620,
+    "wires": []
+  },
+  {
+    "id": "panel-link-1",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "-> T2 MPPT #1",
+    "info": "",
+    "x": 760,
+    "y": 470,
+    "wires": []
+  },
+  {
+    "id": "panel-link-2",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "-> KU MPPT #2",
+    "info": "",
+    "x": 760,
+    "y": 530,
+    "wires": []
+  },
+  {
+    "id": "panel-link-3",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "-> KU MPPT #3",
+    "info": "",
+    "x": 760,
+    "y": 590,
+    "wires": []
+  },
+  {
+    "id": "panel-link-4",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "-> KU PWM",
+    "info": "",
+    "x": 760,
+    "y": 650,
+    "wires": []
   }
 ]

@@ -21,7 +21,11 @@
     "type": "inject",
     "z": "solar-computed-tab",
     "name": "Poll every 5s",
-    "props": [{ "p": "payload" }],
+    "props": [
+      {
+        "p": "payload"
+      }
+    ],
     "repeat": "5",
     "crontab": "",
     "once": true,
@@ -31,7 +35,11 @@
     "payloadType": "date",
     "x": 130,
     "y": 120,
-    "wires": [["computed-prep"]]
+    "wires": [
+      [
+        "computed-prep"
+      ]
+    ]
   },
   {
     "id": "computed-prep",
@@ -47,7 +55,11 @@
     "libs": [],
     "x": 330,
     "y": 120,
-    "wires": [["computed-http"]]
+    "wires": [
+      [
+        "computed-http"
+      ]
+    ]
   },
   {
     "id": "computed-http",
@@ -67,7 +79,11 @@
     "headers": [],
     "x": 520,
     "y": 120,
-    "wires": [["computed-calc"]]
+    "wires": [
+      [
+        "computed-calc"
+      ]
+    ]
   },
   {
     "id": "computed-calc",
@@ -83,7 +99,9 @@
     "libs": [],
     "x": 720,
     "y": 120,
-    "wires": [[]]
+    "wires": [
+      []
+    ]
   },
   {
     "id": "computed-http-in",
@@ -96,14 +114,18 @@
     "swaggerDoc": "",
     "x": 160,
     "y": 260,
-    "wires": [["computed-html"]]
+    "wires": [
+      [
+        "computed-html"
+      ]
+    ]
   },
   {
     "id": "computed-html",
     "type": "function",
     "z": "solar-computed-tab",
     "name": "HTML tiles",
-    "func": "const d = flow.get('solarComputedLast') || {};\nfunction cell(label, val, unit) {\n    const v = val == null ? 'Unavailable' : String(val) + (unit || '');\n    return '<tr><td>' + label + '</td><td><strong>' + v + '</strong></td></tr>';\n}\nconst rows = [\n    cell('T2 MPPT W', d.t2_mppt_w, ' W'),\n    cell('T2-KU jumper W', d.t2_ku_jumper_w, ' W'),\n    cell('KU Victron MPPT 2+3 est W', d.ku_victron_mppt23_est_w, ' W'),\n    cell('KU PWM+MPPT combined est W', d.ku_pwm_mppt_combined_est_w, ' W'),\n    cell('KU PWM est W', d.ku_pwm_est_w, ' W'),\n    cell('KU equal share (1/3) W', d.ku_charger_equal_share_w, ' W'),\n    cell('EM16 A3 live W', d.em16_a3_live_w, ' W'),\n];\nmsg.payload = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Solar computed</title>' +\n'<style>body{font-family:sans-serif;background:#111;color:#eee;padding:1rem}' +\n'table{border-collapse:collapse;width:100%;max-width:32rem}td{padding:0.5rem;border-bottom:1px solid #333}' +\n'h1{font-size:1.1rem}p{color:#888;font-size:0.85rem}</style></head><body>' +\n'<h1>Solar computed meters</h1><p>From HA device states only. Site solar in HA stays device tiles.</p>' +\n'<table>' + rows.join('') + '</table></body></html>';\nmsg.headers = { 'Content-Type': 'text/html; charset=utf-8' };\nreturn msg;",
+    "func": "const d = flow.get('solarComputedLast') || {};\nfunction cell(label, val, unit) {\n    const v = val == null ? 'Unavailable' : String(val) + (unit || '');\n    return '<tr><td>' + label + '</td><td><strong>' + v + '</strong></td></tr>';\n}\nconst rows = [\n    cell('Site solar W', d.site_solar_w, ' W'),\n    cell('Site source W', d.site_source_w, ' W'),\n    cell('Site total load W', d.site_total_load_w, ' W'),\n    cell('Load unaccounted W', d.load_unaccounted_w, ' W'),\n    cell('T2 MPPT W', d.t2_mppt_w, ' W'),\n    cell('T2-KU jumper W', d.t2_ku_jumper_w, ' W'),\n    cell('KU Victron MPPT 2+3 est W', d.ku_victron_mppt23_est_w, ' W'),\n    cell('KU PWM+MPPT combined est W', d.ku_pwm_mppt_combined_est_w, ' W'),\n    cell('KU PWM est W', d.ku_pwm_est_w, ' W'),\n    cell('KU equal share (1/3) W', d.ku_charger_equal_share_w, ' W'),\n    cell('Trailer / KU AC proxy W', d.trailer_outlet_w, ' W'),\n    cell('EM16 A3 live W', d.em16_a3_live_w, ' W'),\n    cell('EM16 B3 live W', d.em16_b3_live_w, ' W'),\n    cell('Sungold PV W', d.sungold_pv_w, ' W'),\n    cell('Sungold AC in W', d.sungold_ac_in_w, ' W'),\n    cell('Sungold AC out W', d.sungold_ac_out_w, ' W'),\n];\nconst panels = d.panels || [];\nlet panelRows = '';\nfor (let i = 0; i < 8; i++) {\n    const p = panels[i] || {};\n    const w = p.est_w == null ? 'Unavailable' : String(p.est_w) + ' W';\n    const conn = p.connects || '';\n    const short = conn.indexOf('->') >= 0 ? conn.split('->').pop().trim() : conn;\n    panelRows += '<tr><td>' + (p.label || ('P' + (i+1))) + '</td><td>' + (p.string || '') + '</td><td><strong>' + w + '</strong></td><td style=\"font-size:0.85rem;color:#aaa\">' + short + '</td></tr>';\n}\nmsg.payload = '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Solar computed</title>' +\n'<meta http-equiv=\"refresh\" content=\"5\">' +\n'<style>body{font-family:sans-serif;background:#111;color:#eee;padding:1rem}' +\n'table{border-collapse:collapse;width:100%;max-width:48rem;margin-bottom:1.5rem}td,th{padding:0.5rem;border-bottom:1px solid #333;text-align:left}' +\n'h1{font-size:1.1rem}h2{font-size:1rem;margin-top:1.5rem}p{color:#888;font-size:0.85rem}' +\n'.panels td:nth-child(1){font-weight:bold;width:3rem}</style></head><body>' +\n'<h1>Solar computed meters</h1><p>From HA device states only. Site solar in HA stays device tiles.</p>' +\n'<table>' + rows.join('') + '</table>' +\n'<h2>Solar panels (8 boxes)</h2><p>Est W per panel = half of its 2s string. Matches Node-RED diagram group.</p>' +\n'<table class=\"panels\"><tr><th>Panel</th><th>String</th><th>Est W</th><th>Connects to</th></tr>' + panelRows + '</table></body></html>';\nmsg.headers = { 'Content-Type': 'text/html; charset=utf-8' };\nreturn msg;",
     "outputs": 1,
     "timeout": "",
     "noerr": 0,
@@ -112,7 +134,11 @@
     "libs": [],
     "x": 380,
     "y": 260,
-    "wires": [["computed-http-res"]]
+    "wires": [
+      [
+        "computed-http-res"
+      ]
+    ]
   },
   {
     "id": "computed-http-res",

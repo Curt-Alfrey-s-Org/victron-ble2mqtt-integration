@@ -11,6 +11,10 @@ HA stays authoritative for sensors. Node-RED reads HA and provides the **editabl
 
 ufw (if enabled): allow LAN `1880/tcp` from `192.168.0.0/24` only.
 
+
+## Eight panel boxes (diagram tab)
+
+On **Solar plant diagram**, the group **Solar panels (8x 2s strings)** polls HA every 5s and drives eight **Panel 1..8** function nodes (status boxes). Comment nodes label where each pair connects: `-> T2 MPPT #1`, `-> KU MPPT #2`, `-> KU MPPT #3`, `-> KU PWM`. Drag boxes inside the group to match roof layout; est W per panel is half of its 2s string (see `scripts/nodered_solar_computed.js` `panelBoxes()`).
 ## Edit the diagram
 
 1. Open the **Solar plant diagram** tab.
@@ -29,7 +33,7 @@ After `install_solar_plant_ha.sh`, reload Node-RED or wait for the 5s poll -- no
 
 Tab **Solar computed meters** polls HA `/api/states` every 5s and runs `scripts/nodered_solar_computed.js`.
 
-Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (KU PWM+MPPT est, jumper, equal share, EM16 A3 live).
+Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (site totals, KU est, jumper, Sungold, plus an 8-panel table).
 
 Site solar in HA stays **device-only**; do not re-add those template sensors to `solar_plant.yaml`.
 
