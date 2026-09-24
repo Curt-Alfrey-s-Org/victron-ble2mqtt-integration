@@ -82,7 +82,10 @@
       "ent-9-fmt",
       "ent-10-fn",
       "ent-10-http",
-      "ent-10-fmt"
+      "ent-10-fmt",
+      "shared-states-prep",
+      "shared-states-http",
+      "shared-states-lo"
     ],
     "x": 74,
     "y": 39,
@@ -146,6 +149,9 @@
       ],
       [
         "ent-10-fn"
+      ],
+      [
+        "shared-states-prep"
       ]
     ]
   },
@@ -887,9 +893,6 @@
     },
     "nodes": [
       "panel-comment",
-      "panel-inject",
-      "panel-prep",
-      "panel-http",
       "panel-calc",
       "panel-1-box",
       "panel-2-box",
@@ -899,10 +902,6 @@
       "panel-6-box",
       "panel-7-box",
       "panel-8-box",
-      "panel-link-1",
-      "panel-link-2",
-      "panel-link-3",
-      "panel-link-4",
       "panel-lo-1",
       "panel-lo-2",
       "panel-lo-3",
@@ -918,102 +917,35 @@
       "panel-li-5",
       "panel-li-6",
       "panel-li-7",
-      "panel-li-8"
+      "panel-li-8",
+      "panel-states-li",
+      "panel-row-hdr-1",
+      "panel-row-hdr-2",
+      "panel-row-hdr-3",
+      "panel-row-hdr-4"
     ],
     "x": 74,
-    "y": 370,
-    "w": 1300,
-    "h": 440
+    "y": 365,
+    "w": 1320,
+    "h": 480
   },
   {
     "id": "panel-comment",
     "type": "comment",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "Est W per panel = half string W (T2 MPPT | 2x T2 est on KU MPPT2/3 | PWM est). Drag boxes to match roof layout.",
+    "name": "Panel grid only. HA /api/states comes from blue group (link). Drag Panel 1-8 to match roof.",
     "info": "",
-    "x": 480,
-    "y": 395,
+    "x": 420,
+    "y": 385,
     "wires": []
-  },
-  {
-    "id": "panel-inject",
-    "type": "inject",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "Poll panels 5s",
-    "props": [
-      {
-        "p": "payload"
-      }
-    ],
-    "repeat": "5",
-    "crontab": "",
-    "once": true,
-    "onceDelay": "2",
-    "topic": "",
-    "payload": "",
-    "payloadType": "date",
-    "x": 140,
-    "y": 435,
-    "wires": [
-      [
-        "panel-prep"
-      ]
-    ]
-  },
-  {
-    "id": "panel-prep",
-    "type": "function",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "GET all HA states",
-    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nreturn msg;",
-    "outputs": 1,
-    "timeout": "",
-    "noerr": 0,
-    "initialize": "",
-    "finalize": "",
-    "libs": [],
-    "x": 300,
-    "y": 435,
-    "wires": [
-      [
-        "panel-http"
-      ]
-    ]
-  },
-  {
-    "id": "panel-http",
-    "type": "http request",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "HA /api/states",
-    "method": "use",
-    "ret": "obj",
-    "paytoqs": "ignore",
-    "url": "",
-    "tls": "",
-    "persist": false,
-    "proxy": "",
-    "insecureHTTPParser": false,
-    "authType": "",
-    "senderr": false,
-    "headers": [],
-    "x": 460,
-    "y": 435,
-    "wires": [
-      [
-        "panel-calc"
-      ]
-    ]
   },
   {
     "id": "panel-calc",
     "type": "function",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "compute + fan-out 8",
+    "name": "fan-out 8 panels",
     "func": "const lib = global.get('solarComputed');\nif (!lib || !lib.computeSolarDerived) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no solarComputed lib' });\n    return null;\n}\nif (!Array.isArray(msg.payload)) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad /api/states' });\n    return null;\n}\nconst d = lib.computeSolarDerived(msg.payload);\nflow.set('solarComputedLast', d);\nnode.status({ fill: 'green', shape: 'dot', text: 'derived ok' });\nconst panels = d.panels || [];\nwhile (panels.length < 8) panels.push({ label: '?', est_w: null, connects: '' });\nreturn panels.map((p) => [{ payload: p }]);",
     "outputs": 8,
     "timeout": "",
@@ -1021,8 +953,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 640,
-    "y": 435,
+    "x": 380,
+    "y": 410,
     "wires": [
       [
         "panel-lo-1"
@@ -1063,8 +995,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 220,
-    "y": 530,
+    "x": 660,
+    "y": 540,
     "wires": []
   },
   {
@@ -1080,8 +1012,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 380,
-    "y": 530,
+    "x": 820,
+    "y": 540,
     "wires": []
   },
   {
@@ -1097,8 +1029,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 220,
-    "y": 620,
+    "x": 660,
+    "y": 635,
     "wires": []
   },
   {
@@ -1114,8 +1046,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 380,
-    "y": 620,
+    "x": 820,
+    "y": 635,
     "wires": []
   },
   {
@@ -1131,8 +1063,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 220,
-    "y": 710,
+    "x": 660,
+    "y": 730,
     "wires": []
   },
   {
@@ -1148,8 +1080,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 380,
-    "y": 710,
+    "x": 820,
+    "y": 730,
     "wires": []
   },
   {
@@ -1165,8 +1097,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 220,
-    "y": 800,
+    "x": 660,
+    "y": 825,
     "wires": []
   },
   {
@@ -1182,52 +1114,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 380,
-    "y": 800,
-    "wires": []
-  },
-  {
-    "id": "panel-link-1",
-    "type": "comment",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "-> T2 MPPT #1",
-    "info": "",
-    "x": 520,
-    "y": 538,
-    "wires": []
-  },
-  {
-    "id": "panel-link-2",
-    "type": "comment",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "-> KU MPPT #2",
-    "info": "",
-    "x": 520,
-    "y": 628,
-    "wires": []
-  },
-  {
-    "id": "panel-link-3",
-    "type": "comment",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "-> KU MPPT #3",
-    "info": "",
-    "x": 520,
-    "y": 718,
-    "wires": []
-  },
-  {
-    "id": "panel-link-4",
-    "type": "comment",
-    "z": "solar-plant-diagram-tab",
-    "g": "solar-panels-8-group",
-    "name": "-> KU PWM",
-    "info": "",
-    "x": 520,
-    "y": 808,
+    "x": 820,
+    "y": 825,
     "wires": []
   },
   {
@@ -1235,12 +1123,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P1",
+    "name": "1",
     "links": [
       "panel-wire-1"
     ],
-    "x": 340,
-    "y": 530,
+    "x": 520,
+    "y": 540,
     "wires": []
   },
   {
@@ -1248,12 +1136,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P1 in",
+    "name": "1",
     "links": [
       "panel-wire-1"
     ],
-    "x": 180,
-    "y": 530,
+    "x": 580,
+    "y": 540,
     "wires": [
       [
         "panel-1-box"
@@ -1265,12 +1153,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P2",
+    "name": "2",
     "links": [
       "panel-wire-2"
     ],
-    "x": 500,
-    "y": 530,
+    "x": 520,
+    "y": 540,
     "wires": []
   },
   {
@@ -1278,12 +1166,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P2 in",
+    "name": "2",
     "links": [
       "panel-wire-2"
     ],
-    "x": 340,
-    "y": 530,
+    "x": 580,
+    "y": 540,
     "wires": [
       [
         "panel-2-box"
@@ -1295,12 +1183,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P3",
+    "name": "3",
     "links": [
       "panel-wire-3"
     ],
-    "x": 340,
-    "y": 620,
+    "x": 520,
+    "y": 635,
     "wires": []
   },
   {
@@ -1308,12 +1196,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P3 in",
+    "name": "3",
     "links": [
       "panel-wire-3"
     ],
-    "x": 180,
-    "y": 620,
+    "x": 580,
+    "y": 635,
     "wires": [
       [
         "panel-3-box"
@@ -1325,12 +1213,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P4",
+    "name": "4",
     "links": [
       "panel-wire-4"
     ],
-    "x": 500,
-    "y": 620,
+    "x": 520,
+    "y": 635,
     "wires": []
   },
   {
@@ -1338,12 +1226,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P4 in",
+    "name": "4",
     "links": [
       "panel-wire-4"
     ],
-    "x": 340,
-    "y": 620,
+    "x": 580,
+    "y": 635,
     "wires": [
       [
         "panel-4-box"
@@ -1355,12 +1243,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P5",
+    "name": "5",
     "links": [
       "panel-wire-5"
     ],
-    "x": 340,
-    "y": 710,
+    "x": 520,
+    "y": 730,
     "wires": []
   },
   {
@@ -1368,12 +1256,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P5 in",
+    "name": "5",
     "links": [
       "panel-wire-5"
     ],
-    "x": 180,
-    "y": 710,
+    "x": 580,
+    "y": 730,
     "wires": [
       [
         "panel-5-box"
@@ -1385,12 +1273,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P6",
+    "name": "6",
     "links": [
       "panel-wire-6"
     ],
-    "x": 500,
-    "y": 710,
+    "x": 520,
+    "y": 730,
     "wires": []
   },
   {
@@ -1398,12 +1286,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P6 in",
+    "name": "6",
     "links": [
       "panel-wire-6"
     ],
-    "x": 340,
-    "y": 710,
+    "x": 580,
+    "y": 730,
     "wires": [
       [
         "panel-6-box"
@@ -1415,12 +1303,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P7",
+    "name": "7",
     "links": [
       "panel-wire-7"
     ],
-    "x": 340,
-    "y": 800,
+    "x": 520,
+    "y": 825,
     "wires": []
   },
   {
@@ -1428,12 +1316,12 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P7 in",
+    "name": "7",
     "links": [
       "panel-wire-7"
     ],
-    "x": 180,
-    "y": 800,
+    "x": 580,
+    "y": 825,
     "wires": [
       [
         "panel-7-box"
@@ -1445,12 +1333,12 @@
     "type": "link out",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "to P8",
+    "name": "8",
     "links": [
       "panel-wire-8"
     ],
-    "x": 500,
-    "y": 800,
+    "x": 520,
+    "y": 825,
     "wires": []
   },
   {
@@ -1458,16 +1346,136 @@
     "type": "link in",
     "z": "solar-plant-diagram-tab",
     "g": "solar-panels-8-group",
-    "name": "P8 in",
+    "name": "8",
     "links": [
       "panel-wire-8"
     ],
-    "x": 340,
-    "y": 800,
+    "x": 580,
+    "y": 825,
     "wires": [
       [
         "panel-8-box"
       ]
     ]
+  },
+  {
+    "id": "shared-states-prep",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "GET all states (panels)",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 120,
+    "y": 280,
+    "wires": [
+      [
+        "shared-states-http"
+      ]
+    ]
+  },
+  {
+    "id": "shared-states-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "HA /api/states",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 320,
+    "y": 280,
+    "wires": [
+      [
+        "shared-states-lo"
+      ]
+    ]
+  },
+  {
+    "id": "shared-states-lo",
+    "type": "link out",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "to panel compute",
+    "links": [
+      "ha-all-states-bus"
+    ],
+    "x": 500,
+    "y": 280,
+    "wires": []
+  },
+  {
+    "id": "panel-states-li",
+    "type": "link in",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "HA states",
+    "links": [
+      "ha-all-states-bus"
+    ],
+    "x": 200,
+    "y": 410,
+    "wires": [
+      [
+        "panel-calc"
+      ]
+    ]
+  },
+  {
+    "id": "panel-row-hdr-1",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Row 1: panels 1+2  ->  T2 MPPT #1",
+    "info": "",
+    "x": 980,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "panel-row-hdr-2",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Row 2: panels 3+4  ->  KU MPPT #2",
+    "info": "",
+    "x": 980,
+    "y": 635,
+    "wires": []
+  },
+  {
+    "id": "panel-row-hdr-3",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Row 3: panels 5+6  ->  KU MPPT #3",
+    "info": "",
+    "x": 980,
+    "y": 730,
+    "wires": []
+  },
+  {
+    "id": "panel-row-hdr-4",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-panels-8-group",
+    "name": "Row 4: panels 7+8  ->  KU PWM",
+    "info": "",
+    "x": 980,
+    "y": 825,
+    "wires": []
   }
 ]
