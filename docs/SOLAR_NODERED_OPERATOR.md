@@ -15,6 +15,16 @@ ufw (if enabled): allow LAN `1880/tcp` from `192.168.0.0/24` only.
 ## Eight panel boxes (diagram tab)
 
 On **Solar plant diagram**, the group **Solar panels (8x 2s strings)** polls HA every 5s and drives eight **Panel 1..8** function nodes (status boxes). Comment nodes label where each pair connects: `-> T2 MPPT #1`, `-> KU MPPT #2`, `-> KU MPPT #3`, `-> KU PWM`. Drag boxes inside the group to match roof layout; est W per panel is half of its 2s string (see `scripts/nodered_solar_computed.js` `panelBoxes()`).
+
+## Panel group layout (spacing)
+
+The orange group **Solar panels (8x 2s strings)** sits **below** the blue **Live HA clamps** group (no overlap). Inside it:
+
+- Top row: poll chain (`Poll panels 5s` -> GET -> `compute + fan-out 8`).
+- Four rows: **Panel 1/3/5/7** left column, **Panel 2/4/6/8** right column; comment nodes show `-> T2 MPPT #1`, `-> KU MPPT #2`, etc.
+- **Link nodes** carry wires from the fan-out node to each panel box so wires do not cross the grid.
+
+After editing positions in the editor, export to `flows/solar_plant_diagram.json`. To reset canonical spacing from git: `python3 scripts/layout_solar_diagram_panels.py` then `bash scripts/deploy-nodered-solar.sh`.
 ## Edit the diagram
 
 1. Open the **Solar plant diagram** tab.

@@ -222,6 +222,12 @@ def main() -> int:
     flow.extend(new_nodes)
     FLOW.write_text(json.dumps(flow, indent=2), encoding="utf-8")
     print(f"added solar-panels-8-group with {len(panel_ids)} panel boxes to {FLOW}")
+    import subprocess
+    import sys
+
+    layout = ROOT / "scripts" / "layout_solar_diagram_panels.py"
+    if layout.is_file():
+        subprocess.run([sys.executable, str(layout)], check=True)
     return 0
 
 
