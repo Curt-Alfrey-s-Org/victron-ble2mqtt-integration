@@ -385,3 +385,11 @@ bash scripts/uninstall_solar_flow.sh
 ## Node-RED solar diagram (editable canvas)
 
 Live **Site solar** tiles stay in HA. **Build/edit the topology diagram** in Node-RED (`http://192.168.0.105:1880/`, tab **Solar plant diagram**). NR reads HA REST only; see [SOLAR_NODERED_OPERATOR.md](SOLAR_NODERED_OPERATOR.md) and [SOLAR_DIAGRAM_POLICY.md](SOLAR_DIAGRAM_POLICY.md). Do not use Mermaid or SVG for this.
+
+After `install_solar_plant_ha.sh`, refresh **Site solar** (`/site-solar`) from repo seed:
+
+```bash
+sudo python3 scripts/sync_site_solar_storage_from_seed.py
+```
+
+Or with a long-lived token: `HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py`

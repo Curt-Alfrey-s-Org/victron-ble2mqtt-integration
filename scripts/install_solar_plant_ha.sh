@@ -119,6 +119,11 @@ if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   done
   echo "[solar-plant] Open http://192.168.0.105:8123/energy"
   echo "[solar-plant] Built-in Energy / Home / Solar are the operator UI (no YAML Lovelace)."
+  if [[ -f "$ROOT/scripts/sync_site_solar_storage_from_seed.py" ]]; then
+    echo "[solar-plant] Syncing Site solar storage dashboard from seed YAML ..."
+    sudo python3 "$ROOT/scripts/sync_site_solar_storage_from_seed.py"
+  fi
+
 else
   echo "[solar-plant] homeassistant container not running -- start HA, then rerun this script."
   exit 1
