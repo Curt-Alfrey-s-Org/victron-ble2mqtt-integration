@@ -85,14 +85,6 @@ if [[ -f "$EM16_LIVE_SRC" ]]; then
   echo "[solar-plant] Installed $EM16_LIVE_DST"
 fi
 
-KU_EST_SRC="$ROOT/config/packages/solar_ku_estimates.yaml"
-KU_EST_DST="$HA_CONFIG_DIR/packages/solar_ku_estimates.yaml"
-if [[ -f "$KU_EST_SRC" ]]; then
-  sudo cp "$KU_EST_SRC" "$KU_EST_DST"
-  sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$KU_EST_DST" 2>/dev/null || true
-  echo "[solar-plant] Installed $KU_EST_DST"
-fi
-
 DUMP_SRC="$ROOT/config/packages/sim_dump_control.yaml"
 DUMP_DST="$HA_CONFIG_DIR/packages/sim_dump_control.yaml"
 if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]; then

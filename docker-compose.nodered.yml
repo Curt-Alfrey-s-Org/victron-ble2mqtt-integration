@@ -15,6 +15,7 @@ services:
     volumes:
       - nodered_solar_data:/data
       - ./nodered/settings.js:/data/settings.js:ro
+      - ./scripts/nodered_solar_computed.js:/data/nodered_solar_computed.js:ro
     labels:
       autoheal: "true"
     mem_limit: 512m

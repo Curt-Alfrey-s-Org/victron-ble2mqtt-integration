@@ -1,3 +1,5 @@
+# DEPRECATED: use Node-RED /solar/computed and scripts/nodered_solar_computed.js
+
 # KU Victron MPPT 2+3 + PWM combined estimate (operator Now tile only; not a clamp).
 # Matches scripts/solar_watt_ledger.py ku_unmetered_pv_residual when shunts are available.
 # Physics: docs/SOLAR_POWER_BALANCE.md

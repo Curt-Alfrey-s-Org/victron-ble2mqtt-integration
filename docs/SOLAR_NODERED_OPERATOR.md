@@ -23,3 +23,14 @@ Green node status shows live HA state. Red `no HA token` means fix `nodered.env`
 ## Sync with HA package changes
 
 After `install_solar_plant_ha.sh`, reload Node-RED or wait for the 5s poll -- no NR change unless you add new entities to the canvas.
+
+
+## Solar computed meters (derived tiles)
+
+Tab **Solar computed meters** polls HA `/api/states` every 5s and runs `scripts/nodered_solar_computed.js`.
+
+Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (KU PWM+MPPT est, jumper, equal share, EM16 A3 live).
+
+Site solar in HA stays **device-only**; do not re-add those template sensors to `solar_plant.yaml`.
+
+Policy: [SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md).

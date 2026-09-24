@@ -45,25 +45,9 @@ HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py
 Old computed entities may remain in **History** until purged; remove stale entities
 in **Settings > Devices & services > Entities** if needed.
 
-## Operator exception (2026-09-24)
+## Node-RED computed meters (not in HA)
 
-One **estimate** tile on **KU 24 V** (Now / Site solar):
+Derived tiles (KU PWM+MPPT est, jumper, equal share, EM16 A3 live) live in **Node-RED** only:
+`http://192.168.0.105:1880/solar/computed` (see `docs/SOLAR_HA_NODERED_SPLIT.md`).
 
-| Entity | Meaning |
-|--------|---------|
-| `sensor.ku_pwm_mppt_combined_est_power` | Combined KU Victron MPPT 2+3 + PWM D/C (shunt residual when available; else 2x T2 MPPT). **Not a clamp.** |
-
-Helper (not on dashboard): `sensor.t2_ku_jumper_power`. Attributes on the est tile: `victron_mppt23_est_w`, `pwm_est_w`.
-Package: `config/packages/solar_ku_estimates.yaml`.
-
-## Site EM16 live wrappers (2026-09-24)
-
-Site solar **A3/B3** tiles use `sensor.site_em16_a3_power` and `sensor.site_em16_b3_power`
-(`config/packages/solar_em16_live.yaml`). They go **Unavailable** when:
-
-- native Refoss is unavailable (EM16 not responding on UDP), or
-- channel voltage is below 80 V, or
-- Sungold UTI shows no AC-in while EM16 still claims more than 5 W (stale clamp).
-
-The **Refoss** dashboard tab keeps native `sensor.em16_*` entities; when the whole EM16 is
-offline, Refoss already marks all channels Unavailable.
+HA keeps `solar_em16_live.yaml` so Site solar EM16 tiles go **Unavailable** when the AC path is dead (not frozen watts).

@@ -18,6 +18,13 @@ module.exports = {
         };
     })(),
     functionGlobalContext: {
+        solarComputed: (function () {
+            try {
+                return require("/data/nodered_solar_computed.js");
+            } catch (e) {
+                return {};
+            }
+        })(),
         haToken: process.env.HA_LONG_LIVED_TOKEN || "",
         haBaseUrl: process.env.HA_BASE_URL || "http://127.0.0.1:8123"
     },

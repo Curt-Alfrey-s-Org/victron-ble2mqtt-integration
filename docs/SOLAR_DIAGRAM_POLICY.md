@@ -4,8 +4,10 @@
 
 | Tool | Role |
 |------|------|
-| **Home Assistant (`.105`)** | **Data and operator tiles** -- template sensors, Site solar dashboard, Energy, dump helpers. Single source of sensor truth. |
-| **Node-RED (`.105` `:1880`)** | **Build/edit/view** the solar topology diagram -- drag nodes, connect wires, live status from HA REST. Does **not** replace HA entities. |
+| **Home Assistant (`.105`)** | **Device sensors and Site solar tiles** -- Victron, Sungold, EM16 (live wrappers). Energy, dump helpers. No derived site totals on `/site-solar`. |
+| **Node-RED (`.105` `:1880`)** | **Diagram editor** plus **computed meters** (`/solar/computed`) -- reads HA REST, shows jumper / KU est / share tiles removed from HA. |
+
+See [SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md).
 
 ## Retired for solar site diagrams
 

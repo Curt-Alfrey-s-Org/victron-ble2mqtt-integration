@@ -13,7 +13,9 @@ if [[ -z "$cid" ]]; then
   echo "nodered-solar container not running" >&2
   exit 1
 fi
-docker cp flows/solar_plant_diagram.json "${cid}:/data/flows.json"
+python3 scripts/merge_nodered_flows.py /tmp/nodered-flows-merged.json \
+  flows/solar_plant_diagram.json flows/solar_computed_meters.json
+docker cp /tmp/nodered-flows-merged.json "${cid}:/data/flows.json"
 docker restart nodered-solar
 echo "Node-RED: http://127.0.0.1:1880/ (LAN: http://192.168.0.105:1880/)"
 echo "Import/update flow tab: Solar plant diagram"
