@@ -317,6 +317,12 @@ def main() -> int:
     ensure_row_headers(flow)
     apply_group_frame(flow)
     FLOW.write_text(json.dumps(flow, indent=2), encoding="utf-8")
+    wire = ROOT / "scripts" / "wire_panels_to_chargers.py"
+    if wire.is_file():
+        import subprocess
+        import sys
+
+        subprocess.run([sys.executable, str(wire)], check=True)
     print(f"layout v4 applied to {FLOW}")
     return 0
 
