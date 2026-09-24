@@ -1,0 +1,44 @@
+---
+description: After an agent mistake, add or extend a .cursor/rules file so it does not repeat
+alwaysApply: true
+---
+
+# Agent mistakes become rules (mandatory)
+
+When the agent **makes a mistake** -- found by the operator, by self-audit before Send, or
+after a failed operator step -- **do not only apologize**. Add or tighten a **project rule**
+in `.cursor/rules/` so the next session self-audits against it.
+
+## Required sequence
+
+1. **Acknowledge** the error in plain language (do not defend the wrong step).
+2. **State the correct rule** (cite existing docs/rules when one already exists).
+3. **Write or extend a `.mdc` rule** -- one concern per file when possible; `alwaysApply: true`
+   for operator-handoff mistakes; link related rules.
+4. **Index** the new file under **Git and deploy communication** or **Agent behavior** in
+   [.cursor/rules/RULES.md](RULES.md).
+5. **Fleet sync** when the rule is cluster-wide git/operator handoff: add to the master list in
+   [docs/FLEET_AGENT_RULES.md](../../docs/FLEET_AGENT_RULES.md) and run
+   `scripts/sync-fleet-agent-rules.sh`; commit each sibling repo from its owning host.
+6. **Commit** the rule when the operator asked for a fix or said to push; otherwise offer to
+   commit with the next code change.
+
+## Self-audit before Send (operator handoffs)
+
+Before posting rollout steps, git commands, or host-labeled paste blocks, ask:
+
+- Did I contradict [git-per-host-clone.mdc](git-per-host-clone.mdc),
+  [cluster-sync-order.mdc](cluster-sync-order.mdc), or [cluster-host-command-execution.mdc](cluster-host-command-execution.mdc)?
+- Would this waste an operator turn (wrong host, wrong account, pull-on-pusher)?
+
+If yes, **fix the reply** and still add a rule if this is a **new** failure class.
+
+## Scope
+
+- Applies to **agent behavior** and **operator paste/runbooks**, not every typo in chat.
+- **RULE #1** still wins for vendor behavior; rules here capture **this cluster's** handoff mistakes.
+
+## Principles
+
+See [RULES.md](RULES.md). Complements [windows-operator-paste-admin-audit.mdc](windows-operator-paste-admin-audit.mdc)
+and [truenas-hub-first.mdc](truenas-hub-first.mdc) ("Do not defend the command. Diagnose.").

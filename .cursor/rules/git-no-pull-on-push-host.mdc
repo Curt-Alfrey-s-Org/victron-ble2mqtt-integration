@@ -1,0 +1,45 @@
+---
+description: Never tell the operator to git pull on the host that just committed and pushed
+alwaysApply: true
+---
+
+# Git pull -- not on the push host (mandatory)
+
+[git-per-host-clone.mdc](git-per-host-clone.mdc) and [cluster-sync-order.mdc](cluster-sync-order.mdc) Phase C:
+
+| Host role in this change | `git pull --ff-only`? |
+|--------------------------|------------------------|
+| **Same machine** where the agent (or operator) just **`git commit` + `git push`** | **No** -- checkout is already at `origin/main`. |
+| **Every other clone** that will deploy or run scripts from that repo | **Yes** -- before deploy on that host. |
+
+## Forbidden in agent replies
+
+- "Pull on `.93`" immediately after pushing alfa-ai from `.93` / `C:\Users\gamerx\alfa-ai`.
+- Generic "pull then start" when the only consumer of the change **is** the push host (e.g. Trainer GUI Start on `.93` after pushing `Start-AlfaTrain7bQlora.ps1`).
+- Listing the push host in a Phase C pull table for the same commit the agent just pushed.
+
+## Required handoff after push from active workspace
+
+1. Confirm **commit is on the push host** (e.g. `fc4224d5` already local after successful push).
+2. Tell the operator the **next action on that host** (open GUI, run script, orchestrator) with **no pull**.
+3. If other hosts need parity, list **only those hosts** with one pull step each (`.111` operator,
+   `.148`, `.105`, `C:\alfa-ai-train` on `.59`/`.249` when *they* must run updated code).
+
+## Self-check before Send
+
+```
+Did I push (or did the operator push) from this host in this thread?
+  yes -> do not post git pull for that host
+  no  -> pull only on consumers named in the runbook
+```
+
+## Example (this mistake class)
+
+**Wrong:** Push from `.93`, then "From `.93`: `git pull --ff-only origin main`" before GUI Start.
+
+**Right:** Push from `.93`, then "Trainer GUI Start on `.93` -- no pull; clone is already current."
+
+## Principles
+
+See [RULES.md](RULES.md). Rollouts: [systematic-deploy-communication.mdc](systematic-deploy-communication.mdc),
+[multi-host-git skill](../skills/multi-host-git/SKILL.md).

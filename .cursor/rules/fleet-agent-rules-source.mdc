@@ -1,0 +1,16 @@
+---
+description: Fleet Cursor rules are copied from alfa-ai; do not edit copies by hand
+alwaysApply: true
+---
+
+# Fleet agent rules (read-only copy)
+
+These files are **synced from the alfa-ai repo** (master):
+
+- [agent-mistake-create-rule.mdc](agent-mistake-create-rule.mdc)
+- [git-no-pull-on-push-host.mdc](git-no-pull-on-push-host.mdc)
+- [git-per-host-clone.mdc](git-per-host-clone.mdc)
+
+**Edit the alfa-ai master**, then run `bash scripts/sync-fleet-agent-rules.sh` and commit each target repo.
+
+Doc: [docs/FLEET_AGENT_RULES.md](../../docs/FLEET_AGENT_RULES.md) (path in alfa-ai; consumer repos: see alfa-ai on GitHub).

@@ -1,0 +1,72 @@
+---
+description: Each host commits and pushes from its own repo clone via GitHub
+alwaysApply: true
+---
+
+# Git — per-host clone (July 2026 VM split)
+
+## Policy
+
+Repos are moving to **dedicated VMs** (100 ALFA-AI, 102 MARKET, 103 ATEMS, etc.). The old rule — **commit/push only from `.105`** — is **retired**.
+
+**Each host that owns a repo clone** may run the full git loop locally:
+
+| Step | Where |
+|------|--------|
+| Edit code / docs | The host that owns the checkout (or agent workspace on that host) |
+| `git commit` | Same host |
+| `git push origin main` | Same host |
+| `git pull --ff-only` | Every **other** clone of that repo before deploy |
+
+Never `git pull` on the host that **just pushed** in the same session ([git-no-pull-on-push-host.mdc](git-no-pull-on-push-host.mdc)).
+
+**GitHub** (`origin`) is the sync bus — not SCP between hosts.
+
+## Host → repo ownership (examples)
+
+| Host | Typical clone path | Repos |
+|------|-------------------|-------|
+| **`.100`** | `/home/n4s1/alfa-ai` | `alfa-ai` (pool27 shard `:31354`) |
+| **`.110`** | `/home/n4s1/alfa-ai` | `alfa-ai` (CPU RAG staging / cutover target) |
+| **`.105`** | `/home/ansible/<repo>` | Remaining apps on 105 + sibling repos still colocated |
+| **`.93`** | `C:\Users\gamerx\alfa-ai` | `alfa-ai` (Windows dev / orchestrator) |
+| **`.102`** | `/home/ansible/market-pie5-bot` | `market-pie5-bot` |
+| **`.103`** | `/home/n4s1/atems` | `atems` |
+| **`.107`** | `/home/ansible/monitoring` | `monitoring` |
+| **`.111`** | `/mnt/HDDs/Alfa-AI/repo/alfa-ai` | `alfa-ai` (hub clone — pull only until brain moves) |
+
+A change to **repo X** is committed and pushed from the host that **runs** repo X (or where the agent is actively editing). Other hosts **pull** before deploy.
+
+## Agent workflow
+
+1. **Research + docs** per [doc-first-development.mdc](doc-first-development.mdc).
+2. **Edit** in the active workspace (`.93`, `.105`, `.100` SSH, etc.).
+3. **`git commit`** from that workspace — include docs + code in one commit when both changed.
+4. **Pre-commit** when `deploy/` changed: `pwsh -NoProfile -File deploy/cluster-members/_common/Test-AlfaPowerShellScriptSyntax.ps1 -Recurse deploy`
+5. **`git push origin main`** from the same host.
+6. **`git pull --ff-only`** on every other clone before deploy on that host.
+7. **Deploy** per [cluster-sync-order.mdc](cluster-sync-order.mdc).
+
+## Multi-repo / mapping file sync
+
+`docs/REPO_HOST_MAPPING.md` master copy lives in **alfa-ai**. After editing:
+
+- Commit/push **alfa-ai** from the host doing the edit (`.93`, `.105`, or `.100`).
+- Propagate the file to sibling repos (`scripts/sync-repo-host-mapping.sh` or manual `cp`).
+- Commit/push **each sibling repo from the host that owns that clone** (`.105` for repos still there; `.102` for market-bot; etc.).
+
+## Never commit
+
+- Live `.env`, secrets, operator-only tokens ([secrets-and-env.mdc](secrets-and-env.mdc)).
+- `tmp-*` scratch files unless explicitly part of the deliverable.
+
+## `.111` and gaming workers
+
+Operator runs `git pull` on `.111` and workers — agents do not SSH-commit there ([cluster-host-command-execution.mdc](cluster-host-command-execution.mdc)).
+
+## Related
+
+- [RULES.md](RULES.md) — rule hierarchy
+- [cluster-sync-order.mdc](cluster-sync-order.mdc) — pull parity + deploy order after push
+- [scp-direction.mdc](scp-direction.mdc) — code via GitHub; artifacts via hub
+- [SOURCE_OF_TRUTH_AND_SYNC.md](../../docs/SOURCE_OF_TRUTH_AND_SYNC.md)
