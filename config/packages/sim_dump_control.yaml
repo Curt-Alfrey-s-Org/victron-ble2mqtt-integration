@@ -303,11 +303,10 @@ template:
           {% set solar_canon = states('sensor.solar_controller_solar_power') %}
           {% set solar = solar_live if is_number(solar_live) else solar_canon %}
           {% set load = states('sensor.sim_dump_load_power') %}
-          {% set losses = states('sensor.solar_component_losses_power') %}
           {% if not is_number(solar) %}
             {{ none }}
           {% else %}
-            {{ (solar | float(0)) - (load | float(0)) - (losses | float(0)) }}
+            {{ (solar | float(0)) - (load | float(0)) }}
           {% endif %}
       - name: Dump bus load T2
         unique_id: dump_bus_load_t2
@@ -588,7 +587,9 @@ template:
         default_entity_id: binary_sensor.dump_load_exceeds_solar
         device_class: problem
         state: >
-          {% set solar = states('sensor.site_solar_power') %}
+          {% set t2 = states('sensor.solar_controller_solar') %}
+          {% set pv = states('sensor.sungold_sph302480a_pv_power') %}
+          {% set solar = ((t2 | float(0)) if is_number(t2) else 0) + ((pv | float(0)) if is_number(pv) else 0) %}
           {% set load = states('sensor.sungold_sph302480a_load_power') %}
           {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
           {{ is_number(solar) and is_number(load)
@@ -926,7 +927,7 @@ automation dump_load:
       - variables:
           msg: >
             Load {{ states('sensor.sungold_sph302480a_load_power') }} W has been
-            above solar {{ states('sensor.site_solar_power') }} W for 10 minutes.
+            above T2 MPPT plus Sungold PV W for 10 minutes.
           svc: "{{ states('input_text.dump_notify_service') | trim }}"
       - action: notify.persistent_notification
         data:

@@ -15,16 +15,9 @@ views:
         type: markdown
         title: Solar plant
         content: >
-          **power-sankey** fills after **Settings > Dashboards > Energy**
-          ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-          Dump kill switch: **Dump** Automations tile (`sim_dump_control.yaml`).
-          Staging confirms **SPH AC-out** (or T2/KU pack sign) after 5 s, then 15 min
-          on / 10 min cooldown. Not per-plug Govee watts.
-          **Sungold AC out** = INV OUTPUT (Pi4 + dump); **Sungold AC-in** = trailer
-          outlet clamp. Not cargo LED/vent tiles.
-          Do **not** show KU PV est or KU share est (unmetered residual, not a clamp).
-          Do not add A3 as utility grid. **Jumper** is shunt-to-shunt (already in
-          Batt 1 and Batt 2); do not add it to Solar / Charge / Load.
+          **Device readings only** -- no computed site totals. Victron BLE, Sungold Modbus,
+          EM16 clamps, sim dump plugs. **power-sankey** uses Energy dashboard config.
+          Dump: **Dump** tile (`sim_dump_control.yaml`).
     badges:
       - type: entity
         entity: sensor.battery_1_state_of_charge
@@ -50,60 +43,37 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Site totals
+            heading: Quick meters
           - type: markdown
             content: >
-              **Charge** = **Victron pack** (T2/KU shunt inflow from MPPT/jumper) + **SPH cart**
-              when `sungold_cart_charge` > 0. Victron pack charge is **never** load.
-              **Total load** = **AC out** (end-use) + **KU stack load** (cart charging from
-              Renogy->SPH path; same watts as cart charge) + **T2 MPPT DC load**.
-              **Trailer outlet** = measured KU AC into SPH; **not** a load tile. When cart is
-              not charging, leftover AC-in shows as **SPH AC-in unmatched** (plus conversion
-              loss in **Unaccounted**) -- not Charge, not Total load.
-              **Solar** = T2 clamp + Sungold PV + max(0, KU residual). **Source** = solar +
-              pack discharge. **Jumper** = shunt leftover (already inside Batt 1/2 W).
-              **Today** kWh tiles are separate integrals; they do not sum like the W buckets.
+              Each tile is a **single device sensor** (Victron, Sungold, or EM16). Tap for
+              more info. No combined site math on this dashboard.
             grid_options:
               columns: full
           - type: tile
-            entity: sensor.victron_pack_charge_power
-            name: Victron charge now
+            entity: sensor.solar_controller_solar
+            name: T2 MPPT W
           - type: tile
-            entity: sensor.sungold_cart_charge_power
-            name: Cart charge now
+            entity: sensor.sungold_sph302480a_pv_power
+            name: Sungold PV W
           - type: tile
-            entity: sensor.site_solar_power
-            name: Solar now
+            entity: sensor.battery_1_power
+            name: T2 shunt W
           - type: tile
-            entity: sensor.site_solar_today
-            name: Solar today
+            entity: sensor.battery_2_power
+            name: KU shunt W
           - type: tile
-            entity: sensor.site_charge_power
-            name: Charge now
-          - type: tile
-            entity: sensor.site_charge_today
-            name: Charge today
-          - type: tile
-            entity: sensor.site_source_power
-            name: Source now
-          - type: tile
-            entity: sensor.site_total_load_power
-            name: Total load now
-          - type: tile
-            entity: sensor.ku_stack_load_power
-            name: KU stack load now
-          - type: tile
-            entity: sensor.sph_ac_in_unmatched_power
-            name: SPH AC-in unmatched
-          - type: tile
-            entity: sensor.site_load_unaccounted_power
-            name: Unaccounted (loss)
+            entity: sensor.sungold_sph302480a_charging_power
+            name: SPH batt in W
           - type: tile
             entity: sensor.sungold_sph302480a_load_power
-            name: AC out now
+            name: SPH AC out W
+          - type: tile
+            entity: sensor.em16_b3_power
+            name: EM16 B3 W
           - type: tile
             entity: sensor.sungold_load_today
-            name: Load today
+            name: SPH AC out today kWh
 
       - type: grid
         cards:
@@ -120,20 +90,22 @@ views:
           - type: distribution
             title: Instant W
             entities:
-              - entity: sensor.victron_pack_charge_power
-                name: Victron charge
-              - entity: sensor.sungold_cart_charge_power
-                name: Cart charge
-              - entity: sensor.ku_stack_load_power
-                name: KU stack load
               - entity: sensor.solar_controller_solar
                 name: T2 MPPT
-              - entity: sensor.sungold_sph302480a_load_power
-                name: Sungold AC out
-              - entity: sensor.sph_ac_in_unmatched_power
-                name: SPH AC-in unmatched
               - entity: sensor.sungold_sph302480a_pv_power
                 name: Sungold PV
+              - entity: sensor.battery_1_power
+                name: T2 shunt
+              - entity: sensor.battery_2_power
+                name: KU shunt
+              - entity: sensor.sungold_sph302480a_charging_power
+                name: SPH batt in
+              - entity: sensor.sungold_sph302480a_load_power
+                name: SPH AC out
+              - entity: sensor.em16_a3_power
+                name: EM16 A3
+              - entity: sensor.em16_b3_power
+                name: EM16 B3
               - entity: sensor.sim_dump_load_power
                 name: Sim dump
             grid_options:
@@ -160,9 +132,6 @@ views:
             entity: sensor.solar_controller_yield_today
             name: Yield today
           - type: tile
-            entity: sensor.t2_ku_jumper_at_t2_power
-            name: Jumper to KU
-          - type: tile
             entity: sensor.battery_1_power
             name: Batt 1 W
           - type: tile
@@ -183,9 +152,6 @@ views:
           - type: tile
             entity: sensor.battery_1_rssi
             name: RSSI
-          - type: tile
-            entity: sensor.t2_mppt_conversion_loss_power
-            name: MPPT loss
 
       - type: grid
         cards:
@@ -195,9 +161,6 @@ views:
               - type: entity
                 entity: sensor.battery_2_state_of_charge
                 show_state: true
-          - type: tile
-            entity: sensor.t2_ku_jumper_power
-            name: Jumper from T2
           - type: tile
             entity: sensor.battery_2_power
             name: Batt 2 W
@@ -225,26 +188,23 @@ views:
           - type: heading
             heading: KU outlet to SPH
           - type: tile
-            entity: sensor.trailer_outlet_power
-            name: Trailer outlet
-          - type: tile
             entity: sensor.em16_a3_power
-            name: Trailer CT A3
+            name: EM16 A3 W
           - type: tile
             entity: sensor.em16_b3_power
-            name: Sungold breaker
+            name: EM16 B3 W
           - type: tile
-            entity: sensor.sungold_uti_va_power
-            name: UTI V times A
+            entity: sensor.sungold_sph302480a_grid_voltage
+            name: SPH AC-in V
           - type: tile
-            entity: sensor.sungold_ac_out_va_power
-            name: AC out V times A
+            entity: sensor.sungold_sph302480a_grid_current
+            name: SPH AC-in A
           - type: tile
-            entity: sensor.sungold_cart_to_load_power
-            name: Cart to AC out
+            entity: sensor.sungold_sph302480a_load_power
+            name: SPH AC out W
           - type: tile
-            entity: sensor.sungold_conversion_loss_power
-            name: Conv. loss
+            entity: sensor.sungold_sph302480a_load_current
+            name: SPH AC out A
 
       - type: grid
         cards:
@@ -652,10 +612,10 @@ views:
                 name: Battery 1
               - entity: sensor.battery_2_power
                 name: Battery 2
-              - entity: sensor.t2_ku_jumper_power
-                name: Jumper
-              - entity: sensor.trailer_outlet_power
-                name: Sungold AC-in
+              - entity: sensor.em16_a3_power
+                name: EM16 A3
+              - entity: sensor.em16_b3_power
+                name: EM16 B3
               - entity: sensor.sim_dump_load_power
                 name: Sim dump
               - entity: sensor.sungold_sph302480a_load_power
@@ -677,23 +637,6 @@ views:
                 name: T2 charge
               - entity: sensor.sungold_sph302480a_charging_power
                 name: Sungold charge
-            grid_options:
-              columns: full
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Watts (losses)
-          - type: history-graph
-            title: Watts (losses)
-            hours_to_show: 72
-            entities:
-              - entity: sensor.solar_component_losses_power
-                name: Combined
-              - entity: sensor.t2_mppt_conversion_loss_power
-                name: T2 MPPT
-              - entity: sensor.sungold_conversion_loss_power
-                name: Sungold
             grid_options:
               columns: full
 
@@ -866,16 +809,8 @@ views:
             entities:
               - entity: sensor.t2_mppt_energy_kwh
                 name: T2 MPPT
-              - entity: sensor.battery_1_charge_energy_kwh
-                name: Batt 1 charge
-              - entity: sensor.battery_1_discharge_energy_kwh
-                name: Batt 1 discharge
-              - entity: sensor.battery_2_charge_energy_kwh
-                name: Batt 2 charge
-              - entity: sensor.battery_2_discharge_energy_kwh
-                name: Batt 2 discharge
-              - entity: sensor.em16_a3_energy_kwh
-                name: Sungold AC-in
+              - entity: sensor.em16_b3_energy_kwh
+                name: EM16 B3
               - entity: sensor.sungold_load_energy_kwh
                 name: Sungold AC out
               - entity: sensor.sim_dump_energy_kwh
