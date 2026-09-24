@@ -39,11 +39,11 @@ template:
              if is_number(states('sensor.sungold_sph302480a_charging_power')) else 0 %}
           {% set ku_ac = 0 %}
           {% if sg_p < 15 %}
-            {% if is_number(states('sensor.em16_b3_power'))
-               and (states('sensor.em16_b3_power') | float | abs) >= 0.5 %}
-              {% set ku_ac = states('sensor.em16_b3_power') | float | abs %}
-            {% elif is_number(states('sensor.em16_a3_power')) %}
-              {% set ku_ac = states('sensor.em16_a3_power') | float | abs %}
+            {% if is_number(states('sensor.site_em16_b3_power'))
+               and (states('sensor.site_em16_b3_power') | float | abs) >= 0.5 %}
+              {% set ku_ac = states('sensor.site_em16_b3_power') | float | abs %}
+            {% elif is_number(states('sensor.site_em16_a3_power')) %}
+              {% set ku_ac = states('sensor.site_em16_a3_power') | float | abs %}
             {% endif %}
           {% endif %}
           {% if b2 is not none and jmp is not none %}

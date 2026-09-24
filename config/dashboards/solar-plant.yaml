@@ -115,10 +115,10 @@ views:
           - type: heading
             heading: KU outlet to Sungold
           - type: tile
-            entity: sensor.em16_a3_power
+            entity: sensor.site_em16_a3_power
             name: EM16 A3 W
           - type: tile
-            entity: sensor.em16_b3_power
+            entity: sensor.site_em16_b3_power
             name: EM16 B3 W
           - type: tile
             entity: sensor.sungold_sph302480a_grid_voltage
@@ -439,9 +439,9 @@ views:
                 name: Battery 1
               - entity: sensor.battery_2_power
                 name: Battery 2
-              - entity: sensor.em16_a3_power
+              - entity: sensor.site_em16_a3_power
                 name: EM16 A3
-              - entity: sensor.em16_b3_power
+              - entity: sensor.site_em16_b3_power
                 name: EM16 B3
               - entity: sensor.sungold_sph302480a_load_power
                 name: Sungold AC out

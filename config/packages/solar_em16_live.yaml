@@ -1,0 +1,116 @@
+# Pass-through EM16 A3/B3 with strict availability (no frozen watts when AC path is dead).
+# Refoss native: unavailable when EM16 UDP stops (MAX_ERRORS on coordinator).
+# Wrappers: unavailable when channel V < 80 V, or Sungold UTI dead while EM16 claims >5 W.
+# Site solar tiles use sensor.site_em16_* ; Refoss dashboard keeps native entities.
+# https://www.home-assistant.io/integrations/template/
+
+template:
+  - sensor:
+      - name: Site EM16 A3 power
+        unique_id: site_em16_a3_power
+        default_entity_id: sensor.site_em16_a3_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_a3_voltage') %}
+          {% set p = states('sensor.em16_a3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_a3_power') | float(0) }}"
+      - name: Site EM16 B3 power
+        unique_id: site_em16_b3_power
+        default_entity_id: sensor.site_em16_b3_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_b3_voltage') %}
+          {% set p = states('sensor.em16_b3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_b3_power') | float(0) }}"
+      - name: Site EM16 A3 voltage
+        unique_id: site_em16_a3_voltage
+        default_entity_id: sensor.site_em16_a3_voltage
+        unit_of_measurement: V
+        device_class: voltage
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_a3_voltage') %}
+          {% set p = states('sensor.em16_a3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_a3_voltage') | float(0) }}"
+      - name: Site EM16 B3 voltage
+        unique_id: site_em16_b3_voltage
+        default_entity_id: sensor.site_em16_b3_voltage
+        unit_of_measurement: V
+        device_class: voltage
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_b3_voltage') %}
+          {% set p = states('sensor.em16_b3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_b3_voltage') | float(0) }}"
+      - name: Site EM16 A3 current
+        unique_id: site_em16_a3_current
+        default_entity_id: sensor.site_em16_a3_current
+        unit_of_measurement: A
+        device_class: current
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_a3_voltage') %}
+          {% set p = states('sensor.em16_a3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_a3_current') | float(0) }}"
+      - name: Site EM16 B3 current
+        unique_id: site_em16_b3_current
+        default_entity_id: sensor.site_em16_b3_current
+        unit_of_measurement: A
+        device_class: current
+        state_class: measurement
+        availability: >-
+          {% set v = states('sensor.em16_b3_voltage') %}
+          {% set p = states('sensor.em16_b3_power') %}
+          {% set sgv = states('sensor.sungold_sph302480a_grid_voltage') %}
+          {% set sga = states('sensor.sungold_sph302480a_grid_current') %}
+          {{ not is_state(v, 'unavailable') and not is_state(v, 'unknown')
+             and not is_state(p, 'unavailable') and not is_state(p, 'unknown')
+             and (v | float(0)) >= 80
+             and not (is_number(sgv) and is_number(sga)
+               and (sgv | float(0)) < 50 and (sga | float(0)) < 0.5
+               and is_number(p) and ((p | float(0)) | abs) > 5) }}
+        state: "{{ states('sensor.em16_b3_current') | float(0) }}"

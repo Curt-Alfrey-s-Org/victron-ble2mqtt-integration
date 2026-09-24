@@ -55,3 +55,15 @@ One **estimate** tile on **KU 24 V** (Now / Site solar):
 
 Helper (not on dashboard): `sensor.t2_ku_jumper_power`. Attributes on the est tile: `victron_mppt23_est_w`, `pwm_est_w`.
 Package: `config/packages/solar_ku_estimates.yaml`.
+
+## Site EM16 live wrappers (2026-09-24)
+
+Site solar **A3/B3** tiles use `sensor.site_em16_a3_power` and `sensor.site_em16_b3_power`
+(`config/packages/solar_em16_live.yaml`). They go **Unavailable** when:
+
+- native Refoss is unavailable (EM16 not responding on UDP), or
+- channel voltage is below 80 V, or
+- Sungold UTI shows no AC-in while EM16 still claims more than 5 W (stale clamp).
+
+The **Refoss** dashboard tab keeps native `sensor.em16_*` entities; when the whole EM16 is
+offline, Refoss already marks all channels Unavailable.

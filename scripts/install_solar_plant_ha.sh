@@ -77,6 +77,14 @@ mobile_app:
 YAML
 fi
 
+EM16_LIVE_SRC="$ROOT/config/packages/solar_em16_live.yaml"
+EM16_LIVE_DST="$HA_CONFIG_DIR/packages/solar_em16_live.yaml"
+if [[ -f "$EM16_LIVE_SRC" ]]; then
+  sudo cp "$EM16_LIVE_SRC" "$EM16_LIVE_DST"
+  sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$EM16_LIVE_DST" 2>/dev/null || true
+  echo "[solar-plant] Installed $EM16_LIVE_DST"
+fi
+
 KU_EST_SRC="$ROOT/config/packages/solar_ku_estimates.yaml"
 KU_EST_DST="$HA_CONFIG_DIR/packages/solar_ku_estimates.yaml"
 if [[ -f "$KU_EST_SRC" ]]; then
