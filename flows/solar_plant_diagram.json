@@ -1,0 +1,878 @@
+[
+  {
+    "id": "solar-plant-diagram-tab",
+    "type": "tab",
+    "label": "Solar plant diagram",
+    "disabled": false,
+    "info": "Drag nodes and wires to match the site. Data from Home Assistant REST only."
+  },
+  {
+    "id": "solar-plant-diagram-group",
+    "type": "group",
+    "z": "solar-plant-diagram-tab",
+    "name": "Live HA clamps (edit layout here)",
+    "style": {
+      "label": true,
+      "fill": "#e3f2fd",
+      "color": "#000000"
+    },
+    "nodes": [
+      "ent-0-fn",
+      "ent-0-http",
+      "ent-0-fmt",
+      "ent-1-fn",
+      "ent-1-http",
+      "ent-1-fmt",
+      "ent-2-fn",
+      "ent-2-http",
+      "ent-2-fmt",
+      "ent-3-fn",
+      "ent-3-http",
+      "ent-3-fmt",
+      "ent-4-fn",
+      "ent-4-http",
+      "ent-4-fmt",
+      "ent-5-fn",
+      "ent-5-http",
+      "ent-5-fmt",
+      "ent-6-fn",
+      "ent-6-http",
+      "ent-6-fmt",
+      "ent-7-fn",
+      "ent-7-http",
+      "ent-7-fmt",
+      "ent-8-fn",
+      "ent-8-http",
+      "ent-8-fmt",
+      "ent-9-fn",
+      "ent-9-http",
+      "ent-9-fmt",
+      "ent-10-fn",
+      "ent-10-http",
+      "ent-10-fmt",
+      "ent-0-fn",
+      "ent-0-http",
+      "ent-0-fmt",
+      "ent-1-fn",
+      "ent-1-http",
+      "ent-1-fmt",
+      "ent-2-fn",
+      "ent-2-http",
+      "ent-2-fmt",
+      "ent-3-fn",
+      "ent-3-http",
+      "ent-3-fmt",
+      "ent-4-fn",
+      "ent-4-http",
+      "ent-4-fmt",
+      "ent-5-fn",
+      "ent-5-http",
+      "ent-5-fmt",
+      "ent-6-fn",
+      "ent-6-http",
+      "ent-6-fmt",
+      "ent-7-fn",
+      "ent-7-http",
+      "ent-7-fmt",
+      "ent-8-fn",
+      "ent-8-http",
+      "ent-8-fmt",
+      "ent-9-fn",
+      "ent-9-http",
+      "ent-9-fmt",
+      "ent-10-fn",
+      "ent-10-http",
+      "ent-10-fmt"
+    ],
+    "x": 74,
+    "y": 39,
+    "w": 1322,
+    "h": 302
+  },
+  {
+    "id": "inject-tick",
+    "type": "inject",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Poll HA every 5s",
+    "props": [
+      {
+        "p": "payload"
+      },
+      {
+        "p": "topic",
+        "vt": "str"
+      }
+    ],
+    "repeat": "5",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "2",
+    "topic": "",
+    "payload": "",
+    "payloadType": "date",
+    "x": 120,
+    "y": 60,
+    "wires": [
+      [
+        "ent-0-fn"
+      ],
+      [
+        "ent-1-fn"
+      ],
+      [
+        "ent-2-fn"
+      ],
+      [
+        "ent-3-fn"
+      ],
+      [
+        "ent-4-fn"
+      ],
+      [
+        "ent-5-fn"
+      ],
+      [
+        "ent-6-fn"
+      ],
+      [
+        "ent-7-fn"
+      ],
+      [
+        "ent-8-fn"
+      ],
+      [
+        "ent-9-fn"
+      ],
+      [
+        "ent-10-fn"
+      ]
+    ]
+  },
+  {
+    "id": "comment-topology",
+    "type": "comment",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "8x 2s strings: MPPT1 T2 | MPPT2+3 KU | PWM KU. HA owns sensors; edit solar_plant.yaml for new clamps.",
+    "info": "",
+    "x": 520,
+    "y": 40,
+    "wires": []
+  },
+  {
+    "id": "ent-0-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2 MPPT solar",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.solar_controller_solar';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.solar_controller_solar';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 120,
+    "y": 160,
+    "wires": [
+      [
+        "ent-0-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-0-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2 MPPT solar GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 280,
+    "y": 160,
+    "wires": [
+      [
+        "ent-0-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-0-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2 MPPT solar status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 440,
+    "y": 160,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-1-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Sungold PV",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.sungold_sph302480a_pv_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.sungold_sph302480a_pv_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 120,
+    "y": 240,
+    "wires": [
+      [
+        "ent-1-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-1-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Sungold PV GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 280,
+    "y": 240,
+    "wires": [
+      [
+        "ent-1-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-1-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Sungold PV status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 440,
+    "y": 240,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-2-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site solar",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.site_solar_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.site_solar_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 320,
+    "y": 120,
+    "wires": [
+      [
+        "ent-2-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-2-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site solar GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 480,
+    "y": 120,
+    "wires": [
+      [
+        "ent-2-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-2-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site solar status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 640,
+    "y": 120,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-3-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 1 T2",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.battery_1_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.battery_1_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 320,
+    "y": 200,
+    "wires": [
+      [
+        "ent-3-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-3-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 1 T2 GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 480,
+    "y": 200,
+    "wires": [
+      [
+        "ent-3-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-3-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 1 T2 status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 640,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-4-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2-KU jumper",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.t2_ku_jumper_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.t2_ku_jumper_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 480,
+    "y": 200,
+    "wires": [
+      [
+        "ent-4-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-4-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2-KU jumper GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 640,
+    "y": 200,
+    "wires": [
+      [
+        "ent-4-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-4-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "T2-KU jumper status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 800,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-5-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 2 KU",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.battery_2_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.battery_2_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 640,
+    "y": 200,
+    "wires": [
+      [
+        "ent-5-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-5-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 2 KU GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 800,
+    "y": 200,
+    "wires": [
+      [
+        "ent-5-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-5-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Battery 2 KU status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 960,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-6-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Trailer / KU to SPH",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.trailer_outlet_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.trailer_outlet_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 800,
+    "y": 200,
+    "wires": [
+      [
+        "ent-6-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-6-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Trailer / KU to SPH GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 960,
+    "y": 200,
+    "wires": [
+      [
+        "ent-6-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-6-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Trailer / KU to SPH status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1120,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-7-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "SPH AC out",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.sungold_sph302480a_load_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.sungold_sph302480a_load_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 960,
+    "y": 200,
+    "wires": [
+      [
+        "ent-7-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-7-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "SPH AC out GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1120,
+    "y": 200,
+    "wires": [
+      [
+        "ent-7-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-7-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "SPH AC out status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1280,
+    "y": 200,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-8-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site source",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.site_source_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.site_source_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 800,
+    "y": 320,
+    "wires": [
+      [
+        "ent-8-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-8-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site source GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 960,
+    "y": 320,
+    "wires": [
+      [
+        "ent-8-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-8-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site source status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1120,
+    "y": 320,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-9-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site total load",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.site_total_load_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.site_total_load_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 960,
+    "y": 320,
+    "wires": [
+      [
+        "ent-9-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-9-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site total load GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1120,
+    "y": 320,
+    "wires": [
+      [
+        "ent-9-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-9-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Site total load status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1280,
+    "y": 320,
+    "wires": [
+      []
+    ]
+  },
+  {
+    "id": "ent-10-fn",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Load unaccounted",
+    "func": "const base = global.get('haBaseUrl') || 'http://127.0.0.1:8123';\nconst token = global.get('haToken') || '';\nif (!token) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no HA token' });\n    return null;\n}\nmsg.url = base + '/api/states/sensor.site_load_unaccounted_power';\nmsg.method = 'GET';\nmsg.headers = { Authorization: 'Bearer ' + token };\nmsg.entity = 'sensor.site_load_unaccounted_power';\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1120,
+    "y": 320,
+    "wires": [
+      [
+        "ent-10-http"
+      ]
+    ]
+  },
+  {
+    "id": "ent-10-http",
+    "type": "http request",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Load unaccounted GET",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "tls": "",
+    "persist": false,
+    "proxy": "",
+    "insecureHTTPParser": false,
+    "authType": "",
+    "senderr": false,
+    "headers": [],
+    "x": 1280,
+    "y": 320,
+    "wires": [
+      [
+        "ent-10-fmt"
+      ]
+    ]
+  },
+  {
+    "id": "ent-10-fmt",
+    "type": "function",
+    "z": "solar-plant-diagram-tab",
+    "g": "solar-plant-diagram-group",
+    "name": "Load unaccounted status",
+    "func": "if (!msg.payload || msg.payload.state === undefined) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad response' });\n    return null;\n}\nconst st = msg.payload.state;\nconst u = msg.payload.attributes && msg.payload.attributes.unit_of_measurement\n    ? msg.payload.attributes.unit_of_measurement : 'W';\nnode.status({ fill: 'green', shape: 'dot', text: st + ' ' + u });\nmsg.payload = { entity: msg.entity, state: st, unit: u };\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1440,
+    "y": 320,
+    "wires": [
+      []
+    ]
+  }
+]

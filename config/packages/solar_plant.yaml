@@ -69,9 +69,8 @@ template:
             unknown
           {% endif %}
 
-      # Sungold UTI on KU Renogy trailer outlet: Renogy DC load is at least max(CT, UTI).
-      # Vent fan and LEDs are on SPH AC out (not a sibling on A3 anymore).
-      - name: KU Renogy AC load power
+      # Measured AC on KU trailer outlet into SPH AC-in (EM16 / UTI). Not house load.
+      - name: KU Renogy AC to SPH power
         unique_id: ku_renogy_ac_load_power
         default_entity_id: sensor.ku_renogy_ac_load_power
         unit_of_measurement: W
@@ -93,7 +92,9 @@ template:
           sungold_uti_w: >-
             {{ states('sensor.sungold_uti_va_power') | float(0)
                if is_number(states('sensor.sungold_uti_va_power')) else none }}
-          note: max EM16 A3/B3 and SPH grid V*A; inverter DC in >= AC INPUT
+          note: >-
+            AC watts on KU cord into SPH AC-in (max CT, UTI). When cart is charging,
+            this should track stack load; when cart is idle, gap is SPH AC-in unmatched.
 
       # SPH AC-out is all house loads (T2 Renogy idle). Cart/PV only supply
       # the surplus of AC-out over KU UTI/CT. 0 in mains bypass.
@@ -306,6 +307,92 @@ template:
             {{ [states('sensor.ku_unmetered_pv_est_power') | float(0)
                 if is_number(states('sensor.ku_unmetered_pv_est_power')) else 0, 0] | max }}
 
+      - name: Victron pack charge power
+        unique_id: victron_pack_charge_power
+        default_entity_id: sensor.victron_pack_charge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.battery_1_charge_power'))
+             or is_number(states('sensor.battery_2_charge_power')) }}
+        state: >-
+          {{ (states('sensor.battery_1_charge_power') | float(0)
+              if is_number(states('sensor.battery_1_charge_power')) else 0)
+             + (states('sensor.battery_2_charge_power') | float(0)
+                if is_number(states('sensor.battery_2_charge_power')) else 0) }}
+        attributes:
+          batt1_charge_w: "{{ states('sensor.battery_1_charge_power') }}"
+          batt2_charge_w: "{{ states('sensor.battery_2_charge_power') }}"
+          note: T2/KU LiTime inflow from Victron MPPT and jumper; never site load
+
+      - name: Sungold cart charge power
+        unique_id: sungold_cart_charge_power
+        default_entity_id: sensor.sungold_cart_charge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.sungold_sph302480a_charging_power')) }}"
+        state: >-
+          {% set p = states('sensor.sungold_sph302480a_charging_power') | float(0) %}
+          {{ [p, 0] | max }}
+        attributes:
+          note: SPH 100Ah cart inflow; storage, not Victron pack charge
+
+      - name: KU stack load power
+        unique_id: ku_stack_load_power
+        default_entity_id: sensor.ku_stack_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.sungold_sph302480a_charging_power')) }}"
+        state: >-
+          {% set p = states('sensor.sungold_sph302480a_charging_power') | float(0) %}
+          {{ [p, 0] | max }}
+        attributes:
+          cart_charge_w: "{{ states('sensor.sungold_cart_charge_power') }}"
+          ku_ac_in_w: "{{ states('sensor.ku_renogy_ac_load_power') }}"
+          note: >-
+            Load on T2/KU buses when Renogy feeds SPH and cart charges (same W as cart
+            charge). Victron pack charge from panels is not stack load.
+
+      - name: Site end use load power
+        unique_id: site_end_use_load_power
+        default_entity_id: sensor.site_end_use_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.sungold_sph302480a_load_power')) }}"
+        state: >-
+          {{ states('sensor.sungold_sph302480a_load_power') | float(0)
+             if is_number(states('sensor.sungold_sph302480a_load_power')) else 0 }}
+        attributes:
+          note: SPH INV OUTPUT (Pi4, dump, vent on AC out); house end-use branch
+
+      - name: SPH AC-in unmatched power
+        unique_id: sph_ac_in_unmatched_power
+        default_entity_id: sensor.sph_ac_in_unmatched_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.trailer_outlet_power'))
+             or is_number(states('sensor.ku_renogy_ac_load_power')) }}
+        state: >-
+          {% set tr = states('sensor.trailer_outlet_power') | float(0)
+             if is_number(states('sensor.trailer_outlet_power')) else
+             (states('sensor.ku_renogy_ac_load_power') | float(0)
+              if is_number(states('sensor.ku_renogy_ac_load_power')) else 0) %}
+          {% set stack = states('sensor.ku_stack_load_power') | float(0)
+             if is_number(states('sensor.ku_stack_load_power')) else 0 %}
+          {{ [tr - stack, 0] | max }}
+        attributes:
+          trailer_w: "{{ states('sensor.trailer_outlet_power') }}"
+          stack_load_w: "{{ states('sensor.ku_stack_load_power') }}"
+          note: >-
+            KU AC-in watts not explained by cart stack load (SPH internal / idle AC-in);
+            not Victron charge and not house AC out
+
       - name: Site charge power
         unique_id: site_charge_power
         default_entity_id: sensor.site_charge_power
@@ -323,6 +410,119 @@ template:
                 if is_number(states('sensor.battery_2_charge_power')) else 0)
              + ([states('sensor.sungold_sph302480a_charging_power') | float(0)
                 if is_number(states('sensor.sungold_sph302480a_charging_power')) else 0, 0] | max) }}
+        attributes:
+          victron_pack_w: "{{ states('sensor.victron_pack_charge_power') }}"
+          cart_w: "{{ states('sensor.sungold_cart_charge_power') }}"
+          note: Victron T2/KU pack inflow plus SPH cart inflow; neither is end-use load
+      - name: Sungold cart discharge power
+        unique_id: sungold_cart_discharge_power
+        default_entity_id: sensor.sungold_cart_discharge_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: "{{ is_number(states('sensor.sungold_sph302480a_charging_power')) }}"
+        state: >-
+          {% set p = states('sensor.sungold_sph302480a_charging_power') | float(0) %}
+          {{ [-(p), 0] | max }}
+
+      # source = solar panels + battery discharge (SmartShunt + / cart batt -).
+      - name: Site source power
+        unique_id: site_source_power
+        default_entity_id: sensor.site_source_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.site_solar_power'))
+             or is_number(states('sensor.battery_1_discharge_power'))
+             or is_number(states('sensor.battery_2_discharge_power'))
+             or is_number(states('sensor.sungold_cart_discharge_power')) }}
+        state: >-
+          {{ (states('sensor.site_solar_power') | float(0)
+              if is_number(states('sensor.site_solar_power')) else 0)
+             + (states('sensor.battery_1_discharge_power') | float(0)
+                if is_number(states('sensor.battery_1_discharge_power')) else 0)
+             + (states('sensor.battery_2_discharge_power') | float(0)
+                if is_number(states('sensor.battery_2_discharge_power')) else 0)
+             + (states('sensor.sungold_cart_discharge_power') | float(0)
+                if is_number(states('sensor.sungold_cart_discharge_power')) else 0) }}
+        attributes:
+          solar_w: "{{ states('sensor.site_solar_power') }}"
+          batt1_dis_w: "{{ states('sensor.battery_1_discharge_power') }}"
+          batt2_dis_w: "{{ states('sensor.battery_2_discharge_power') }}"
+          sph_cart_dis_w: "{{ states('sensor.sungold_cart_discharge_power') }}"
+          note: site_solar + T2/KU/SPH pack discharge; not jumper addends
+
+      # Explicit load buckets (Victron pack charge is never load).
+      - name: Site total load power
+        unique_id: site_total_load_power
+        default_entity_id: sensor.site_total_load_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.site_end_use_load_power'))
+             or is_number(states('sensor.ku_stack_load_power'))
+             or is_number(states('sensor.solar_controller_load_power')) }}
+        state: >-
+          {{ (states('sensor.site_end_use_load_power') | float(0)
+              if is_number(states('sensor.site_end_use_load_power')) else 0)
+             + (states('sensor.ku_stack_load_power') | float(0)
+                if is_number(states('sensor.ku_stack_load_power')) else 0)
+             + (states('sensor.solar_controller_load_power') | float(0)
+                if is_number(states('sensor.solar_controller_load_power')) else 0) }}
+        attributes:
+          end_use_w: "{{ states('sensor.site_end_use_load_power') }}"
+          ku_stack_w: "{{ states('sensor.ku_stack_load_power') }}"
+          t2_mppt_load_w: "{{ states('sensor.solar_controller_load_power') }}"
+          victron_charge_w: "{{ states('sensor.victron_pack_charge_power') }}"
+          sph_ac_in_unmatched_w: "{{ states('sensor.sph_ac_in_unmatched_power') }}"
+          note: end-use AC out + KU stack (cart charge) + T2 MPPT DC load only
+
+      - name: Site load metered power
+        unique_id: site_load_metered_power
+        default_entity_id: sensor.site_load_metered_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.site_end_use_load_power'))
+             or is_number(states('sensor.ku_stack_load_power'))
+             or is_number(states('sensor.solar_controller_load_power')) }}
+        state: >-
+          {{ (states('sensor.site_end_use_load_power') | float(0)
+              if is_number(states('sensor.site_end_use_load_power')) else 0)
+             + (states('sensor.ku_stack_load_power') | float(0)
+                if is_number(states('sensor.ku_stack_load_power')) else 0)
+             + (states('sensor.solar_controller_load_power') | float(0)
+                if is_number(states('sensor.solar_controller_load_power')) else 0) }}
+        attributes:
+          end_use_w: "{{ states('sensor.site_end_use_load_power') }}"
+          ku_stack_w: "{{ states('sensor.ku_stack_load_power') }}"
+          t2_mppt_load_w: "{{ states('sensor.solar_controller_load_power') }}"
+          note: same buckets as total load; sim dump is inside SPH AC out when ON
+
+      - name: Site load unaccounted power
+        unique_id: site_load_unaccounted_power
+        default_entity_id: sensor.site_load_unaccounted_power
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        availability: >-
+          {{ is_number(states('sensor.sph_ac_in_unmatched_power'))
+             or is_number(states('sensor.solar_component_losses_power')) }}
+        state: >-
+          {{ (states('sensor.sph_ac_in_unmatched_power') | float(0)
+              if is_number(states('sensor.sph_ac_in_unmatched_power')) else 0)
+             + (states('sensor.solar_component_losses_power') | float(0)
+                if is_number(states('sensor.solar_component_losses_power')) else 0) }}
+        attributes:
+          sph_ac_in_unmatched_w: "{{ states('sensor.sph_ac_in_unmatched_power') }}"
+          conversion_loss_w: "{{ states('sensor.solar_component_losses_power') }}"
+          note: >-
+            Not house load: idle KU AC-in into SPH plus T2/SPH conversion loss.
+            Do not add to Charge now or Total load now.
+
 
 sensor:
   - platform: integration

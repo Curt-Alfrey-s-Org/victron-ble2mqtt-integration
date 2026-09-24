@@ -127,6 +127,26 @@ Split depends on KU load. Under **HVAC+cluster (~720 W)** size overnight as **KU
 
 Each shunt capacity in VictronConnect: **230 Ah**. 14:53 KU **91.7% / -15.4 Ah** is 15.4 / 230 = **6.7%** used (implied **93.3%**). 16:11 **85.4% / -33.7 Ah** is 33.7 / 230 = **14.6%** used (implied **85.4%**). The ~185 Ah guess is retired.
 
+
+## Site energy balance (source = load + charge + loss)
+
+Instant identity (HA template sensors on `.105`):
+
+```text
+site_source_power     = site_solar_power + battery_1_discharge + battery_2_discharge + sungold_cart_discharge
+site_total_load_power = site_source_power - site_charge_power - solar_component_losses_power
+site_load_metered     = sungold_sph302480a_load_power + solar_controller_load_power
+site_load_unaccounted = site_total_load_power - site_load_metered
+```
+
+**Source** is only **PV clamps + pack discharge** (not jumper, not charge). **Charge** is net
+into T2, KU, and Sungold cart packs. **Loss** is metered T2 MPPT + Sungold conversion only
+(KU Renogy and PWM stay unmetered). **Total load** is everything left: useful AC/DC loads plus
+overhead on unmetered inverters. **Unaccounted** is the gap between that total and the small set
+of clamped loads (SPH AC out, T2 MPPT load out). A large positive unaccounted with
+`ku_renogy_ac_load` >> `SPH AC out` usually means cart charging + Sungold/KU inverter overhead,
+not a mystery load -- compare `sungold_conversion_loss` and `site_charge`.
+
 ## How to read the meters
 
 SmartShunt current sign ([operation](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)):

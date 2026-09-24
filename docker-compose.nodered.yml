@@ -1,0 +1,28 @@
+## Node-RED solar diagram editor (HA is data source only).
+## Official: https://nodered.org/docs/getting-started/docker
+services:
+  nodered-solar:
+    build:
+      context: ./docker/nodered
+    image: victron-nodered-solar:4.0.9-22
+    container_name: nodered-solar
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - nodered.env
+    environment:
+      - TZ=${TZ:-America/Chicago}
+    volumes:
+      - nodered_solar_data:/data
+      - ./nodered/settings.js:/data/settings.js:ro
+    labels:
+      autoheal: "true"
+    mem_limit: 512m
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  nodered_solar_data:

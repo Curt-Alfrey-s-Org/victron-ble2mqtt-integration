@@ -11,6 +11,7 @@ PACKAGE = ROOT / "config" / "packages" / "solar_plant.yaml"
 DASHBOARD = ROOT / "config" / "dashboards" / "solar-plant.yaml"
 INSTALL = ROOT / "scripts" / "install_solar_plant_ha.sh"
 DOCS = ROOT / "docs" / "SOLAR_HA_DASHBOARD.md"
+CHARGE_VS_LOAD = ROOT / "docs" / "SOLAR_CHARGE_VS_LOAD.md"
 
 
 def _load(path: Path) -> object:
@@ -96,9 +97,21 @@ def test_package_pins_jumper_and_ku_share() -> None:
     assert "sensor.solar_controller_charging_power" not in site_charge["state"]
     assert "sensor.t2_ku_jumper_power" not in site_charge["state"]
     assert "| max" in site_charge["state"]
-
-
-def test_package_has_riemann_integrals() -> None:
+    charge_attrs = site_charge.get("attributes") or {}
+    assert "victron_pack_w" in charge_attrs
+    assert "cart_w" in charge_attrs
+    victron_chg = by_id["sensor.victron_pack_charge_power"]
+    assert "sensor.battery_1_charge_power" in victron_chg["state"]
+    assert "sensor.battery_2_charge_power" in victron_chg["state"]
+    ku_stack = by_id["sensor.ku_stack_load_power"]
+    assert "sensor.sungold_sph302480a_charging_power" in ku_stack["state"]
+    total_load = by_id["sensor.site_total_load_power"]
+    assert "sensor.site_end_use_load_power" in total_load["state"]
+    assert "sensor.ku_stack_load_power" in total_load["state"]
+    assert "sensor.site_source_power" not in total_load["state"]
+    unmatched = by_id["sensor.sph_ac_in_unmatched_power"]
+    assert "sensor.trailer_outlet_power" in unmatched["state"]
+    assert "sensor.ku_stack_load_power" in unmatched["state"]
     data = _load(PACKAGE)
     platforms = data.get("sensor") or []
     sources = {row["source"] for row in platforms}
@@ -245,31 +258,32 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert site_tile_names == {
         "Solar now",
         "Solar today",
+        "Victron charge now",
+        "Cart charge now",
         "Charge now",
         "Charge today",
-        "Load now",
+        "Source now",
+        "Total load now",
+        "KU stack load now",
+        "SPH AC-in unmatched",
+        "Unaccounted (loss)",
+        "AC out now",
         "Load today",
     }
     site_tile_entities = {t["entity"] for t in site_tiles}
-    assert site_tile_entities == {
-        "sensor.site_solar_power",
-        "sensor.site_solar_today",
-        "sensor.site_charge_power",
-        "sensor.site_charge_today",
-        "sensor.sungold_sph302480a_load_power",
-        "sensor.sungold_load_today",
-    }
-    load_now = next(t for t in site_tiles if t["name"] == "Load now")
-    assert load_now["entity"] == "sensor.sungold_sph302480a_load_power"
-    pair_types = [c["type"] for c in site_cards if c.get("type") == "tile" and c.get("name") in ("Solar now", "Solar today", "Charge now", "Charge today", "Load now", "Load today")]
-    assert pair_types == [
-        "tile",
-        "tile",
-        "tile",
-        "tile",
-        "tile",
-        "tile",
+    assert "sensor.site_solar_power" in site_tile_entities
+    assert "sensor.victron_pack_charge_power" in site_tile_entities
+    assert "sensor.ku_stack_load_power" in site_tile_entities
+    assert "sensor.sph_ac_in_unmatched_power" in site_tile_entities
+    ac_out = next(t for t in site_tiles if t["name"] == "AC out now")
+    assert ac_out["entity"] == "sensor.sungold_sph302480a_load_power"
+    pair_types = [
+        c["type"]
+        for c in site_cards
+        if c.get("type") == "tile"
+        and c.get("name") in ("Solar now", "Solar today", "Charge now", "Charge today", "Load today")
     ]
+    assert pair_types == ["tile", "tile", "tile", "tile", "tile"]
     yaml_pkg = PACKAGE.read_text(encoding="utf-8")
     assert "utility_meter:" in yaml_pkg
     assert "site_solar_today:" in yaml_pkg
@@ -505,6 +519,13 @@ def test_dashboard_uses_official_cards_only() -> None:
     assert history_view.get("type") == "sections"
 
 
+def test_charge_vs_load_doc() -> None:
+    text = CHARGE_VS_LOAD.read_text(encoding="utf-8")
+    assert "Victron pack charge is **never load**" in text
+    assert "ku_stack_load_power" in text
+    assert "sph_ac_in_unmatched_power" in text
+
+
 def test_docs_and_install_script_exist() -> None:
     text = DOCS.read_text(encoding="utf-8")
     assert "power-sankey" in text
@@ -539,6 +560,9 @@ def test_docs_and_install_script_exist() -> None:
     assert "tile" in text
     assert "Site totals" in text
     assert "site_solar_power" in text
+    assert "site_source_power" in text
+    assert "site_total_load_power" in text
+    assert "site_load_unaccounted_power" in text
     assert "stat_type: change" not in text or "site_solar_today" in text
     assert "site_solar_today" in text
     assert "mobile_app:" in text

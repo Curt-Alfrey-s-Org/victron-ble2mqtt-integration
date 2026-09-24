@@ -381,3 +381,7 @@ The custom GX proxy is gone. After pull on `.105`:
 ```bash
 bash scripts/uninstall_solar_flow.sh
 ```
+
+## Node-RED solar diagram (editable canvas)
+
+Live **Site solar** tiles stay in HA. **Build/edit the topology diagram** in Node-RED (`http://192.168.0.105:1880/`, tab **Solar plant diagram**). NR reads HA REST only; see [SOLAR_NODERED_OPERATOR.md](SOLAR_NODERED_OPERATOR.md) and [SOLAR_DIAGRAM_POLICY.md](SOLAR_DIAGRAM_POLICY.md). Do not use Mermaid or SVG for this.

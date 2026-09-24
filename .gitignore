@@ -48,3 +48,8 @@ deploy/secrets/home-assistant/*
 # SSL materials for tools reverse proxy (generated locally)
 ssl/*.key
 ssl/*.crt
+nodered.env
+nodered.env
+nodered-runtime/
+nodered-data/
+

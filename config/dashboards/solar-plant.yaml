@@ -53,20 +53,24 @@ views:
             heading: Site totals
           - type: markdown
             content: >
-              **Solar** = T2 clamp + Sungold PV + max(0, KU residual).
-              KU residual subtracts jumper so T2 watts already in Batt 2 are not KU PV.
-              **Charge** = T2+KU+SPH packs (not T2 MPPT output; jumper already in Batt 1/2).
-              **Load** = Sungold AC out = all house watts (T2 RV empty; vent/LED/dump on SPH out).
-              Do not add AC-in or jumper. **Cart to AC out** is 0 while KU UTI feeds
-              the load (mains bypass). Nonzero only if the cart/PV supplies AC-out.
-              KU cord into SPH is **Trailer outlet** / **UTI V×A** (measured), not house load.
-              **Jumper** = shunt-to-shunt leftover (not extra watts).
-              **Today** = daily utility meter on each kWh integral (not the lifetime
-              total on `*_energy_kwh`). Solar, charge, and load today do not add up:
-              load is SPH AC-out only; charge is pack inflow; KU Renogy and losses
-              are elsewhere.
+              **Charge** = **Victron pack** (T2/KU shunt inflow from MPPT/jumper) + **SPH cart**
+              when `sungold_cart_charge` > 0. Victron pack charge is **never** load.
+              **Total load** = **AC out** (end-use) + **KU stack load** (cart charging from
+              Renogy->SPH path; same watts as cart charge) + **T2 MPPT DC load**.
+              **Trailer outlet** = measured KU AC into SPH; **not** a load tile. When cart is
+              not charging, leftover AC-in shows as **SPH AC-in unmatched** (plus conversion
+              loss in **Unaccounted**) -- not Charge, not Total load.
+              **Solar** = T2 clamp + Sungold PV + max(0, KU residual). **Source** = solar +
+              pack discharge. **Jumper** = shunt leftover (already inside Batt 1/2 W).
+              **Today** kWh tiles are separate integrals; they do not sum like the W buckets.
             grid_options:
               columns: full
+          - type: tile
+            entity: sensor.victron_pack_charge_power
+            name: Victron charge now
+          - type: tile
+            entity: sensor.sungold_cart_charge_power
+            name: Cart charge now
           - type: tile
             entity: sensor.site_solar_power
             name: Solar now
@@ -80,8 +84,23 @@ views:
             entity: sensor.site_charge_today
             name: Charge today
           - type: tile
+            entity: sensor.site_source_power
+            name: Source now
+          - type: tile
+            entity: sensor.site_total_load_power
+            name: Total load now
+          - type: tile
+            entity: sensor.ku_stack_load_power
+            name: KU stack load now
+          - type: tile
+            entity: sensor.sph_ac_in_unmatched_power
+            name: SPH AC-in unmatched
+          - type: tile
+            entity: sensor.site_load_unaccounted_power
+            name: Unaccounted (loss)
+          - type: tile
             entity: sensor.sungold_sph302480a_load_power
-            name: Load now
+            name: AC out now
           - type: tile
             entity: sensor.sungold_load_today
             name: Load today
@@ -101,10 +120,18 @@ views:
           - type: distribution
             title: Instant W
             entities:
+              - entity: sensor.victron_pack_charge_power
+                name: Victron charge
+              - entity: sensor.sungold_cart_charge_power
+                name: Cart charge
+              - entity: sensor.ku_stack_load_power
+                name: KU stack load
               - entity: sensor.solar_controller_solar
                 name: T2 MPPT
               - entity: sensor.sungold_sph302480a_load_power
                 name: Sungold AC out
+              - entity: sensor.sph_ac_in_unmatched_power
+                name: SPH AC-in unmatched
               - entity: sensor.sungold_sph302480a_pv_power
                 name: Sungold PV
               - entity: sensor.sim_dump_load_power
