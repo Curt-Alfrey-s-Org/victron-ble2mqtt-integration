@@ -558,10 +558,13 @@ template:
         unique_id: dump_batt_sph_ok
         default_entity_id: binary_sensor.dump_batt_sph_ok
         state: >
+          {% set p = states('sensor.sungold_sph302480a_charging_power') %}
           {% set a = states('sensor.sungold_sph302480a_battery_current') %}
           {% set v = states('sensor.sungold_sph302480a_battery_voltage') %}
           {% set lim = states('input_number.dump_max_discharge_sph_w') | float(50) %}
-          {% if is_number(a) and is_number(v) %}
+          {% if is_number(p) %}
+            {{ (p | float) >= -lim }}
+          {% elif is_number(a) and is_number(v) %}
             {{ ((a | float) * (v | float)) >= -lim }}
           {% else %}
             {{ false }}

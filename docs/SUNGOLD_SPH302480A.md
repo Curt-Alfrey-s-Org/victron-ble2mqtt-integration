@@ -191,3 +191,20 @@ Do not pass `--remove-orphans`.
 ## Reference
 
 Register map derived from [timbit123/srne-modbus](https://github.com/timbit123/srne-modbus) (Apache-2.0). This repo ships a **thin read-only** subset, not a full upstream clone.
+
+## Battery current sign (HA / dump logic)
+
+SRNE Modbus register **0x0102** (INPUT BATT A) uses the **opposite** sign from Victron-style
+conventions in Home Assistant:
+
+| Direction | Victron-style in HA | Raw SRNE before fix |
+|-----------|---------------------|---------------------|
+| Charging  | **+A**, **+W** (input power) | often **negative** A |
+| Discharge | **-A**, negative `I*V` | often **positive** A |
+
+The Pi4 sidecar applies **`invert=True`** on `battery/current`, then **`reconcile_battery_current`**
+forces **positive** amps when **INPUT BATT KW** (`inverter/charging_power`, reg **0x010E**) is above ~15 W.
+After publish, **`|A|*V` must agree with charging W** within normal meter tolerance.
+
+Dump guard **`binary_sensor.dump_batt_sph_ok`** uses `(battery_current * battery_voltage) >= -limit_w`;
+it requires the corrected sign above.

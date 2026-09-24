@@ -10,6 +10,7 @@ import time
 from .config import load_settings
 from .modbus_io import ReadOnlyModbusClient
 from .mqtt_ha import MqttHaPublisher
+from .reconcile import reconcile_battery_current
 from .registers import CURATED_ENTITIES
 
 
@@ -21,14 +22,25 @@ def touch_heartbeat(path: str) -> None:
 
 def run_poll_cycle(modbus: ReadOnlyModbusClient, mqtt_pub: MqttHaPublisher) -> bool:
     published_any = False
+    values: dict[str, str] = {}
     for entity in CURATED_ENTITIES:
-        # Skip reduces USB retries. Do not publish empty MQTT discovery:
-        # HA deletes the entity
-        # https://www.home-assistant.io/integrations/mqtt/#discovery-messages
         if not modbus.is_register_available(entity.register):
             continue
-
         value = modbus.read_entity(entity)
+        if value is None:
+            continue
+        values[entity.key] = value
+
+    fixed = reconcile_battery_current(
+        values.get("inverter/charging_power"),
+        values.get("battery/voltage"),
+        values.get("battery/current"),
+    )
+    if fixed is not None:
+        values["battery/current"] = fixed
+
+    for entity in CURATED_ENTITIES:
+        value = values.get(entity.key)
         if value is None:
             continue
         if mqtt_pub.publish_state(entity, value):

@@ -116,7 +116,7 @@ CURATED_ENTITIES: tuple[EntityDef, ...] = (
     EntityDef("pv1/power", "PV output power", 0x0109, integer=True, device_class="power", state_class="measurement", unit="W", icon="mdi:solar-power"),
     EntityDef("battery/soc", "Remaining battery", 0x0100, integer=True, device_class="battery", state_class="measurement", unit="%", icon="mdi:battery"),
     EntityDef("battery/voltage", "Battery input voltage", 0x0101, scale=0.1, device_class="voltage", state_class="measurement", unit="V", icon="mdi:current-dc"),
-    EntityDef("battery/current", "Input battery current", 0x0102, scale=0.1, signed=True, device_class="current", state_class="measurement", unit="A", icon="mdi:current-dc"),
+    EntityDef("battery/current", "Input battery current", 0x0102, scale=0.1, signed=True, invert=True, device_class="current", state_class="measurement", unit="A", icon="mdi:current-dc"),
     EntityDef("battery/temperature", "Battery temperature", 0x0103, scale=0.1, signed=True, device_class="temperature", state_class="measurement", unit="°C", icon="mdi:thermometer"),
     EntityDef("battery/charge_state", "Charge state", 0x010B, lookup=CHARGING_STATES, icon="mdi:battery-charging"),
     EntityDef("inverter/charging_power", "Battery input power", 0x010E, integer=True, device_class="power", state_class="measurement", unit="W", icon="mdi:battery-charging"),
