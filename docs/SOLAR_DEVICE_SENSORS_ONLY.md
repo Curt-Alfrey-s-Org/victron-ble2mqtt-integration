@@ -1,13 +1,16 @@
 # Solar HA: device sensors only (policy)
 
-**Effective:** removed all template **site total** and **balance** sensors from
-`config/packages/solar_plant.yaml`. The Site solar dashboard shows **one tile per
-physical reading** (Victron BLE, Sungold Modbus, EM16, sim dump).
+**Effective:** removed template **site total** sensors and **duplicate tiles** from
+`config/dashboards/solar-plant.yaml`. **Now** view: one tile per device entity
+(Victron BLE, Sungold Modbus, EM16). Header SoC badges only.
 
 ## Removed (do not re-add without operator approval)
 
 - `sensor.site_solar_power`, `site_charge_power`, `site_source_power`,
   `site_total_load_power`, `site_load_*`, `*_today` site integrals
+- Riemann `integration` / `utility_meter` rows in `solar_plant.yaml` (kWh tiles)
+- Dashboard **Quick meters**, **Instant W** distribution, duplicate tiles (same entity twice)
+- Template dump status tiles on the main view (`dump_surplus_w`, `dump_bus_load_*`, binary gates)
 - Jumper math: `t2_ku_jumper_*`, `ku_unmetered_pv_est_*`, `ku_charger_equal_share_*`
 - AC merge/loss estimates: `trailer_outlet_power`, `ku_renogy_ac_load_power`,
   `sph_ac_in_unmatched_power`, `sungold_*_va_power`, `*_conversion_loss_*`,

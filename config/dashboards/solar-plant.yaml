@@ -15,9 +15,9 @@ views:
         type: markdown
         title: Solar plant
         content: >
-          **Device readings only** -- no computed site totals. Victron BLE, Sungold Modbus,
-          EM16 clamps, sim dump plugs. **power-sankey** uses Energy dashboard config.
-          Dump: **Dump** tile (`sim_dump_control.yaml`).
+          One tile per **device sensor** (each entity appears once on this view).
+          Victron BLE, Sungold Modbus, EM16. Dump helpers live under **Dump** sections.
+          **power-sankey** uses Energy dashboard config only.
     badges:
       - type: entity
         entity: sensor.battery_1_state_of_charge
@@ -35,46 +35,7 @@ views:
         entity: sensor.nws_watauga_lake_alerts
         name: NWS
         show_name: true
-      - type: entity
-        entity: input_boolean.dump_control_enabled
-        name: Dump
-        show_name: true
     sections:
-      - type: grid
-        cards:
-          - type: heading
-            heading: Quick meters
-          - type: markdown
-            content: >
-              Each tile is a **single device sensor** (Victron, Sungold, or EM16). Tap for
-              more info. No combined site math on this dashboard.
-            grid_options:
-              columns: full
-          - type: tile
-            entity: sensor.solar_controller_solar
-            name: T2 MPPT W
-          - type: tile
-            entity: sensor.sungold_sph302480a_pv_power
-            name: Sungold PV W
-          - type: tile
-            entity: sensor.battery_1_power
-            name: T2 shunt W
-          - type: tile
-            entity: sensor.battery_2_power
-            name: KU shunt W
-          - type: tile
-            entity: sensor.sungold_sph302480a_charging_power
-            name: Sungold batt in W
-          - type: tile
-            entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out W
-          - type: tile
-            entity: sensor.em16_b3_power
-            name: EM16 B3 W
-          - type: tile
-            entity: sensor.sungold_load_today
-            name: Sungold AC out today kWh
-
       - type: grid
         cards:
           - type: heading
@@ -87,38 +48,11 @@ views:
             group_by_floor: false
             grid_options:
               columns: full
-          - type: distribution
-            title: Instant W
-            entities:
-              - entity: sensor.solar_controller_solar
-                name: T2 MPPT
-              - entity: sensor.sungold_sph302480a_pv_power
-                name: Sungold PV
-              - entity: sensor.battery_1_power
-                name: T2 shunt
-              - entity: sensor.battery_2_power
-                name: KU shunt
-              - entity: sensor.sungold_sph302480a_charging_power
-                name: Sungold batt in
-              - entity: sensor.sungold_sph302480a_load_power
-                name: Sungold AC out
-              - entity: sensor.em16_a3_power
-                name: EM16 A3
-              - entity: sensor.em16_b3_power
-                name: EM16 B3
-              - entity: sensor.sim_dump_load_power
-                name: Sim dump
-            grid_options:
-              columns: full
 
       - type: grid
         cards:
           - type: heading
             heading: T2 24 V
-            badges:
-              - type: entity
-                entity: sensor.battery_1_state_of_charge
-                show_state: true
           - type: tile
             entity: sensor.solar_controller_solar
             name: MPPT W
@@ -141,9 +75,6 @@ views:
             entity: sensor.battery_1_current
             name: Batt 1 A
           - type: tile
-            entity: sensor.battery_1_state_of_charge
-            name: SoC
-          - type: tile
             entity: sensor.battery_1_consumed_ah
             name: Consumed Ah
           - type: tile
@@ -157,10 +88,6 @@ views:
         cards:
           - type: heading
             heading: KU 24 V
-            badges:
-              - type: entity
-                entity: sensor.battery_2_state_of_charge
-                show_state: true
           - type: tile
             entity: sensor.battery_2_power
             name: Batt 2 W
@@ -170,9 +97,6 @@ views:
           - type: tile
             entity: sensor.battery_2_current
             name: Batt 2 A
-          - type: tile
-            entity: sensor.battery_2_state_of_charge
-            name: SoC
           - type: tile
             entity: sensor.battery_2_consumed_ah
             name: Consumed Ah
@@ -199,21 +123,11 @@ views:
           - type: tile
             entity: sensor.sungold_sph302480a_grid_current
             name: Sungold AC-in A
-          - type: tile
-            entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out W
-          - type: tile
-            entity: sensor.sungold_sph302480a_load_current
-            name: Sungold AC out A
 
       - type: grid
         cards:
           - type: heading
             heading: Sungold
-            badges:
-              - type: entity
-                entity: sensor.sungold_sph302480a_battery_soc
-                show_state: true
           - type: tile
             entity: sensor.sungold_sph302480a_pv_power
             name: PV W
@@ -225,7 +139,7 @@ views:
             name: PV A
           - type: tile
             entity: sensor.sungold_sph302480a_charging_power
-            name: Cart batt
+            name: Batt in W
           - type: tile
             entity: sensor.sungold_sph302480a_battery_voltage
             name: Batt V
@@ -233,20 +147,14 @@ views:
             entity: sensor.sungold_sph302480a_battery_current
             name: Batt A
           - type: tile
-            entity: sensor.sungold_sph302480a_battery_soc
-            name: Batt SoC
-          - type: tile
             entity: sensor.sungold_sph302480a_charge_state
-            name: Charge
+            name: Charge state
           - type: tile
             entity: sensor.sungold_sph302480a_inverter_state
-            name: Mode
+            name: Output mode
           - type: tile
             entity: sensor.sungold_sph302480a_load_power
-            name: Sungold AC out
-          - type: tile
-            entity: sensor.sungold_sph302480a_grid_voltage
-            name: UTI V
+            name: AC out W
           - type: tile
             entity: sensor.sungold_sph302480a_ac_output_voltage
             name: AC out V
@@ -255,10 +163,7 @@ views:
             name: AC out Hz
           - type: tile
             entity: sensor.sungold_sph302480a_load_current
-            name: Load A
-          - type: tile
-            entity: sensor.sungold_sph302480a_grid_current
-            name: AC in A
+            name: AC out A
           - type: tile
             entity: sensor.sungold_sph302480a_grid_frequency
             name: AC in Hz
@@ -276,25 +181,10 @@ views:
         cards:
           - type: heading
             heading: Dump
-            badges:
-              - type: entity
-                entity: input_boolean.dump_control_enabled
-                show_state: true
-              - type: entity
-                entity: sensor.dump_next_plug
-                show_state: true
-              - type: entity
-                entity: sensor.dump_surplus_w
-                show_state: true
           - type: markdown
             content: >
-              Kill switch and gate tiles here. Confirm is **site load** after 5 s
-              (`dump_site_confirm_s` / `dump_site_delta_min_w`), not indoor plug watts.
-              Confirmed plug: 15 min min-on. After off: 10 min cooldown.
-              If Load now (Sungold AC-out) stays above Solar now, shed one dump plug
-              per minute and text after 10 min (`dump_notify_service`).
-              Float/re-bulk, AC limits, and plug wiring are in the sections below.
-              Doc: [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
+              Sim dump plugs on Sungold AC out. Helpers and automation gates:
+              [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
             grid_options:
               columns: full
           - type: tile
@@ -302,48 +192,6 @@ views:
             name: Automations
             features:
               - type: toggle
-          - type: tile
-            entity: sensor.dump_bus_load_sph
-            name: Sungold confirm W
-          - type: tile
-            entity: binary_sensor.dump_load_exceeds_solar
-            name: Load > solar
-          - type: tile
-            entity: sensor.dump_shed_plug
-            name: Shed plug
-          - type: tile
-            entity: binary_sensor.dump_charge_float
-            name: MPPT float
-          - type: tile
-            entity: binary_sensor.dump_solar_present
-            name: Solar present
-          - type: tile
-            entity: binary_sensor.dump_soc_ok
-            name: SoC ok
-          - type: tile
-            entity: binary_sensor.dump_v_float_t2
-            name: T2 float hold
-          - type: tile
-            entity: binary_sensor.dump_v_rebulk_t2
-            name: T2 re-bulk
-          - type: tile
-            entity: binary_sensor.dump_v_float_ku
-            name: KU float hold
-          - type: tile
-            entity: binary_sensor.dump_v_rebulk_ku
-            name: KU re-bulk
-          - type: tile
-            entity: binary_sensor.dump_v_float_sph
-            name: Sungold float hold
-          - type: tile
-            entity: binary_sensor.dump_v_rebulk_sph
-            name: Sungold re-bulk
-          - type: tile
-            entity: sensor.dump_next_plug
-            name: Next plug
-          - type: tile
-            entity: sensor.dump_surplus_w
-            name: Surplus
 
       - type: grid
         cards:
@@ -406,12 +254,6 @@ views:
                 name: KU max batt discharge
               - entity: input_number.dump_max_discharge_sph_w
                 name: Sungold max batt discharge
-              - entity: binary_sensor.dump_batt_t2_ok
-                name: T2 batt ok
-              - entity: binary_sensor.dump_batt_ku_ok
-                name: KU batt ok
-              - entity: binary_sensor.dump_batt_sph_ok
-                name: Sungold batt ok
 
       - type: grid
         cards:
@@ -482,24 +324,6 @@ views:
             name: Plug 6
             features:
               - type: toggle
-          - type: tile
-            entity: sensor.sim_ac_plug_1_power
-            name: 1 live W
-          - type: tile
-            entity: sensor.sim_ac_plug_2_power
-            name: 2 live W
-          - type: tile
-            entity: sensor.sim_ac_plug_3_power
-            name: 3 live W
-          - type: tile
-            entity: sensor.sim_ac_plug_4_power
-            name: 4 live W
-          - type: tile
-            entity: sensor.sim_ac_plug_5_power
-            name: 5 live W
-          - type: tile
-            entity: sensor.sim_ac_plug_6_power
-            name: 6 live W
           - type: entities
             title: Dump plug wiring
             show_header_toggle: false
@@ -616,8 +440,6 @@ views:
                 name: EM16 A3
               - entity: sensor.em16_b3_power
                 name: EM16 B3
-              - entity: sensor.sim_dump_load_power
-                name: Sim dump
               - entity: sensor.sungold_sph302480a_load_power
                 name: Sungold AC out
               - entity: sensor.sungold_sph302480a_pv_power
@@ -660,31 +482,6 @@ views:
                 name: 5 fan
               - entity: switch.sim_ac_plug_6
                 name: 6 gaming PC
-            grid_options:
-              columns: full
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Sim dump plug W
-          - type: history-graph
-            title: Sim dump plug W
-            hours_to_show: 72
-            entities:
-              - entity: sensor.sim_dump_load_power
-                name: Total
-              - entity: sensor.sim_ac_plug_1_power
-                name: 1
-              - entity: sensor.sim_ac_plug_2_power
-                name: 2
-              - entity: sensor.sim_ac_plug_3_power
-                name: 3
-              - entity: sensor.sim_ac_plug_4_power
-                name: 4
-              - entity: sensor.sim_ac_plug_5_power
-                name: 5
-              - entity: sensor.sim_ac_plug_6_power
-                name: 6
             grid_options:
               columns: full
 
@@ -794,26 +591,5 @@ views:
                 name: Sungold DC-DC
               - entity: sensor.sungold_sph302480a_temperature_dc_ac
                 name: Sungold DC-AC
-            grid_options:
-              columns: full
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: kWh
-          - type: statistics-graph
-            title: kWh
-            chart_type: line
-            days_to_show: 7
-            period: hour
-            entities:
-              - entity: sensor.t2_mppt_energy_kwh
-                name: T2 MPPT
-              - entity: sensor.em16_b3_energy_kwh
-                name: EM16 B3
-              - entity: sensor.sungold_load_energy_kwh
-                name: Sungold AC out
-              - entity: sensor.sim_dump_energy_kwh
-                name: Sim dump
             grid_options:
               columns: full

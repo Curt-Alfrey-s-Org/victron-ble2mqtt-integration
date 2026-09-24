@@ -1,7 +1,7 @@
-# Solar plant HA package on .105 -- device-native readings only.
-# No site totals, jumper math, loss estimates, or other template power sensors.
+# Solar plant HA package on .105 -- device REST only (NWS alerts).
+# Victron / Sungold / EM16 sensors come from MQTT discovery on pi4 and Refoss.
+# No template power math and no Riemann integration in this package.
 # Dump automations: config/packages/sim_dump_control.yaml
-# NWS: REST only (external API, not solar math).
 # https://www.home-assistant.io/docs/configuration/packages/
 
 rest:
@@ -21,48 +21,3 @@ rest:
           {% else %}
             {{ (feats | map(attribute='properties.event') | list | unique | list | join(', '))[:250] }}
           {% endif %}
-
-sensor:
-  - platform: integration
-    source: sensor.solar_controller_solar
-    name: T2 MPPT energy kWh
-    unique_id: t2_mppt_energy_kwh
-    unit_prefix: k
-    round: 3
-    method: left
-    max_sub_interval:
-      minutes: 5
-  - platform: integration
-    source: sensor.sungold_sph302480a_load_power
-    name: Sungold load energy kWh
-    unique_id: sungold_load_energy_kwh
-    unit_prefix: k
-    round: 3
-    method: left
-    max_sub_interval:
-      minutes: 5
-  - platform: integration
-    source: sensor.sim_dump_load_power
-    name: Sim dump energy kWh
-    unique_id: sim_dump_energy_kwh
-    unit_prefix: k
-    round: 3
-    method: left
-    max_sub_interval:
-      minutes: 5
-  - platform: integration
-    source: sensor.em16_b3_power
-    name: EM16 B3 energy kWh
-    unique_id: em16_b3_energy_kwh
-    unit_prefix: k
-    round: 3
-    method: left
-    max_sub_interval:
-      minutes: 5
-
-utility_meter:
-  sungold_load_today:
-    source: sensor.sungold_load_energy_kwh
-    name: Sungold load today
-    unique_id: sungold_load_today_kwh
-    cycle: daily
