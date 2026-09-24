@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -124,7 +123,6 @@ def remove_panel_link_nodes(flow: list) -> None:
 
 
 def main() -> int:
-    preserve = "--preserve-positions" in sys.argv
     flow = json.loads(FLOW.read_text(encoding="utf-8"))
     ids = by_id(flow)
     remove_panel_link_nodes(flow)
@@ -134,36 +132,24 @@ def main() -> int:
         raise SystemExit("panel-calc missing")
 
     for p_odd, p_even, y, status_id, status_name, status_func, is_t2 in ROW_SPECS:
-        ids = by_id(flow)
-        sx = ids[status_id]["x"] if status_id in ids else 1180
-        sy = ids[status_id]["y"] if status_id in ids else y
-        ensure_status_node(flow, status_id, status_name, status_func, sx, sy)
+        ensure_status_node(flow, status_id, status_name, status_func, 1180, y)
         ids = by_id(flow)
         b1 = ids[f"panel-{p_odd}-box"]
         b2 = ids[f"panel-{p_even}-box"]
         b1["func"] = b2["func"] = PANEL_PASS_FUNC
         b1["outputs"] = b2["outputs"] = 1
-        if not preserve:
-            b1["x"], b1["y"] = 660, y
-            b2["x"], b2["y"] = 820, y
+        b1["x"], b1["y"] = 660, y
+        b2["x"], b2["y"] = 820, y
         b1["wires"] = [[f"panel-{p_even}-box"]]
         b2["wires"] = [[status_id]]
 
         if is_t2:
-            if not preserve:
-                ids["ent-0-fn"]["x"], ids["ent-0-fn"]["y"] = 1020, y
-                ids["ent-0-http"]["x"], ids["ent-0-http"]["y"] = 1100, y
-                ids["ent-0-fmt"]["x"], ids["ent-0-fmt"]["y"] = 1180, y
+            ids["ent-0-fn"]["x"], ids["ent-0-fn"]["y"] = 1020, y
+            ids["ent-0-http"]["x"], ids["ent-0-http"]["y"] = 1100, y
+            ids["ent-0-fmt"]["x"], ids["ent-0-fmt"]["y"] = 1180, y
             ids["ent-0-fmt"]["name"] = status_name
             ids["ent-0-fmt"]["func"] = status_func
             ids["ent-0-fmt"]["outputs"] = 0
-            if ids["ent-0-fn"]["wires"] != [["ent-0-http"]]:
-                ids["ent-0-fn"]["wires"] = [["ent-0-http"]]
-            if ids["ent-0-http"]["wires"] != [["ent-0-fmt"]]:
-                ids["ent-0-http"]["wires"] = [["ent-0-fmt"]]
-        elif status_id in ids:
-            ids[status_id]["func"] = status_func
-            ids[status_id]["outputs"] = 0
 
         calc["wires"][p_odd - 1] = [f"panel-{p_odd}-box"]
         calc["wires"][p_even - 1] = []

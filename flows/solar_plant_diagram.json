@@ -50,6 +50,39 @@
       "ent-10-fn",
       "ent-10-http",
       "ent-10-fmt",
+      "ent-0-fn",
+      "ent-0-http",
+      "ent-0-fmt",
+      "ent-1-fn",
+      "ent-1-http",
+      "ent-1-fmt",
+      "ent-2-fn",
+      "ent-2-http",
+      "ent-2-fmt",
+      "ent-3-fn",
+      "ent-3-http",
+      "ent-3-fmt",
+      "ent-4-fn",
+      "ent-4-http",
+      "ent-4-fmt",
+      "ent-5-fn",
+      "ent-5-http",
+      "ent-5-fmt",
+      "ent-6-fn",
+      "ent-6-http",
+      "ent-6-fmt",
+      "ent-7-fn",
+      "ent-7-http",
+      "ent-7-fmt",
+      "ent-8-fn",
+      "ent-8-http",
+      "ent-8-fmt",
+      "ent-9-fn",
+      "ent-9-http",
+      "ent-9-fmt",
+      "ent-10-fn",
+      "ent-10-http",
+      "ent-10-fmt",
       "shared-states-prep",
       "shared-states-http",
       "shared-states-lo",
@@ -130,7 +163,7 @@
     "type": "comment",
     "z": "solar-plant-diagram-tab",
     "g": "solar-plant-diagram-group",
-    "name": "Poll HA every 5s fans to each clamp (fn->GET->status) plus GET /api/states (dashed link) for panel math.",
+    "name": "8x 2s strings: MPPT1 T2 | MPPT2+3 KU | PWM KU. HA owns sensors; edit solar_plant.yaml for new clamps.",
     "info": "",
     "x": 520,
     "y": 40,
@@ -1168,40 +1201,7 @@
     "y": 410,
     "wires": [
       [
-        {
-          "id": "panel-calc",
-          "type": "function",
-          "z": "solar-plant-diagram-tab",
-          "g": "solar-panels-8-group",
-          "name": "fan-out 8 panels",
-          "func": "const lib = global.get('solarComputed');\nif (!lib || !lib.computeSolarDerived) {\n    node.status({ fill: 'red', shape: 'ring', text: 'no solarComputed lib' });\n    return null;\n}\nif (!Array.isArray(msg.payload)) {\n    node.status({ fill: 'red', shape: 'ring', text: 'bad /api/states' });\n    return null;\n}\nconst d = lib.computeSolarDerived(msg.payload);\nflow.set('solarComputedLast', d);\nnode.status({ fill: 'green', shape: 'dot', text: 'derived ok' });\nconst panels = d.panels || [];\nwhile (panels.length < 8) panels.push({ label: '?', est_w: null, connects: '' });\nreturn panels.map((p) => [{ payload: p }]);",
-          "outputs": 8,
-          "timeout": "",
-          "noerr": 0,
-          "initialize": "",
-          "finalize": "",
-          "libs": [],
-          "x": 380,
-          "y": 410,
-          "wires": [
-            [
-              "panel-1-box"
-            ],
-            [],
-            [
-              "panel-3-box"
-            ],
-            [],
-            [
-              "panel-5-box"
-            ],
-            [],
-            [
-              "panel-7-box"
-            ],
-            []
-          ]
-        }
+        "panel-calc"
       ]
     ]
   },
