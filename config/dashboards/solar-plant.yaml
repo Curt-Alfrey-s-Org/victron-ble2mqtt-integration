@@ -106,6 +106,9 @@ views:
           - type: tile
             entity: sensor.battery_2_rssi
             name: RSSI
+          - type: tile
+            entity: sensor.ku_pwm_mppt_combined_est_power
+            name: PWM+MPPT est W
 
       - type: grid
         cards:

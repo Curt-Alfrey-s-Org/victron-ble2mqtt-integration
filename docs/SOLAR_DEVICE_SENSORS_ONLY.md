@@ -44,3 +44,14 @@ HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py
 
 Old computed entities may remain in **History** until purged; remove stale entities
 in **Settings > Devices & services > Entities** if needed.
+
+## Operator exception (2026-09-24)
+
+One **estimate** tile on **KU 24 V** (Now / Site solar):
+
+| Entity | Meaning |
+|--------|---------|
+| `sensor.ku_pwm_mppt_combined_est_power` | Combined KU Victron MPPT 2+3 + PWM D/C (shunt residual when available; else 2x T2 MPPT). **Not a clamp.** |
+
+Helper (not on dashboard): `sensor.t2_ku_jumper_power`. Attributes on the est tile: `victron_mppt23_est_w`, `pwm_est_w`.
+Package: `config/packages/solar_ku_estimates.yaml`.
