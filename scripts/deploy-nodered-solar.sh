@@ -5,10 +5,11 @@ if [[ ! -f nodered.env ]]; then
   echo "Missing nodered.env (copy from nodered.env.example and set HA_LONG_LIVED_TOKEN)." >&2
   exit 1
 fi
-# Production on .105 is systemd user nodered-solar.service (host :1880), not Docker.
 if docker ps -q -f name=nodered-solar 2>/dev/null | grep -q .; then
   docker compose -f docker-compose.nodered.yml down || true
 fi
+python3 scripts/sync_diagram_from_nodered_data.py
+python3 scripts/connect_solar_diagram_flow.py
 python3 scripts/sync_nodered_systemd_data.py
 systemctl --user restart nodered-solar.service
 sleep 3
