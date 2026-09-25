@@ -50,7 +50,9 @@ A normal socket is never turned on or off by the dump automations. A dump socket
 
 Home Assistant on `.105` has no Bluetooth radio. Its Bluetooth docs only accept a local adapter, USB/IP of a USB adapter, or an ESPHome proxy that can hold an active connection ([Bluetooth](https://www.home-assistant.io/integrations/bluetooth/), [remote adapters](https://www.home-assistant.io/integrations/bluetooth/#remote-adapters-bluetooth-proxies)). The spare radio is not USB, so USB/IP cannot move it. Shelly proxies cannot make the active connection an H5082 needs.
 
-`[ ]` Run the H5082 Bluetooth control on the Pi 4, bound to **`hci1` only**, and publish one MQTT switch per socket to the broker Home Assistant already uses. The integration that names the H5082 is [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs). It is written to run inside Home Assistant, which cannot see `hci1`. Use that project's BLE library from the Pi if it can target one adapter. If it cannot, stop. Do not write a second protocol.
+`[x]` Spare radio `hci1` can see all 8 plugs. A 20s Bleak scan on `hci1` only (not `hci0`) heard `ihoment_H5082_` advertisements for `C061`, `82FB`, `2F9D`, `CF79`, `3EC9`, `9607`, `3013`, and `C38D`.
+
+`[ ]` Pair each plug with the button procedure in [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs) `GoveePlugPairer` (message `aa b1`, reply `aa b1 01` is the key). GATT on `82FB` is the project's service, but the plug answered **need button**, not a key. Keys go in `/home/n4s1/.govee-h5082-keys` mode `600` on the Pi, never in git. Then publish one MQTT switch per socket. Do not write a second protocol.
 
 ## Retired — cloud install
 
