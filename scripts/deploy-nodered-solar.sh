@@ -17,4 +17,4 @@ if ! curl -fsS --max-time 10 http://127.0.0.1:1880/ >/dev/null; then
   exit 1
 fi
 echo "Node-RED: http://127.0.0.1:1880/ (LAN: http://192.168.0.105:1880/)"
-echo "Tabs: Solar plant diagram (8-panel group), Solar computed meters; page /solar/computed"
+echo "Tabs: Solar plant diagram (8-panel group), Solar computed meters; pages /solar/computed and /solar/metrics"

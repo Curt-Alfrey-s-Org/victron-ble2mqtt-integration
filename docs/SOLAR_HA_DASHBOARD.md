@@ -1,8 +1,10 @@
 # Solar plant (Home Assistant Energy)
 
-**Canonical operator view** is Home Assistant on **`.105:8123`**: built-in **Energy**
+**Energy** on **`.105:8123`** stays the simple built-in sankey. The detailed one-line is Grafana Canvas **Solar plant one-line** at `http://192.168.0.107:3000` (uid `solar-plant-oneline`). Node-RED still owns derived watts. See [SOLAR_DIAGRAM_POLICY.md](SOLAR_DIAGRAM_POLICY.md).
+
+**Home Assistant** on **`.105:8123`**: built-in **Energy**
 for kWh / Sankey, MQTT **Solar** for discovery, and **Site solar** (`/site-solar`)
-for leftover live tiles. Site solar is **storage** mode so you can move cards.
+for device tiles. Site solar is **storage** mode so you can move cards.
 
 | Surface | Who draws it | What you plug in |
 |---------|----------------|------------------|

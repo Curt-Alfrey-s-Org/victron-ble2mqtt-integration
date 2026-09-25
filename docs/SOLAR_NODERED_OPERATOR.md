@@ -45,6 +45,8 @@ Tab **Solar computed meters** polls HA `/api/states` every 5s and runs `scripts/
 
 Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (site totals, KU est, jumper, Sungold, plus an 8-panel table).
 
+**http://192.168.0.105:1880/solar/metrics** is the same cached object as Prometheus text ([exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/)). It does not recalculate. Grafana on `.107` scrapes it. The [http in](https://nodered.org/docs/user-guide/nodes) / [http response](https://nodered.org/docs/user-guide/nodes) nodes are the official Node-RED HTTP endpoints.
+
 Site solar in HA stays **device-only**; do not re-add those template sensors to `solar_plant.yaml`.
 
 Policy: [SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md).

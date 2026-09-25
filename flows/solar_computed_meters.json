@@ -4,7 +4,7 @@
     "type": "tab",
     "label": "Solar computed meters",
     "disabled": false,
-    "info": "Derived watts (KU PWM+MPPT est, jumper, equal share). HA Site solar stays device-only. Open http://HOST:1880/solar/computed"
+    "info": "Derived watts (KU PWM+MPPT est, jumper, equal share). HA Site solar stays device-only. HTML http://HOST:1880/solar/computed . Prometheus text of the same cache http://HOST:1880/solar/metrics"
   },
   {
     "id": "computed-comment",
@@ -149,6 +149,54 @@
     "headers": {},
     "x": 580,
     "y": 260,
+    "wires": []
+  },
+  {
+    "id": "computed-metrics-in",
+    "type": "http in",
+    "z": "solar-computed-tab",
+    "name": "GET /solar/metrics",
+    "url": "/solar/metrics",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 170,
+    "y": 340,
+    "wires": [
+      [
+        "computed-metrics-fn"
+      ]
+    ]
+  },
+  {
+    "id": "computed-metrics-fn",
+    "type": "function",
+    "z": "solar-computed-tab",
+    "name": "Prometheus text from cache",
+    "func": "const d = flow.get('solarComputedLast') || {};\nconst lines = [\n    '# HELP solar_plant_watts Watts already computed by nodered_solar_computed.js',\n    '# TYPE solar_plant_watts gauge'\n];\nfunction esc(s) {\n    return String(s).replace(/\\\\/g, '\\\\\\\\').replace(/\\n/g, '\\\\n').replace(/\"/g, '\\\\\"');\n}\nfor (const key of Object.keys(d)) {\n    if (key === 'panels') continue;\n    const v = d[key];\n    if (typeof v !== 'number' || !Number.isFinite(v)) continue;\n    lines.push('solar_plant_watts{series=\"' + esc(key) + '\"} ' + v);\n}\nlines.push('# HELP solar_plant_panel_watts Per-panel estimate watts from panelBoxes()');\nlines.push('# TYPE solar_plant_panel_watts gauge');\nconst panels = Array.isArray(d.panels) ? d.panels : [];\nfor (let i = 0; i < panels.length; i++) {\n    const p = panels[i] || {};\n    if (typeof p.est_w !== 'number' || !Number.isFinite(p.est_w)) continue;\n    const panel = p.label || ('P' + (i + 1));\n    const str = p.string || '';\n    lines.push('solar_plant_panel_watts{panel=\"' + esc(panel) + '\",string=\"' + esc(str) + '\"} ' + p.est_w);\n}\nmsg.payload = lines.join('\\n') + '\\n';\nmsg.headers = { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' };\nmsg.statusCode = 200;\nreturn msg;",
+    "outputs": 1,
+    "timeout": "",
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 340,
+    "wires": [
+      [
+        "computed-metrics-res"
+      ]
+    ]
+  },
+  {
+    "id": "computed-metrics-res",
+    "type": "http response",
+    "z": "solar-computed-tab",
+    "name": "",
+    "statusCode": "",
+    "headers": {},
+    "x": 680,
+    "y": 340,
     "wires": []
   }
 ]
