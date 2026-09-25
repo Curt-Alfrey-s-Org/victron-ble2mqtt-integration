@@ -1,6 +1,6 @@
 # Docker build pattern — victron-ble2mqtt-integration
 
-This image uses **`python:3.11-bookworm`** plus **`pip install -r requirements.lock`**. When the Pi has **`./wheels`** populated from the TrueNAS hub, builds use **`PIP_OFFLINE=1`** (`--no-index --find-links`) — same convention as **alfa-ai** Petals workers ([`docs/HUB_ARTIFACTS.md`](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HUB_ARTIFACTS.md)).
+This image uses **`python:3.11-bookworm`** plus **`pip install -r requirements.lock`**. When the Pi has **`./wheels`** populated from the TrueNAS hub, builds use **`PIP_OFFLINE=1`** (`--no-index --find-links`) — same hub-wheel convention as **alfa-ai** ([`docs/HUB_ARTIFACTS.md`](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HUB_ARTIFACTS.md)).
 
 | Situation | What to do |
 |-----------|------------|

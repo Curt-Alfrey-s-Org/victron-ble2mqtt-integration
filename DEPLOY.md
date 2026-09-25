@@ -102,6 +102,7 @@ Notes:
 - Docker won’t start after running the installer: check `/etc/docker/daemon.json`. The installer backs up invalid files and writes valid JSON, then restarts Docker.
 - **`victron_ble2mqtt` exits / BLE issues:** verify `bluetoothctl show` reports `Powered: yes`; run **`sudo bash scripts/deploy.sh`** or **`docker restart victron_ble2mqtt`**. Legacy **`victron-ble2mqtt.service`** is removed by deploy — do not re-enable it.
 - No HA entities after discovery: ensure the Victron app is closed (it can stop adverts), and verify ADVKEY_* values are correct.
+- **`victron_ble2mqtt` restart loop with `missing required configuration`:** the bridge now fails fast instead of running without secrets. Set `MQTT_PASSWORD` whenever `MQTT_USER` is set, and at least one `ADVKEY_<NAME_SLUG>` (for example `ADVKEY_BATTERY_1`) in `.env` or `victron-secrets.env`, then `sudo bash scripts/redeploy_victron.sh`.
 - USB BLE dongle: add `BLE_ADAPTER=hci1` (or whatever `bluetoothctl list` shows) to `.env`, then `sudo bash scripts/redeploy_victron.sh` — the bridge defaults to BlueZ’s default adapter (`hci0`) unless overridden.
 
 Network failover (eth0 -> wlan0):
@@ -112,3 +113,13 @@ Network failover (eth0 -> wlan0):
    2. Reload: `sudo systemctl daemon-reload`
    3. Enable: `sudo systemctl enable --now wifi-failover-monitor@<user>.service`
    4. Logs: `journalctl -u wifi-failover-monitor@<user>.service -f`
+
+## Upgrade notes — 2026-09 security/correctness review
+
+Do this on the next deploy after pulling this change:
+
+1. **Before `git pull`**, back up local copies of `nginx/.htpasswd` and `swarm/auto-discovery.env` if you use them (for example `cp swarm/auto-discovery.env ~/auto-discovery.env.bak`). Both are no longer tracked, and the pull deletes the working-tree copies. Restore them afterwards. They're git-ignored now. A template is in `swarm/auto-discovery.env.example`.
+2. Make sure `MQTT_PASSWORD` is set whenever `MQTT_USER` is set, and at least one `ADVKEY_*` key is present. Otherwise the bridge exits at startup with an error that names the variable.
+3. Rebuild the image (`sudo bash scripts/redeploy_victron.sh`, or `docker compose -f docker-compose.victron.yml up -d --build`). `requirements.lock` now pins `cli-base-utilities` and `tomlkit` explicitly. If you build offline (`PIP_OFFLINE=1`), resync `./wheels` from the hub first so both wheels are there.
+4. Confirm Instant Readout values publish again: `docker logs victron_ble2mqtt` should show no `TypeError` from `callback()`, and the HA Victron sensors should update.
+5. CI images now go to `ghcr.io/curt-alfrey-s-org/victron-ble2mqtt-integration` (the repository owner). Previously the target was `ghcr.io/curtalfrey/...`, where every push was denied. The Pi builds locally, so nothing on the host pulls this image.

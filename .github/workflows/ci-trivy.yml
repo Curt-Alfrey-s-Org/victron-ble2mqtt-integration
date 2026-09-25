@@ -10,14 +10,6 @@ jobs:
   test:
     name: Run tests (with Mosquitto)
     runs-on: ubuntu-latest
-    services:
-      mosquitto:
-        image: eclipse-mosquitto:2.0
-        ports:
-          - 1883:1883
-        options: >-
-          --health-cmd="/usr/bin/nc -z localhost 1883 || exit 1"
-          --health-interval=5s --health-timeout=2s --health-retries=12
 
     steps:
       - uses: actions/checkout@v6
@@ -31,14 +23,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.lock
-          pip install 'pytest>=8,<9'
+          # tests/ also cover sungold (minimalmodbus, pyserial), bms_supervisor
+          # (pyserial) and the HA YAML packages (pyyaml); versions follow
+          # pyproject.toml [dependency-groups] dev.
+          pip install -r sungold/requirements.txt -r bms_supervisor/requirements.txt
+          pip install 'pytest>=9' 'pyyaml>=6'
 
-      - name: Wait for Mosquitto
+      # A GitHub `services:` container cannot take a command, and
+      # eclipse-mosquitto 2.x without a config only listens on loopback inside
+      # the container, so the integration tests never saw a broker. The image
+      # ships /mosquitto-no-auth.conf (listener 1883, anonymous) for this case.
+      # https://hub.docker.com/_/eclipse-mosquitto
+      - name: Start Mosquitto
         run: |
+          docker run -d --name mosquitto -p 1883:1883 eclipse-mosquitto:2.0 \
+            mosquitto -c /mosquitto-no-auth.conf
           for i in {1..20}; do
-            nc -z localhost 1883 && echo "mosquitto up" && break
+            nc -z localhost 1883 && echo "mosquitto up" && exit 0
             echo "waiting for mosquitto ($i)"; sleep 2
           done
+          docker logs mosquitto
+          exit 1
 
       - name: Run tests
         env:

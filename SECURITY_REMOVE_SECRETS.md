@@ -42,6 +42,25 @@ This repository must not track credentials, API tokens, or TLS private keys.
 
 `ssl/tools.key` and `ssl/tools.crt` were removed from the working tree and from the git index. They remain in **older commits** until history is purged (step 5). Treat that keypair as compromised: generate a new cert on the host (see `ssl/README.md`) and do not re-add keys to the repo.
 
+## 2026-09 cleanup note
+
+`nginx/.htpasswd` (basic-auth hashes for the retired tools reverse proxy) and
+`swarm/auto-discovery.env` were removed from the git index (both were already
+listed in `.gitignore`). They remain in **older commits** until history is
+purged (step 5).
+
+- Treat every username/password that was ever in `nginx/.htpasswd` as exposed:
+  the hashes can be brute-forced offline. Change that password anywhere it is
+  reused. nginx was removed from `docker-compose.tools.yml`, so the file is no
+  longer needed; regenerate it locally with `htpasswd -c nginx/.htpasswd <user>`
+  only if you bring the proxy back.
+- `swarm/auto-discovery.env` is meant to hold non-secret discovery settings; a
+  placeholder template now lives at `swarm/auto-discovery.env.example`. If you
+  ever put MQTT credentials in it, rotate them.
+- **Before `git pull` on a host**, copy both files aside: pulling a commit that
+  stops tracking a file deletes the working-tree copy. Restore them afterwards;
+  they are ignored from now on.
+
 ## Related
 
 - `DEPLOY.md` — `.env` / `victron-secrets.env` layout
