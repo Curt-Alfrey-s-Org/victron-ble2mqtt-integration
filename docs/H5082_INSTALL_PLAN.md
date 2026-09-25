@@ -35,7 +35,7 @@ A normal socket is never turned on or off by the dump automations. A dump socket
 
 `[x]` Downloaded with the Container script from [Downloading HACS](https://www.hacs.xyz/docs/use/download/download/) (`wget -O - https://get.hacs.xyz | bash -` inside `homeassistant`). Minimum HA version check passed (2026.7.3 >= 2024.4.1). Container restarted. `/config/custom_components/hacs/manifest.json` is present. HA reported healthy.
 
-`[x]` Operator completed the GitHub device login. Config entry domain `hacs` is present. HACS is in the sidebar.
+`[x]` Operator completed the GitHub device login, then cleared the Home Assistant repair for HACS. Config entry domain `hacs` is `loaded`. HACS is in the sidebar. Do not reinstall HACS.
 
 ## Checkpoint 2 — install the integration the maintainer documents
 
