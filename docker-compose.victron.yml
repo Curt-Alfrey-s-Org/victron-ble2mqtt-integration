@@ -50,8 +50,9 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
-    # Use image entrypoint so it can generate /work/victron_ble2mqtt/user_settings.py
-    # (Dockerfile sets CMD -> docker-entrypoint.sh which writes user_settings.py)
+    # Use the image entrypoint (Dockerfile CMD -> docker-entrypoint.sh). Settings come
+    # from override/victron_ble2mqtt + env; startup exits with a clear error if
+    # MQTT_USER is set without MQTT_PASSWORD, or if no ADVKEY_* key is set.
     # Liveness: system-info heartbeat + BLE scanner ok + BLE publish heartbeat.
     # https://docs.docker.com/reference/compose-file/services/#healthcheck
     healthcheck:

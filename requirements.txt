@@ -10,6 +10,11 @@ victron-ble==0.9.3
 # ha-services 2.15.3+ requires Python >=3.12; image/CI run 3.11 — stay on 2.15.2.
 ha-services>=2.15.2,<2.15.3
 
+# Imported directly by override/victron_ble2mqtt (cli_app -> cli_base, victron_ble_utils ->
+# tomlkit). They used to arrive only transitively via ha-services; declare them explicitly.
+cli-base-utilities>=0.28,<0.29
+tomlkit>=0.13,<1
+
 # Utilities used by your modules
 rich>=13.0
 tyro>=0.9

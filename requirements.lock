@@ -5,3 +5,5 @@ ha-services==2.15.2
 psutil==7.2.2
 rich==14.1.0
 tyro==0.9.28
+cli-base-utilities==0.28.0
+tomlkit==0.15.1
