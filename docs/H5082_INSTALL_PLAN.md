@@ -1,107 +1,91 @@
-# H5082 real dump plugs, then fix the Grafana one-line
+# H5082 plugs, then the Grafana one-line
 
-**Status:** plan only. Nothing in this file is installed.
+**Status:** plan. Plugs are not installed. Grafana is not redrawn.
 **Resume here:** the first checkpoint whose box is still `[ ]`.
-**Do not start at the Grafana redraw.** That is last, after real outlets exist.
+**Do not start at the Grafana redraw.**
 
-## Hard gates (do not skip)
+Operator decision (2026-09-25), over the older "no HACS / write an MQTT sidecar" notes in [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md):
 
-- **No HACS.** [Govee Bluetooth](https://www.home-assistant.io/integrations/govee_ble/) does not list H5082. [Govee lights local](https://www.home-assistant.io/integrations/govee_light_local/) is lights only. This repo already says not to install a HACS Govee plugin ([SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md), [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md)). HACS is not the next step.
-- **Official control** is Govee's Open API, then MQTT discovery into the HA that already runs on `.105`. Dual sockets use `devices.capabilities.toggle` instances `socketToggle1` and `socketToggle2` ([Control You Device](https://developer.govee.com/reference/control-you-devices)). A single `powerSwitch` is the wrong command for a two-outlet plug.
-- **API key** stays in a mode-`600` file on `.105`, never in git. Apply for the key in the Govee Home app (About → Request API Key).
-- **Sim plugs stay until a real socket toggles a real load.** Then delete them. Deleting them first leaves dump automations pointing at nothing.
-- **Do not run** the untracked `/home/ansible/victron-ble2mqtt-integration/deploy-nodered-solar.sh`. It calls scripts removed in `1f5822a`. Use `scripts/deploy-nodered-solar.sh`.
+- Those repo notes are **not** the install authority.
+- Install the plugs the way [HACS](https://www.hacs.xyz/docs/setup/download) and the Govee integration docs say. Do not write a new BLE or MQTT bridge unless that install cannot see an H5082.
+- Pairing the hardware is the Govee Home app (2.4 GHz Wi-Fi only). HA does not replace that step.
 
-## What is already built
-
-| Piece | State |
-|---|---|
-| `config/packages/sim_dump_plugs.yaml` | Six **fake** template switches `switch.sim_ac_plug_1`…`_6` plus optional power sensors. Header says "until Govee H5082 MQTT switches exist." |
-| `config/packages/sim_dump_control.yaml` | Dump on/off, confirm, shed. Hardcoded to those six switches. |
-| `docs/SIM_DUMP_PLUGS.md` | Says hardware is an H5082 **4-pack = 8 sockets**, and dump uses **six** of them. Sidecar "is not in this repo yet." |
-| Node-RED `/solar/metrics` | Computed plant watts only. No plug switches. |
-| Grafana `solar-plant-oneline` | Plant lanes. No real outlets. Layout is the one to redraw **after** plugs exist. |
-| HA on `.105` | Container `2026.7.3`, Bluetooth left off. Do not turn on `default_config:` to chase BLE. |
-
-## Checkpoint 0 — socket count (stop until answered)
-
-`[ ]` Operator answers one number.
-
-The repo text is **4 dual plugs = 8 sockets, dump uses 6**. The request says **8 double outlet plugs**, which can mean **16 sockets** (8 devices × 2). Do not generate entity ids until this is answered.
-
-Record the answer here when known:
+## What the operator asked for
 
 ```text
-devices: 
-sockets: 
-dump slots used: 
+devices: 8 H5082 plugs
+sockets: 16 (2 per plug)
+dump loads at start: 4 sockets (2 plugs)
+the other 12: normal loads, switched by hand, until assigned as dump
 ```
 
-Each device is two MQTT switches (`socketToggle1`, `socketToggle2`), not one.
+Each socket must:
 
-## Checkpoint 1 — prove the API sees these plugs
+- Turn on and off **by hand** in Home Assistant (the integration's switch).
+- Turn on and off **by the dump automation** only when that socket is assigned **dump**.
+- Be movable between **normal** and **dump** without reinstalling. Changing the assignment does not rename the switch.
 
-`[ ]` On `.105`, with the key only in the secrets file, call Govee `GET /router/api/v1/user/devices` ([device list](https://developer.govee.com/reference/get-you-devices)).
+A normal socket is never turned on or off by the dump automations. A dump socket still has a manual switch. The physical button on the plug still works. That is the Govee manual, not a second control path we invent.
 
-Pass if the JSON includes SKU `H5082` and each device lists `socketToggle1` and `socketToggle2`. Write the device id, sku, and capability names into this doc (ids are not secrets; the API key is).
+## Checkpoint 0 — count
 
-**Stop** if H5082 is missing or those toggle instances are absent. Say what the payload actually contains. Do not install HACS to paper over that. Do not invent a BLE parser.
+`[x]` 8 plugs, 16 sockets, 4 dump / 12 normal.
 
-## Checkpoint 2 — docs before code
+## Checkpoint 1 — HACS on the `.105` container
 
-`[ ]` Update [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md) in the same change as the sidecar:
+`[ ]` Follow [Download HACS](https://www.hacs.xyz/docs/setup/download) for **Home Assistant Container** (this host is Container `2026.7.3`, not HA OS). Then [initial configuration](https://www.hacs.xyz/docs/use/configuration/basic/): Settings → Devices & services → HACS → GitHub device login.
 
-- Sim templates are temporary and will be removed after Checkpoint 4.
-- Real switches come from MQTT discovery ([MQTT discovery](https://www.home-assistant.io/integrations/mqtt/)).
-- Control command is `socketToggle1` / `socketToggle2`, not `powerSwitch`.
-- Socket count from Checkpoint 0.
-- Dump confirm stays the Sungold AC-out / shunt site delta unless Checkpoint 1 shows a per-socket watt capability. If it does, map that sensor. Do not invent watts.
+That GitHub click is the operator's. Do not scrape a token into git.
 
-## Checkpoint 3 — sidecar on `.105`
+Pass: HACS appears in the sidebar.
 
-`[ ]` A small service next to Mosquitto (not on the Pi 4 Victron radio, not a second HA):
+## Checkpoint 2 — install the integration the maintainer documents
 
-- Poll device state on the official interval (state is 30 requests/minute/device; control is 2 requests/second/device). Do not poll faster than that.
-- Publish one MQTT switch per socket via discovery, plus a power sensor **only if** the state payload has a numeric watt field.
-- Subscribe to the HA command topic and POST `/router/api/v1/device/control` with `devices.capabilities.toggle`.
-- No key in the repo. No HACS. No `POST /api/states` to fake a switch.
+`[ ]` Do **not** use the abandoned [LaggAt/hacs-govee](https://github.com/LaggAt/hacs-govee) path. Its own issue tracker says H5082 did not work there.
 
-Pass: one socket off→on→off in HA Developer Tools changes the physical outlet, and the Govee app shows the same state.
+Two current HACS integrations:
 
-## Checkpoint 4 — point dump at real switches, then delete sim
+| Integration | Docs | Use it when |
+|---|---|---|
+| [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassistant) | HACS → custom repository `https://github.com/lasswellt/govee-homeassistant`, category Integration. API key from the Govee Home app: Profile → Settings → Apply for API Key. Account login is optional and is what that README says turns on real-time push. | **First.** H5082 is a Wi-Fi plug. This integration builds entities from the capabilities Govee reports, and it already documents per-outlet switches for multi-outlet plugs. `.105` has no Bluetooth radio. |
+| [Govee BLE Smart Plug](https://github.com/virtuald/govee-ble-plugs) | HACS custom repository. README lists **H5082 Dual Smart Plug** by name. Requires Home Assistant Bluetooth. | **Only if** Checkpoint 3 shows the cloud integration did not create two switches for an H5082. Not the first try: this HA container does not have Bluetooth. |
 
-`[ ]` Retarget `sim_dump_control.yaml` (or its successor) at the MQTT switch entity ids. Keep min-on, cooldown, shed-one, and solar-gone behavior. The count must match Checkpoint 0, not a hardcoded 6, if the operator said more than 6.
+Pass: the integration is installed and restarted the way that README says. API key is typed into the HA config flow, not committed.
 
-`[ ]` Only after one full dump cycle uses real outlets: remove `sim_dump_plugs.yaml` from `/opt/homeassistant/packages/`, remove the template package from git, and drop sim entities from the Site solar seed. Restart HA once. Do not leave both a template `switch.sim_ac_plug_1` and an MQTT switch with that id.
+## Checkpoint 3 — sixteen switches exist
+
+`[ ]` After the plugs are in the Govee Home app, HA shows **two switch entities per plug** (16). If a plug arrives as one switch, stop. Report the entity list and the integration diagnostics. Do not invent a sidecar in that same session.
+
+Record the 16 `entity_id`s in this file when they exist. Do not guess them before discovery.
+
+## Checkpoint 4 — normal vs dump, manual vs auto
+
+`[ ]` Add one [input_select](https://www.home-assistant.io/integrations/input_select/) per socket, options `normal` and `dump`. Default **normal**. The operator sets **dump** on the 4 sockets that are the two dump plugs. Helpers stay editable under Settings → Helpers.
+
+Rules:
+
+- **Manual:** the Govee switch. Always. Dashboard tile and Developer Tools. Works in either assignment.
+- **Auto:** `sim_dump_control.yaml` may call `switch.turn_on` / `turn_off` only when that socket's select is `dump`. A `normal` socket is not in the shed list, the add list, or the all-off list.
+- Reassigning is changing the select. No package rewrite, no entity rename.
+- Retire the hardcoded `switch.sim_ac_plug_1`…`_6` list. The dump package reads the selects.
+- Sim template switches stay installed until one real dump socket has been turned on and off by the automation **and** by hand. Then remove `sim_dump_plugs.yaml` from the HA packages and from git. Do not delete them first.
 
 ## Checkpoint 5 — Node-RED
 
-`[ ]` Extend `/solar/metrics` so it prints the **HA states** of those sockets (on = 1/0 and watts if present). Same cache path as the plant watts. No second watt formula. Redeploy with `scripts/deploy-nodered-solar.sh` only.
+`[ ]` `/solar/metrics` gains one sample per socket that already exists in HA (on/off, and watts only if that integration created a power sensor). No second watt math. Redeploy with `scripts/deploy-nodered-solar.sh` only.
 
-Pass: `curl -fsS http://127.0.0.1:1880/solar/metrics` on `.105` shows one sample per socket.
+## Checkpoint 6 — Grafana, after the switches are real
 
-## Checkpoint 6 — Grafana layout (only after 5)
+`[ ]` Redraw the one-line in three left-to-right bands. Under Sungold AC out, one card per socket that is currently **dump**, and the normal sockets grouped as a manual row so they are not mixed into the dump path. Do not draw the six sim plugs.
 
-`[ ]` Redraw `grafana/dashboards/solar_plant_oneline.json` (generator: `monitoring/scripts/render_solar_oneline_dashboard.py`).
+## Checkpoint 7 — done
 
-Flow, left to right, three bands, plugs in one row under Sungold AC out:
-
-1. T2 panels → T2 MPPT → Battery 1, jumper down to Battery 2.
-2. KU panels → KU MPPT 2+3 est and PWM est → Battery 2 → trailer / EM16 → Sungold AC in.
-3. Sungold PV → cart battery. Sungold AC out → one card per real socket (label = device + socket 1 or 2), then the house load total.
-
-Do not stack cards on top of each other. Do not put sim switches back. Arrow rules stay as they are (sign for jumper and shunts, fixed forward elsewhere). No particle animation.
-
-Prometheus on `.107` already scrapes `/solar/metrics`. After the yml file itself changes, recreate the container (`docker compose up -d --force-recreate --no-deps prometheus`) because that file is a bind mount. A dashboard-only change does not need a Grafana restart.
-
-## Checkpoint 7 — done when
-
-`[ ]` Physical outlet tracks the HA switch.
-`[ ]` Dump shed turns that outlet off.
-`[ ]` Sim switches are gone from HA.
-`[ ]` Grafana cards follow the three bands and show the real sockets.
-`[ ]` Docs match the code.
+`[ ]` A normal socket toggles from HA and the dump automation does not touch it.
+`[ ]` A dump socket toggles from HA **and** from the dump automation.
+`[ ]` Changing the select moves a socket between those two behaviors.
+`[ ]` Sim switches are gone.
+`[ ]` Grafana matches that split.
 
 ## Where a new session starts
 
-Read this file. Do the first `[ ]` only. Do not jump to Checkpoint 6 because the current canvas looks bad.
+Checkpoint **1**. Do not write a Govee client. Do not redraw Grafana.
