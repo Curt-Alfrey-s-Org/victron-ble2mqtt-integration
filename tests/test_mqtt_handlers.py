@@ -142,7 +142,10 @@ def test_main_imports_override_mqtt():
     assert "from .mqtt import VictronMqttDeviceHandler" in src
     assert "from victron_ble2mqtt.mqtt import VictronMqttDeviceHandler" not in src
     assert "from .instant_readout import prepare_seen_data_for_republish" in src
-    assert "def callback(self, ble_device: BLEDevice, raw_data: bytes):" in src
+    # victron-ble 0.9.3 calls callback(device, data, advertisement); the old
+    # two-argument override raised TypeError on every advertisement.
+    assert "def callback(self, ble_device: BLEDevice, raw_data: bytes):" not in src
+    assert "raw_data: bytes,\n        advertisement: AdvertisementData | None = None," in src
     assert "advertisement.rssi" in src
     assert "asyncio.to_thread" in src
     assert "or_patterns" in src
