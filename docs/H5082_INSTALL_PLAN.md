@@ -33,11 +33,11 @@ A normal socket is never turned on or off by the dump automations. A dump socket
 
 ## Checkpoint 1 — HACS on the `.105` container
 
-`[ ]` Follow [Download HACS](https://www.hacs.xyz/docs/setup/download) for **Home Assistant Container** (this host is Container `2026.7.3`, not HA OS). Then [initial configuration](https://www.hacs.xyz/docs/use/configuration/basic/): Settings → Devices & services → HACS → GitHub device login.
+`[x]` Downloaded with the Container script from [Downloading HACS](https://www.hacs.xyz/docs/use/download/download/) (`wget -O - https://get.hacs.xyz | bash -` inside `homeassistant`). Minimum HA version check passed (2026.7.3 >= 2024.4.1). Container restarted. `/config/custom_components/hacs/manifest.json` is present. HA reported healthy.
 
-That GitHub click is the operator's. Do not scrape a token into git.
+`[ ]` Operator: [initial configuration](https://www.hacs.xyz/docs/use/configuration/basic/). In the browser, hard-refresh, then Settings → Devices & services → Add integration → HACS → acknowledge → GitHub device code → Authorize HACS. Do not put a GitHub token in git.
 
-Pass: HACS appears in the sidebar.
+Pass: HACS appears in the sidebar. A new session starts at this box, not at the download.
 
 ## Checkpoint 2 — install the integration the maintainer documents
 
@@ -88,4 +88,4 @@ Rules:
 
 ## Where a new session starts
 
-Checkpoint **1**. Do not write a Govee client. Do not redraw Grafana.
+Checkpoint **1**, the GitHub device login. The files are already on `.105`. Do not download HACS again. Do not write a Govee client. Do not redraw Grafana.
