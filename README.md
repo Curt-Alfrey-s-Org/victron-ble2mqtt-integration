@@ -104,6 +104,8 @@ ADVKEY_BATTERY_2=your32hexcharactershere00000000
 
 You also need the device **MAC addresses** in `override/victron_ble2mqtt/user_settings_data.py` (this repo ships the author’s MACs as examples — **replace them with yours**). Step-by-step: [docs/DEVICES.md](docs/DEVICES.md#victron-bluetooth).
 
+The Victron bridge checks its secrets at startup. If `MQTT_USER` is set but `MQTT_PASSWORD` is empty, or **no** device has an `ADVKEY_*` key, the `victron_ble2mqtt` container stops with an error that names the missing variable (`docker logs victron_ble2mqtt`). It doesn't fall back to running without them.
+
 ### 4. Run the installer
 
 This installs Docker, Mosquitto (MQTT), Home Assistant, and the Victron reader. Safe to run more than once.
@@ -176,6 +178,7 @@ Close the Victron phone app if sensors stay empty.
 |---------|----------|
 | Cannot open `:8123` | `hostname -I` — use that IP. Wait a few minutes after first install. |
 | No Victron entities | Close VictronConnect. Check ADVKEY and MAC. `sudo bluetoothctl show` should say Powered: yes. |
+| `victron_ble2mqtt` keeps restarting | `docker logs victron_ble2mqtt`. A line like `missing required configuration: ...` names the variable to set (`MQTT_PASSWORD` or `ADVKEY_*`). |
 | “Connection refused” on MQTT | Set `MQTT_HOST` to the Pi LAN IP, then `sudo bash scripts/deploy.sh` |
 | Sungold skipped | USB plugged? `ls -l /dev/sungold`? `ENABLE_SUNGOLD=1` in `.env`? |
 | Need the long version | [DEPLOY.md](DEPLOY.md) |

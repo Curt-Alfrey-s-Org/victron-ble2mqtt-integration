@@ -43,5 +43,6 @@ Troubleshooting
 - If BLE/BlueZ access fails, ensure the container has access to `/run/dbus/system_bus_socket` and the dbus mounts in `docker-compose.victron.yml`.
 
 Notes
-- The `docker-entrypoint.sh` generates `/work/victron_ble2mqtt/user_settings.py` at container start and reads ADVKEY_* environment variables rather than embedding secrets into the repo.
+- `docker-entrypoint.sh` just starts `python -m victron_ble2mqtt.__main__`. Settings come from `override/victron_ble2mqtt/user_settings_data.py` (device list, no secrets) plus env vars (`MQTT_*`, `ADVKEY_*`); nothing is generated under `/work` any more.
+- Startup fails fast (container exits, restart policy retries) with a log line naming the missing variable when `MQTT_USER` is set but `MQTT_PASSWORD` is empty, or when no configured device has an `ADVKEY_*` key.
 - For production at scale, prefer registry images and orchestration (docker swarm / k3s) if you need higher availability than a single Pi.
