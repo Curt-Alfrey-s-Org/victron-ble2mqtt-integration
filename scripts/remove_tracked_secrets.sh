@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Untrack sensitive files from git index without deleting local copies.
 set -euo pipefail
-FILES=(.env victron-secrets.env ha-discovery.env health.env user_settings.py)
+FILES=(.env victron-secrets.env ha-discovery.env health.env user_settings.py nginx/.htpasswd swarm/auto-discovery.env)
 for f in "${FILES[@]}"; do
   if git ls-files --error-unmatch "$f" > /dev/null 2>&1; then
     echo "Removing $f from git index"
