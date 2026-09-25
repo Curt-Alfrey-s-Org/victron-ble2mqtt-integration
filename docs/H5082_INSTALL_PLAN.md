@@ -1,8 +1,8 @@
 # H5082 plugs, then the Grafana one-line
 
-**Status:** plan. Plugs are not installed. Grafana is not redrawn.
+**Status:** Bluetooth chosen. Cloud API key is not the path. Plugs are not installed. Grafana is not redrawn.
 **Resume here:** the first checkpoint whose box is still `[ ]`.
-**Do not start at the Grafana redraw.**
+**Do not start at the Grafana redraw. Do not take `hci0`.**
 
 Operator decision (2026-09-25), over the older "no HACS / write an MQTT sidecar" notes in [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md):
 
@@ -37,26 +37,28 @@ A normal socket is never turned on or off by the dump automations. A dump socket
 
 `[x]` Operator completed the GitHub device login, then cleared the Home Assistant repair for HACS. Config entry domain `hacs` is `loaded`. HACS is in the sidebar. Do not reinstall HACS.
 
-## Checkpoint 2 — install the integration the maintainer documents
+## Checkpoint 2 — Bluetooth, not the cloud key
 
-`[x]` Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassistant) **2026.9.14** with HACS (`hacs/download`, repository id `1060642665`). Files are `/config/custom_components/govee/`. Home Assistant was restarted and is healthy. The `govee` config flow is available. Not configured yet.
+`[x]` Operator chose local Bluetooth. No Govee account. The downloaded Govee Cloud Integration stays unused. Do not paste an API key.
 
-`[ ]` Operator: in the Govee Home app, Profile → Settings → Apply for API Key. Then in HA, Settings → Devices & services → Add integration → **Govee Cloud Integration**, and paste that key. Do not put the key in git. Account login is optional.
+`[x]` Pi 4 radios, checked 2026-09-25, not changed:
 
-`[ ]` Do **not** use the abandoned [LaggAt/hacs-govee](https://github.com/LaggAt/hacs-govee) path. Its own issue tracker says H5082 did not work there.
+| Adapter | Bus | Address | Who uses it |
+|---|---|---|---|
+| `hci0` | USB TP-Link `2357:0604` | `B0:19:21:E3:A4:72` | **Victron.** `BLE_ADAPTER=hci0`. Do not share it and do not move this dongle. |
+| `hci1` | UART, the Pi's own chip | `2C:CF:67:3F:1C:D4` | Up, not used by Victron. This is the spare radio. |
 
-Two current HACS integrations:
+Home Assistant on `.105` has no Bluetooth radio. Its Bluetooth docs only accept a local adapter, USB/IP of a USB adapter, or an ESPHome proxy that can hold an active connection ([Bluetooth](https://www.home-assistant.io/integrations/bluetooth/), [remote adapters](https://www.home-assistant.io/integrations/bluetooth/#remote-adapters-bluetooth-proxies)). The spare radio is not USB, so USB/IP cannot move it. Shelly proxies cannot make the active connection an H5082 needs.
 
-| Integration | Docs | Use it when |
-|---|---|---|
-| [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassistant) | HACS → custom repository `https://github.com/lasswellt/govee-homeassistant`, category Integration. API key from the Govee Home app: Profile → Settings → Apply for API Key. Account login is optional and is what that README says turns on real-time push. | **First.** H5082 is a Wi-Fi plug. This integration builds entities from the capabilities Govee reports, and it already documents per-outlet switches for multi-outlet plugs. `.105` has no Bluetooth radio. |
-| [Govee BLE Smart Plug](https://github.com/virtuald/govee-ble-plugs) | HACS custom repository. README lists **H5082 Dual Smart Plug** by name. Requires Home Assistant Bluetooth. | **Only if** Checkpoint 3 shows the cloud integration did not create two switches for an H5082. Not the first try: this HA container does not have Bluetooth. |
+`[ ]` Run the H5082 Bluetooth control on the Pi 4, bound to **`hci1` only**, and publish one MQTT switch per socket to the broker Home Assistant already uses. The integration that names the H5082 is [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs). It is written to run inside Home Assistant, which cannot see `hci1`. Use that project's BLE library from the Pi if it can target one adapter. If it cannot, stop. Do not write a second protocol.
 
-Pass: the integration is installed and restarted the way that README says. API key is typed into the HA config flow, not committed.
+## Retired — cloud install
+
+Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassistant) **2026.9.14** into `/config/custom_components/govee/`. Not configured. Do not paste an API key. Do not use [LaggAt/hacs-govee](https://github.com/LaggAt/hacs-govee).
 
 ## Checkpoint 3 — sixteen switches exist
 
-`[ ]` After the plugs are in the Govee Home app, HA shows **two switch entities per plug** (16). If a plug arrives as one switch, stop. Report the entity list and the integration diagnostics. Do not invent a sidecar in that same session.
+`[ ]` After Checkpoint 2, HA shows **two MQTT switches per plug** (16). If a plug arrives as one switch, stop. Do not guess entity ids before discovery.
 
 Record the 16 `entity_id`s in this file when they exist. Do not guess them before discovery.
 
@@ -90,4 +92,4 @@ Rules:
 
 ## Where a new session starts
 
-Checkpoint **2**, the Govee API key in the Home Assistant config flow. HACS and the integration files are already on `.105`. Do not download them again. Do not write a Govee client. Do not redraw Grafana.
+Checkpoint **2**, the open box: H5082 Bluetooth on Pi 4 `hci1` only. Do not touch `hci0`. Do not paste a Govee API key. Do not redraw Grafana.
