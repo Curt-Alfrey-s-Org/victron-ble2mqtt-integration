@@ -35,11 +35,13 @@ A normal socket is never turned on or off by the dump automations. A dump socket
 
 `[x]` Downloaded with the Container script from [Downloading HACS](https://www.hacs.xyz/docs/use/download/download/) (`wget -O - https://get.hacs.xyz | bash -` inside `homeassistant`). Minimum HA version check passed (2026.7.3 >= 2024.4.1). Container restarted. `/config/custom_components/hacs/manifest.json` is present. HA reported healthy.
 
-`[ ]` Operator: [initial configuration](https://www.hacs.xyz/docs/use/configuration/basic/). In the browser, hard-refresh, then Settings → Devices & services → Add integration → HACS → acknowledge → GitHub device code → Authorize HACS. Do not put a GitHub token in git.
-
-Pass: HACS appears in the sidebar. A new session starts at this box, not at the download.
+`[x]` Operator completed the GitHub device login. Config entry domain `hacs` is present. HACS is in the sidebar.
 
 ## Checkpoint 2 — install the integration the maintainer documents
+
+`[x]` Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassistant) **2026.9.14** with HACS (`hacs/download`, repository id `1060642665`). Files are `/config/custom_components/govee/`. Home Assistant was restarted and is healthy. The `govee` config flow is available. Not configured yet.
+
+`[ ]` Operator: in the Govee Home app, Profile → Settings → Apply for API Key. Then in HA, Settings → Devices & services → Add integration → **Govee Cloud Integration**, and paste that key. Do not put the key in git. Account login is optional.
 
 `[ ]` Do **not** use the abandoned [LaggAt/hacs-govee](https://github.com/LaggAt/hacs-govee) path. Its own issue tracker says H5082 did not work there.
 
@@ -88,4 +90,4 @@ Rules:
 
 ## Where a new session starts
 
-Checkpoint **1**, the GitHub device login. The files are already on `.105`. Do not download HACS again. Do not write a Govee client. Do not redraw Grafana.
+Checkpoint **2**, the Govee API key in the Home Assistant config flow. HACS and the integration files are already on `.105`. Do not download them again. Do not write a Govee client. Do not redraw Grafana.
