@@ -7,26 +7,26 @@ import os
 import time
 
 import paho.mqtt.client as mqtt
-from bleak import BleakClient
 from dbus_fast import BusType, Variant
 from dbus_fast.aio import MessageBus
 
 from govee_h5082.mqtt_bridge import (
-    ADAPTER,
     PLUGS,
     RECV_UUID,
     SEND_UUID,
     auth_packet,
     command_bytes,
-    command_topic,
     discovery_payload,
     discovery_topic,
     dumps,
     iter_switches,
     load_keys,
     payload_for,
-    socket_on,
     state_topic,
+    rssi_discovery_payload,
+    rssi_discovery_topic,
+    rssi_topic,
+    socket_on,
 )
 
 AVAIL = "govee/h5082/bridge/status"
@@ -54,10 +54,15 @@ def mfr_last(mfr) -> int | None:
 
 class Bridge:
     def __init__(self) -> None:
-        if ADAPTER != "hci1":
-            raise SystemExit("refusing adapter other than hci1")
+        self._adapter = os.environ.get("H5082_ADAPTER", "hci1")
+        self._listener = os.environ.get("H5082_LISTENER", "pi4")
+        self._rssi_only = os.environ.get("H5082_RSSI_ONLY", "") == "1"
+        if self._listener == "pi4" and self._adapter != "hci1":
+            raise SystemExit("pi4 listener uses hci1 only")
+        if self._listener == "pi5" and self._adapter != "hci0":
+            raise SystemExit("pi5 listener uses hci0 only")
         host = os.environ.get("MQTT_HOST", "")
-        user = os.environ.get("MQTT_USER", "")
+        user = os.environ.get("MQTT_USER") or os.environ.get("MQTT_USERNAME", "")
         password = os.environ.get("MQTT_PASSWORD", "")
         port = int(os.environ.get("MQTT_PORT", "1883"))
         if not host or not user or not password:
@@ -70,7 +75,8 @@ class Bridge:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self._client.username_pw_set(user, password)
-        self._client.will_set(AVAIL, "offline", retain=True)
+        if not self._rssi_only:
+            self._client.will_set(AVAIL, "offline", retain=True)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._host = host
@@ -82,18 +88,31 @@ class Bridge:
             return
         self._client.publish(state_topic(address, side), payload_for(on), retain=True)
 
+    def publish_rssi(self, address: str, rssi: int) -> None:
+        if not self._client.is_connected():
+            return
+        self._client.publish(rssi_topic(address, self._listener), str(rssi), retain=False)
+
     def publish_config(self) -> None:
-        self._client.publish(AVAIL, "online", retain=True)
+        if not self._rssi_only:
+            self._client.publish(AVAIL, "online", retain=True)
         count = 0
-        for address, name, side, side_name in iter_switches():
-            payload = discovery_payload(address, name, side, side_name)
-            self._client.publish(discovery_topic(address, side), dumps(payload), retain=True)
+        for address, name in PLUGS:
+            self._client.publish(
+                rssi_discovery_topic(address, self._listener),
+                dumps(rssi_discovery_payload(address, name, self._listener)),
+                retain=True,
+            )
             count += 1
-            cached = self._state.get((address, side))
-            if cached is not None:
-                self.publish_state(address, side, cached)
-        self._client.subscribe("govee/h5082/+/+/set")
-        print(f"DISCOVERY {count}", flush=True)
+        if not self._rssi_only:
+            for address, name, side, side_name in iter_switches():
+                payload = discovery_payload(address, name, side, side_name)
+                self._client.publish(discovery_topic(address, side), dumps(payload), retain=True)
+                cached = self._state.get((address, side))
+                if cached is not None:
+                    self.publish_state(address, side, cached)
+            self._client.subscribe("govee/h5082/+/+/set")
+        print(f"DISCOVERY {count} listener={self._listener}", flush=True)
 
     def _on_connect(self, client, _userdata, _flags, reason_code, _properties) -> None:
         if getattr(reason_code, "is_failure", False):
@@ -138,7 +157,9 @@ class Bridge:
             print(f"SET_FAIL {address[-5:].replace(':', '')} {side}", flush=True)
 
     async def _gatt(self, address: str, side: str, turn_on: bool, token: str) -> bool:
-        client = BleakClient(address, timeout=20, bluez={"adapter": ADAPTER})
+        from bleak import BleakClient
+
+        client = BleakClient(address, timeout=20, bluez={"adapter": self._adapter})
         try:
             await client.connect()
             ready_auth = asyncio.Event()
@@ -185,7 +206,7 @@ class Bridge:
         root = bus.get_proxy_object("org.bluez", "/", intro)
         objects = await root.get_interface("org.freedesktop.DBus.ObjectManager").call_get_managed_objects()
         for path, ifaces in objects.items():
-            if not str(path).startswith(f"/org/bluez/{ADAPTER}/dev_"):
+            if not str(path).startswith(f"/org/bluez/{self._adapter}/dev_"):
                 continue
             dev = ifaces.get("org.bluez.Device1")
             if not dev:
@@ -194,17 +215,27 @@ class Bridge:
             if address not in {item[0] for item in PLUGS}:
                 continue
             self._paths[address] = str(path)
+            rssi = unwrap(dev.get("RSSI"))
+            if isinstance(rssi, int):
+                self.publish_rssi(address, rssi)
             last = mfr_last(dev.get("ManufacturerData"))
-            if last is not None:
+            if last is not None and not self._rssi_only:
                 self.note_advertisement(address, last)
         while True:
             for address, path in list(self._paths.items()):
                 try:
                     node = await bus.introspect("org.bluez", path)
                     proxy = bus.get_proxy_object("org.bluez", path, node)
-                    raw = await proxy.get_interface("org.freedesktop.DBus.Properties").call_get(
-                        "org.bluez.Device1", "ManufacturerData"
-                    )
+                    props = proxy.get_interface("org.freedesktop.DBus.Properties")
+                    try:
+                        rssi = unwrap(await props.call_get("org.bluez.Device1", "RSSI"))
+                    except Exception:
+                        rssi = None
+                    if isinstance(rssi, int):
+                        self.publish_rssi(address, rssi)
+                    if self._rssi_only:
+                        continue
+                    raw = await props.call_get("org.bluez.Device1", "ManufacturerData")
                 except Exception:
                     continue
                 last = mfr_last(raw)
@@ -219,7 +250,8 @@ class Bridge:
         try:
             await self.watch()
         finally:
-            self._client.publish(AVAIL, "offline", retain=True)
+            if not self._rssi_only:
+                self._client.publish(AVAIL, "offline", retain=True)
             self._client.loop_stop()
             self._client.disconnect()
 

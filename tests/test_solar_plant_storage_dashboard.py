@@ -39,6 +39,7 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "switch.ihoment_h5082_82fb_left" in blob
     assert "switch.ihoment_h5082_c38d_right" in blob
     assert "input_text.h5082_82fb_location" in blob
+    assert "sensor.h5082_82fb_heard_by" in blob
     assert "custom:auto-entities" in blob
     assert "h5082_socket" in blob
     assert config.get("button_card_templates", {}).get("h5082_socket")

@@ -28,8 +28,10 @@ button_card_templates:
         const use = states["input_select.h5082_" + id + "_use"];
         const place = where && where.state && where.state !== "unknown" && where.state !== "unavailable" && where.state !== "" ? where.state : plug.toUpperCase();
         const role = use && use.state === "dump" ? "dump" : "normal";
+        const heard = states["sensor.h5082_" + plug + "_heard_by"];
+        const radio = heard && heard.state && heard.state !== "unknown" && heard.state !== "unavailable" && heard.state !== "none" ? heard.state.split(" ")[0] : "";
         const pi = plug === "c38d" ? " · Pi supply" : "";
-        return place + " · " + role + pi;
+        return place + " · " + role + (radio ? " · " + radio : "") + pi;
       ]]]
     state:
       - value: "on"
@@ -348,7 +350,7 @@ views:
           - type: markdown
             content: >
               The id (2F9D, 82FB, …) is the plug. It stays with that plug when you move it.
-              Type **Where** for the room or spot, and change it when you move the plug.
+              **Heard by** is the closest live radio (strongest RSSI). **Where** is the room you type.
               Type the load name in **Load** and change it when you plug something else in.
               Set **Use** to dump only for a socket Home Assistant may turn on by itself.
               Home Assistant cannot see the appliance.
@@ -377,6 +379,8 @@ views:
             entities:
               - entity: input_text.h5082_2f9d_location
                 name: Where
+              - entity: sensor.h5082_2f9d_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_2f9d_left
                 name: Left
               - entity: input_text.h5082_2f9d_left_load
@@ -395,6 +399,8 @@ views:
             entities:
               - entity: input_text.h5082_3013_location
                 name: Where
+              - entity: sensor.h5082_3013_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_3013_left
                 name: Left
               - entity: input_text.h5082_3013_left_load
@@ -413,6 +419,8 @@ views:
             entities:
               - entity: input_text.h5082_3ec9_location
                 name: Where
+              - entity: sensor.h5082_3ec9_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_3ec9_left
                 name: Left
               - entity: input_text.h5082_3ec9_left_load
@@ -431,6 +439,8 @@ views:
             entities:
               - entity: input_text.h5082_82fb_location
                 name: Where
+              - entity: sensor.h5082_82fb_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_82fb_left
                 name: Left
               - entity: input_text.h5082_82fb_left_load
@@ -449,6 +459,8 @@ views:
             entities:
               - entity: input_text.h5082_9607_location
                 name: Where
+              - entity: sensor.h5082_9607_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_9607_left
                 name: Left
               - entity: input_text.h5082_9607_left_load
@@ -467,6 +479,8 @@ views:
             entities:
               - entity: input_text.h5082_c061_location
                 name: Where
+              - entity: sensor.h5082_c061_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_c061_left
                 name: Left
               - entity: input_text.h5082_c061_left_load
@@ -485,6 +499,8 @@ views:
             entities:
               - entity: input_text.h5082_c38d_location
                 name: Where
+              - entity: sensor.h5082_c38d_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_c38d_left
                 name: Left
               - entity: input_text.h5082_c38d_left_load
@@ -503,6 +519,8 @@ views:
             entities:
               - entity: input_text.h5082_cf79_location
                 name: Where
+              - entity: sensor.h5082_cf79_heard_by
+                name: Heard by
               - entity: switch.ihoment_h5082_cf79_left
                 name: Left
               - entity: input_text.h5082_cf79_left_load

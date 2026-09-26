@@ -1,0 +1,30 @@
+# Closest listener owns the plug. Highest RSSI wins; tie prefers pi5 then ha-105 then pi4.
+# RSSI sensors expire after 90s when that radio stops hearing the plug.
+
+template:
+  - sensor:
+      - name: "H5082 2F9D heard by"
+        unique_id: h5082_2f9d_heard_by
+        state:
+          "{% set cand = [('pi5', states('sensor.ihoment_h5082_2f9d_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_2f9d_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_2f9d_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 3013 heard by"
+        unique_id: h5082_3013_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_3013_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_3013_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_3013_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 3EC9 heard by"
+        unique_id: h5082_3ec9_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_3ec9_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_3ec9_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_3ec9_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 82FB heard by"
+        unique_id: h5082_82fb_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_82fb_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_82fb_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_82fb_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 9607 heard by"
+        unique_id: h5082_9607_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_9607_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_9607_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_9607_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 C061 heard by"
+        unique_id: h5082_c061_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_c061_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_c061_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_c061_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 C38D heard by"
+        unique_id: h5082_c38d_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_c38d_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_c38d_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_c38d_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
+      - name: "H5082 CF79 heard by"
+        unique_id: h5082_cf79_heard_by
+        state: "{% set cand = [('pi5', states('sensor.ihoment_h5082_cf79_rssi_pi5')), ('ha-105', states('sensor.ihoment_h5082_cf79_rssi_ha105')), ('pi4', states('sensor.ihoment_h5082_cf79_rssi_pi4'))] %}{% set ns = namespace(name='none', rssi=-999) %}{% for n, s in cand %}{% if s not in ['unknown', 'unavailable', ''] and (s | int(-999)) > ns.rssi %}{% set ns.rssi = s | int %}{% set ns.name = n %}{% endif %}{% endfor %}{% if ns.name == 'none' %}none{% else %}{{ ns.name }} ({{ ns.rssi }} dBm){% endif %}"
