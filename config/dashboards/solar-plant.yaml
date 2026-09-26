@@ -1,7 +1,58 @@
-# Solar plant Lovelace (YAML). Official cards only.
+# Solar plant Lovelace (YAML). Plug tiles use HACS button-card and auto-entities.
 # https://www.home-assistant.io/dashboards/dashboards/#adding-yaml-dashboards
 # https://www.home-assistant.io/dashboards/sections/
 title: Solar plant
+button_card_templates:
+  h5082_socket:
+    show_name: true
+    show_label: true
+    show_state: false
+    section_mode: true
+    size: 28px
+    tap_action:
+      action: toggle
+    hold_action:
+      action: more-info
+    name: |
+      [[[
+        const id = entity.entity_id.replace("switch.ihoment_h5082_", "");
+        const load = states["input_text.h5082_" + id + "_load"];
+        const text = load && load.state && load.state !== "unknown" && load.state !== "unavailable" ? load.state : "";
+        return text || id.replace("_", " ").toUpperCase();
+      ]]]
+    label: |
+      [[[
+        const id = entity.entity_id.replace("switch.ihoment_h5082_", "");
+        const plug = id.split("_")[0];
+        const where = states["input_text.h5082_" + plug + "_location"];
+        const use = states["input_select.h5082_" + id + "_use"];
+        const place = where && where.state && where.state !== "unknown" && where.state !== "unavailable" && where.state !== "" ? where.state : plug.toUpperCase();
+        const role = use && use.state === "dump" ? "dump" : "normal";
+        const pi = plug === "c38d" ? " · Pi supply" : "";
+        return place + " · " + role + pi;
+      ]]]
+    state:
+      - value: "on"
+        icon: mdi:power-plug
+        color: "#3dd68c"
+      - value: "off"
+        icon: mdi:power-plug-off
+        color: "#8b98a5"
+    styles:
+      card:
+        - border-radius: 12px
+        - padding: 8px
+        - border: |
+            [[[
+              const id = entity.entity_id.replace("switch.ihoment_h5082_", "");
+              const use = states["input_select.h5082_" + id + "_use"];
+              return use && use.state === "dump" ? "2px solid #c9a227" : "1px solid var(--divider-color)";
+            ]]]
+      name:
+        - font-size: 14px
+        - font-weight: bold
+      label:
+        - font-size: 12px
 views:
   - title: Now
     path: now
@@ -301,6 +352,23 @@ views:
               Type the load name in **Load** and change it when you plug something else in.
               Set **Use** to dump only for a socket Home Assistant may turn on by itself.
               Home Assistant cannot see the appliance.
+              The buttons use the names you type in the cards under them.
+            grid_options:
+              columns: full
+          - type: custom:auto-entities
+            card:
+              type: grid
+              columns: 4
+              square: false
+            card_param: cards
+            filter:
+              include:
+                - entity_id: switch.ihoment_h5082_*
+                  options:
+                    type: custom:button-card
+                    template: h5082_socket
+            sort:
+              method: entity_id
             grid_options:
               columns: full
           - type: entities

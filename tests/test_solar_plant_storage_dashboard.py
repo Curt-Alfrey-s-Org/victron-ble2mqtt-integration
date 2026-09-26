@@ -39,6 +39,9 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "switch.ihoment_h5082_82fb_left" in blob
     assert "switch.ihoment_h5082_c38d_right" in blob
     assert "input_text.h5082_82fb_location" in blob
+    assert "custom:auto-entities" in blob
+    assert "h5082_socket" in blob
+    assert config.get("button_card_templates", {}).get("h5082_socket")
     assert "input_text.h5082_82fb_left_load" in blob
     assert "input_select.h5082_2f9d_right_use" in blob
     assert "switch.sim_ac_plug_1" not in blob
