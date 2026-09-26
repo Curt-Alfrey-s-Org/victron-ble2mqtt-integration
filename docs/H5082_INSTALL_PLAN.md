@@ -1,7 +1,7 @@
 # H5082 plugs, then the Grafana one-line
 
 **Status:** Bluetooth chosen. Cloud API key is not the path. Plugs are not installed. Grafana is not redrawn.
-**Resume here:** the first checkpoint whose box is still `[ ]`.
+**Resume here:** Checkpoint 4. Sixteen switches are in HA. `C38D` remains state-only until a key exists.
 **Do not start at the Grafana redraw. Do not take `hci0`.**
 
 Operator decision (2026-09-25), over the older "no HACS / write an MQTT sidecar" notes in [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md):
@@ -52,7 +52,9 @@ Home Assistant on `.105` has no Bluetooth radio. Its Bluetooth docs only accept 
 
 `[x]` Spare radio `hci1` can see all 8 plugs. A 20s Bleak scan on `hci1` only (not `hci0`) heard `ihoment_H5082_` advertisements for `C061`, `82FB`, `2F9D`, `CF79`, `3EC9`, `9607`, `3013`, and `C38D`.
 
-`[ ]` Pair each plug with the button procedure in [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs) `GoveePlugPairer` (message `aa b1`, reply `aa b1 01` is the key). GATT on `82FB` is the project's service, but the plug answered **need button**, not a key. Keys go in `/home/n4s1/.govee-h5082-keys` mode `600` on the Pi, never in git. Then publish one MQTT switch per socket. Do not write a second protocol.
+`[ ]` Pair each plug with the button procedure in [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs) `GoveePlugPairer` (message `aa b1`, reply `aa b1 01` is the key). Arm every unpaired plug at once (`/home/n4s1/bin/h5082_listen.py` on `hci1`). A press on any socket is the pairing press for that whole plug. Keys go in `/home/n4s1/.govee-h5082-keys` mode `600` on the Pi, never in git. Then publish one MQTT switch per socket. Do not write a second protocol.
+
+Partial, listener stopped 2026-09-25 at the operator's "done": **7 keys saved** (`2F9D`, `CF79`, `3EC9`, `3013`, `82FB`, `C061`, `9607`). **`C38D` is not paired.** The Pi 4 power cord is plugged into that H5082. Do not press the button on the socket feeding the Pi. The other socket's button is safe. If that socket must also stay on, move the Pi's cord to a wall outlet first, then press. MQTT switches are not published yet.
 
 ## Retired — cloud install
 
@@ -60,9 +62,20 @@ Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassi
 
 ## Checkpoint 3 — sixteen switches exist
 
-`[ ]` After Checkpoint 2, HA shows **two MQTT switches per plug** (16). If a plug arrives as one switch, stop. Do not guess entity ids before discovery.
+`[x]` Home Assistant on `.105` has **two MQTT switches per plug** (16), discovered from `h5082-mqtt.service` on the Pi (`hci1` only). States were set from each plug's advertisement, not by turning sockets. `C38D` has no pairing key, so a command for that plug is ignored and the switch stays on the reported state. The Pi does not need a remote off.
 
-Record the 16 `entity_id`s in this file when they exist. Do not guess them before discovery.
+`[x]` Site solar (`/site-solar`, Now view, heading **Plugs**) shows those 16 tiles. The sim plug package and the **Sim dump plugs** history card are removed. `switch.sim_ac_plug_*` is gone.
+
+| Plug | Left | Right |
+|---|---|---|
+| `switch.ihoment_h5082_2f9d_left` / `_right` | on | off |
+| `switch.ihoment_h5082_3013_left` / `_right` | on | off |
+| `switch.ihoment_h5082_3ec9_left` / `_right` | on | on |
+| `switch.ihoment_h5082_82fb_left` / `_right` | on | off |
+| `switch.ihoment_h5082_9607_left` / `_right` | off | off |
+| `switch.ihoment_h5082_c061_left` / `_right` | on | on |
+| `switch.ihoment_h5082_c38d_left` / `_right` | off | off |
+| `switch.ihoment_h5082_cf79_left` / `_right` | on | off |
 
 ## Checkpoint 4 — normal vs dump, manual vs auto
 
@@ -78,11 +91,11 @@ Rules:
 
 ## Checkpoint 5 — Node-RED
 
-`[ ]` `/solar/metrics` gains one sample per socket that already exists in HA (on/off, and watts only if that integration created a power sensor). No second watt math. Redeploy with `scripts/deploy-nodered-solar.sh` only.
+`[x]` `/solar/metrics` publishes `solar_plant_socket` for each of the 16 sockets (on=1, off=0). Labels are the HA **Where**, **Load**, and **Use** text. There is no power sensor on these plugs, so there is no watt sample. `/solar/computed` lists the same rows. Redeploy with `scripts/deploy-nodered-solar.sh`.
 
 ## Checkpoint 6 — Grafana, after the switches are real
 
-`[ ]` Redraw the one-line in three left-to-right bands. Under Sungold AC out, one card per socket that is currently **dump**, and the normal sockets grouped as a manual row so they are not mixed into the dump path. Do not draw the six sim plugs.
+`[x]` Grafana **Solar plant one-line** keeps the plant canvas. Under it, **Dump sockets** and **Manual sockets** tables read `solar_plant_socket`. A socket moves between those tables when its **Use** select changes. The six sim plugs are not drawn.
 
 ## Checkpoint 7 — done
 
@@ -94,4 +107,4 @@ Rules:
 
 ## Where a new session starts
 
-Checkpoint **2**, the open box: H5082 Bluetooth on Pi 4 `hci1` only. Do not touch `hci0`. Do not paste a Govee API key. Do not redraw Grafana.
+Checkpoint **4**. Node-RED and Grafana already show the 16 sockets. Dump automation still does not switch them. `C38D` has no key. `hci1` only. Do not touch `hci0`. Do not paste a Govee API key.

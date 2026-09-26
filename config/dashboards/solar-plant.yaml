@@ -182,7 +182,7 @@ views:
             heading: Dump
           - type: markdown
             content: >
-              Sim dump plugs on Sungold AC out. Helpers and automation gates:
+              H5082 sockets. Dump helpers stay in the sections below.
               [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
             grid_options:
               columns: full
@@ -292,37 +292,160 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Dump plugs
-          - type: tile
-            entity: switch.sim_ac_plug_1
-            name: Plug 1
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.sim_ac_plug_2
-            name: Plug 2
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.sim_ac_plug_3
-            name: Plug 3
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.sim_ac_plug_4
-            name: Plug 4
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.sim_ac_plug_5
-            name: Plug 5
-            features:
-              - type: toggle
-          - type: tile
-            entity: switch.sim_ac_plug_6
-            name: Plug 6
-            features:
-              - type: toggle
+            heading: Plugs
+          - type: markdown
+            content: >
+              The id (2F9D, 82FB, …) is the plug. It stays with that plug when you move it.
+              Type **Where** for the room or spot, and change it when you move the plug.
+              Type the load name in **Load** and change it when you plug something else in.
+              Set **Use** to dump only for a socket Home Assistant may turn on by itself.
+              Home Assistant cannot see the appliance.
+            grid_options:
+              columns: full
+          - type: entities
+            title: 2F9D
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_2f9d_location
+                name: Where
+              - entity: switch.ihoment_h5082_2f9d_left
+                name: Left
+              - entity: input_text.h5082_2f9d_left_load
+                name: Load
+              - entity: input_select.h5082_2f9d_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_2f9d_right
+                name: Right
+              - entity: input_text.h5082_2f9d_right_load
+                name: Load
+              - entity: input_select.h5082_2f9d_right_use
+                name: Use
+          - type: entities
+            title: 3013
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_3013_location
+                name: Where
+              - entity: switch.ihoment_h5082_3013_left
+                name: Left
+              - entity: input_text.h5082_3013_left_load
+                name: Load
+              - entity: input_select.h5082_3013_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_3013_right
+                name: Right
+              - entity: input_text.h5082_3013_right_load
+                name: Load
+              - entity: input_select.h5082_3013_right_use
+                name: Use
+          - type: entities
+            title: 3EC9
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_3ec9_location
+                name: Where
+              - entity: switch.ihoment_h5082_3ec9_left
+                name: Left
+              - entity: input_text.h5082_3ec9_left_load
+                name: Load
+              - entity: input_select.h5082_3ec9_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_3ec9_right
+                name: Right
+              - entity: input_text.h5082_3ec9_right_load
+                name: Load
+              - entity: input_select.h5082_3ec9_right_use
+                name: Use
+          - type: entities
+            title: 82FB
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_82fb_location
+                name: Where
+              - entity: switch.ihoment_h5082_82fb_left
+                name: Left
+              - entity: input_text.h5082_82fb_left_load
+                name: Load
+              - entity: input_select.h5082_82fb_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_82fb_right
+                name: Right
+              - entity: input_text.h5082_82fb_right_load
+                name: Load
+              - entity: input_select.h5082_82fb_right_use
+                name: Use
+          - type: entities
+            title: 9607
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_9607_location
+                name: Where
+              - entity: switch.ihoment_h5082_9607_left
+                name: Left
+              - entity: input_text.h5082_9607_left_load
+                name: Load
+              - entity: input_select.h5082_9607_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_9607_right
+                name: Right
+              - entity: input_text.h5082_9607_right_load
+                name: Load
+              - entity: input_select.h5082_9607_right_use
+                name: Use
+          - type: entities
+            title: C061
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_c061_location
+                name: Where
+              - entity: switch.ihoment_h5082_c061_left
+                name: Left
+              - entity: input_text.h5082_c061_left_load
+                name: Load
+              - entity: input_select.h5082_c061_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_c061_right
+                name: Right
+              - entity: input_text.h5082_c061_right_load
+                name: Load
+              - entity: input_select.h5082_c061_right_use
+                name: Use
+          - type: entities
+            title: C38D (Pi supply)
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_c38d_location
+                name: Where
+              - entity: switch.ihoment_h5082_c38d_left
+                name: Left
+              - entity: input_text.h5082_c38d_left_load
+                name: Load
+              - entity: input_select.h5082_c38d_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_c38d_right
+                name: Right
+              - entity: input_text.h5082_c38d_right_load
+                name: Load
+              - entity: input_select.h5082_c38d_right_use
+                name: Use
+          - type: entities
+            title: CF79
+            show_header_toggle: false
+            entities:
+              - entity: input_text.h5082_cf79_location
+                name: Where
+              - entity: switch.ihoment_h5082_cf79_left
+                name: Left
+              - entity: input_text.h5082_cf79_left_load
+                name: Load
+              - entity: input_select.h5082_cf79_left_use
+                name: Use
+              - entity: switch.ihoment_h5082_cf79_right
+                name: Right
+              - entity: input_text.h5082_cf79_right_load
+                name: Load
+              - entity: input_select.h5082_cf79_right_use
+                name: Use
           - type: entities
             title: Dump plug wiring
             show_header_toggle: false
@@ -458,29 +581,6 @@ views:
                 name: T2 charge
               - entity: sensor.sungold_sph302480a_charging_power
                 name: Sungold charge
-            grid_options:
-              columns: full
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Sim dump plugs
-          - type: history-graph
-            title: Sim dump plugs
-            hours_to_show: 72
-            entities:
-              - entity: switch.sim_ac_plug_1
-                name: 1 fan
-              - entity: switch.sim_ac_plug_2
-                name: 2 dehumidifier
-              - entity: switch.sim_ac_plug_3
-                name: 3 water heater
-              - entity: switch.sim_ac_plug_4
-                name: 4 fan
-              - entity: switch.sim_ac_plug_5
-                name: 5 fan
-              - entity: switch.sim_ac_plug_6
-                name: 6 gaming PC
             grid_options:
               columns: full
 

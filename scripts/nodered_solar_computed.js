@@ -19,6 +19,55 @@ function num(states, id) {
     return Number.isFinite(n) ? n : null;
 }
 
+const H5082_SOCKETS = [
+    ["2F9D", "left"],
+    ["2F9D", "right"],
+    ["3013", "left"],
+    ["3013", "right"],
+    ["3EC9", "left"],
+    ["3EC9", "right"],
+    ["82FB", "left"],
+    ["82FB", "right"],
+    ["9607", "left"],
+    ["9607", "right"],
+    ["C061", "left"],
+    ["C061", "right"],
+    ["C38D", "left"],
+    ["C38D", "right"],
+    ["CF79", "left"],
+    ["CF79", "right"],
+];
+
+function h5082Id(plug, side) {
+    return plug.toLowerCase() + "_" + side;
+}
+
+function textState(states, id) {
+    const s = states[id];
+    if (s === undefined || s === null || s === "unavailable" || s === "unknown") return "";
+    return String(s).replace(/\s+/g, " ").trim();
+}
+
+/** On/off plus the operator's Where, Load, and Use text. Not a watt calculation. */
+function socketSamples(states) {
+    return H5082_SOCKETS.map(function (pair) {
+        const plug = pair[0];
+        const side = pair[1];
+        const id = h5082Id(plug, side);
+        const sw = states["switch.ihoment_h5082_" + id];
+        const on = sw === "on" ? 1 : sw === "off" ? 0 : null;
+        const use = textState(states, "input_select.h5082_" + id + "_use") === "dump" ? "dump" : "normal";
+        return {
+            plug: plug,
+            side: side,
+            location: textState(states, "input_text.h5082_" + plug.toLowerCase() + "_location"),
+            load: textState(states, "input_text.h5082_" + id + "_load"),
+            use: use,
+            on: on,
+        };
+    });
+}
+
 function round1(x) {
     if (x === null || x === undefined || !Number.isFinite(x)) return null;
     return Math.round(x * 10) / 10;
@@ -180,6 +229,7 @@ function computeSolarDerived(statesArr) {
         battery_1_w: b1,
         battery_2_w: b2,
         panels,
+        sockets: socketSamples(states),
     };
 }
 
@@ -188,5 +238,6 @@ module.exports = {
     num,
     round1,
     panelBoxes,
+    socketSamples,
     computeSolarDerived,
 };

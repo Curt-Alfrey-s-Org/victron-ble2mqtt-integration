@@ -48,9 +48,16 @@ def test_metrics_route_uses_cache_not_a_second_formula() -> None:
     assert "# TYPE solar_plant_watts gauge" in body
     assert "2 * " not in body
     assert "computeSolarDerived" not in body
+    assert "solar_plant_socket" in body
+    assert "key === 'sockets'" in body
 
 
 def test_derived_keys_still_in_the_only_math_module() -> None:
     text = JS.read_text(encoding="utf-8")
     for key in DERIVED_KEYS:
         assert f"{key}:" in text
+    assert 'states["switch.ihoment_h5082_" + id]' in text
+    assert "input_text.h5082_" in text
+    assert "input_select.h5082_" in text
+    assert '["82FB", "left"]' in text
+    assert "sockets: socketSamples(states)" in text

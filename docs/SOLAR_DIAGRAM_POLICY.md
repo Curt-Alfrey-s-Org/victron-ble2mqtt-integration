@@ -6,7 +6,7 @@
 |------|------|
 | **Home Assistant (`.105`)** | **Device sensors and Site solar tiles** -- Victron, Sungold, EM16 (live wrappers). Energy sankey, dump helpers. No derived site totals on `/site-solar`. |
 | **Node-RED (`.105` `:1880`)** | **Diagram editor** plus the **only derived-math engine** (`scripts/nodered_solar_computed.js`). HTML tiles: `/solar/computed`. Prometheus text of those same numbers: `/solar/metrics`. |
-| **Grafana Canvas (`.107` `:3000`)** | **Detailed one-line view** of that exposition. Not a second calculator. Dashboard uid `solar-plant-oneline`. |
+| **Grafana Canvas (`.107` `:3000`)** | **Detailed one-line view** of that exposition, plus H5082 socket tables (`solar_plant_socket`). Not a second calculator. Dashboard uid `solar-plant-oneline`. |
 
 See [SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md).
 

@@ -1,6 +1,8 @@
 # Dump-load plugs (template now, Govee H5082 via MQTT later)
 
-**Status (2026-09-20):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
+**Status (2026-09-25):** Retired. The sim switches were removed from Home Assistant. Site solar, Node-RED `/solar/metrics`, and Grafana use the H5082 sockets. Do not reinstall this package.
+
+**Previous status (2026-09-20):** Six HA dump switches (`switch.sim_ac_plug_*`). **No typed
 watt rating.** Staging confirms **solar-system load delta** after
 `input_number.dump_site_confirm_s` (default 5 s), not indoor Govee energy
 monitoring. Per plug: 15 min min-on (`timer.dump_plug_N_min_on`), 10 min cooldown

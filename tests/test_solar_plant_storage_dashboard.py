@@ -31,17 +31,18 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     module = _load()
     config = module.load_seed_config()
     blob = str(config)
-    assert "sensor.site_solar_power" in blob
-    assert "sensor.t2_ku_jumper_power" in blob
     assert "sensor.ku_unmetered_pv_est_power" not in blob
     assert "input_boolean.dump_control_enabled" in blob
     assert "input_number.dump_site_confirm_s" in blob
     assert "timer.dump_plug_1_cooldown" in blob
-    assert "sensor.dump_bus_load_sph" in blob
-    assert "binary_sensor.dump_load_exceeds_solar" in blob
     assert "input_text.dump_notify_service" in blob
-    assert "sensor.site_solar_today" in blob
-    assert "switch.sim_ac_plug_1" in blob
+    assert "switch.ihoment_h5082_82fb_left" in blob
+    assert "switch.ihoment_h5082_c38d_right" in blob
+    assert "input_text.h5082_82fb_location" in blob
+    assert "input_text.h5082_82fb_left_load" in blob
+    assert "input_select.h5082_2f9d_right_use" in blob
+    assert "switch.sim_ac_plug_1" not in blob
+    assert "Sim dump plugs" not in blob
     assert "sensor.nws_watauga_lake_alerts" in blob
     assert "climate.417373300314" in blob
     assert "KMRX_loop.gif" in blob

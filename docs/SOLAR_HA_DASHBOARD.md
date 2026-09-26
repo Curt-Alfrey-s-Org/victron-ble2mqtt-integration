@@ -339,8 +339,7 @@ T2/Sungold conversion-loss watts live on those bus tiles. Combined total is Hist
 | Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sim_dump_load_power`, `sungold_sph302480a_load_power` (label **Sungold A/C out**), `sungold_sph302480a_pv_power` |
 | Watts (chargers) | `solar_controller_charging_power`, `sungold_sph302480a_charging_power` (no KU PV/share est on the graph) |
 | Watts (losses) | `solar_component_losses_power`, `t2_mppt_conversion_loss_power`, `sungold_conversion_loss_power` |
-| Sim dump plugs | `switch.sim_ac_plug_1` ... `_6` (on/off) |
-| Sim dump plug W | `sensor.sim_ac_plug_1_power` ... `_6_power` plus aggregate `sim_dump_load_power` |
+| H5082 sockets | Site solar **Plugs** cards. On/off, Where, Load, and Use. Grafana tables read `solar_plant_socket`. Sim dump switches are removed. |
 | Hz | Sungold `grid_frequency`, `ac_output_frequency` |
 | Volts | `battery_1_voltage`, `battery_2_voltage`, `solar_controller_battery`, `sungold_sph302480a_battery_voltage`, `sungold_sph302480a_pv_voltage`, `sungold_sph302480a_grid_voltage`, `sungold_sph302480a_ac_output_voltage` |
 | Amps | `battery_1_current`, `battery_2_current`, `solar_controller_battery_charging`, `sungold_sph302480a_battery_current`, `sungold_sph302480a_pv_current`, `sungold_sph302480a_load_current`, `sungold_sph302480a_grid_current` |

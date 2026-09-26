@@ -1,0 +1,17 @@
+[Unit]
+Description=Govee H5082 MQTT switches for Home Assistant
+After=network-online.target bluetooth.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=n4s1
+Group=n4s1
+EnvironmentFile=/home/n4s1/victron-ble2mqtt-integration/.env
+WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
+ExecStart=/home/n4s1/govee-ble-venv/bin/python -u -m govee_h5082
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

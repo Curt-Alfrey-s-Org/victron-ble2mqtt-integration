@@ -20,7 +20,7 @@ Canonical runbook (token, settings, dump-load physics):
 | Cluster / hub integration | `docs/ALFA_CLUSTER_INTEGRATION.md` |
 | Power buses (T2 vs KU, EM16 A3) | `docs/SOLAR_POWER_BALANCE.md` -- 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in |
 | Dump-load plugs must sit on the **intended AC circuit** | Fed from **Sungold AC out**, not KU Renogy; 15 Sep A3 clamp is Sungold AC-in; see SOLAR_POWER_BALANCE |
-| **Simulated** dump-load plugs (no hardware) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- six `switch.sim_ac_plug_*` on `.105` (YAML package; opt-in) |
+| H5082 sockets | [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md) -- 16 switches on Site solar. Sim dump plugs are retired. |
 | **Solar (HA Energy)** | [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- canonical live W/kWh on `.105:8123/energy`; dump helpers in HA |
 
 ## Safety

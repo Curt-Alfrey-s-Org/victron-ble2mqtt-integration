@@ -68,6 +68,6 @@ Details and verification: **`monitoring/hosts/pi4-victron/README.md`**.
 | Sungold inverter (optional USB sidecar) | `docs/SUNGOLD_SPH302480A.md` -- emergency dolly cart, not T2/KU |
 | 24 V watt in vs watt out | `docs/SOLAR_POWER_BALANCE.md` -- T2 vs KU buses, two Renogy 2 kW, PWM on KU; 10-11 Sep A3 = trailer; 15 Sep A3 = Sungold AC-in (do not add B2) |
 | alfa-ai HA dump load / smart plugs | Brain REST on `.111` -> HA `:8123`; [HOME_ASSISTANT_BRAIN_INTEGRATION.md](https://github.com/Curt-Alfrey-s-Org/alfa-ai/blob/main/docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md); [ALFA_AI_HOW_TO_USE.md](ALFA_AI_HOW_TO_USE.md) |
-| Simulated dump-load plugs (FAKE, opt-in `.105`) | [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) -- `switch.sim_ac_plug_1`..`6` + power sensors (HA YAML package) |
+| H5082 sockets | [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md) -- real plugs on `.105`. Sim dump package is retired. |
 | Solar Energy (canonical) | [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) -- `.105:8123/energy`; package sensors plugged into built-in Energy / Home / Solar |
 | **Not** in scope | Petals swarm membership, worker wheel variants, GPU fleet |
