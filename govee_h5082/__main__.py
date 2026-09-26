@@ -31,6 +31,8 @@ from govee_h5082.mqtt_bridge import (
 
 AVAIL = "govee/h5082/bridge/status"
 HOLD_S = 20
+# Poll every 10 s; re-read the BlueZ object tree every RESCAN_EVERY polls (~60 s).
+RESCAN_EVERY = 6
 
 
 def unwrap(value):
@@ -179,11 +181,18 @@ class Bridge:
             self.publish_state(address, side, on)
             print(f"STATE {address[-5:].replace(':', '')} {side} {payload_for(on)}", flush=True)
 
-    async def watch(self) -> None:
-        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+    async def discover(self, bus) -> None:
+        """(Re)map plug addresses to their BlueZ object paths on ADAPTER.
+
+        Run at start and every RESCAN_EVERY polls: a plug that was out of range
+        (not yet in BlueZ) at start, or whose object BlueZ removed and re-created
+        (bluetoothd restart, cache expiry), was otherwise never watched again.
+        """
         intro = await bus.introspect("org.bluez", "/")
         root = bus.get_proxy_object("org.bluez", "/", intro)
         objects = await root.get_interface("org.freedesktop.DBus.ObjectManager").call_get_managed_objects()
+        wanted = {item[0] for item in PLUGS}
+        paths: dict[str, str] = {}
         for path, ifaces in objects.items():
             if not str(path).startswith(f"/org/bluez/{ADAPTER}/dev_"):
                 continue
@@ -191,13 +200,25 @@ class Bridge:
             if not dev:
                 continue
             address = str(unwrap(dev.get("Address") or "")).upper()
-            if address not in {item[0] for item in PLUGS}:
+            if address not in wanted:
                 continue
-            self._paths[address] = str(path)
+            paths[address] = str(path)
             last = mfr_last(dev.get("ManufacturerData"))
             if last is not None:
                 self.note_advertisement(address, last)
+        self._paths = paths
+
+    async def watch(self) -> None:
+        bus = await MessageBus(bus_type=BusType.SYSTEM).connect()
+        await self.discover(bus)
+        polls = 0
         while True:
+            polls += 1
+            if polls % RESCAN_EVERY == 0:
+                try:
+                    await self.discover(bus)
+                except Exception as exc:
+                    print(f"DISCOVER {type(exc).__name__}", flush=True)
             for address, path in list(self._paths.items()):
                 try:
                     node = await bus.introspect("org.bluez", path)

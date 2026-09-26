@@ -221,12 +221,15 @@ class MqttPublisher(BaseScanner):
             await asyncio.sleep(self._sys_poll_gap)
 
     def _detection_callback(self, device: BLEDevice, advertisement: AdvertisementData):
-        # Bleak 0.19+ keeps RSSI on AdvertisementData, not BLEDevice.
-        # https://bleak.readthedocs.io/en/latest/api/index.html
-        self._last_rssi[device.address] = advertisement.rssi
         data = advertisement.manufacturer_data.get(0x02E1)
         if not data or not data.startswith(b"\x10"):
             return
+        # Bleak 0.19+ keeps RSSI on AdvertisementData, not BLEDevice.
+        # https://bleak.readthedocs.io/en/latest/api/index.html
+        # Cache it only for Victron Instant Readout senders: in active-scan
+        # fallback every nearby device (phones rotate random addresses) reaches
+        # this callback, and caching all of them grew the dict without bound.
+        self._last_rssi[device.address] = advertisement.rssi
         last = self._last_pub.get(device.address, 0.0)
         if not prepare_seen_data_for_republish(
             payload=data,
@@ -347,15 +350,32 @@ def main() -> None:
         password=getattr(user_settings.mqtt, "password", None),
     )
 
+    # asyncio keeps only weak references to tasks: hold them here.
+    # https://docs.python.org/3/library/asyncio-task.html#asyncio.create_task
+    background: set[asyncio.Task] = set()
+
     async def _run():
         scanner = MqttPublisher(keys=keys, user_settings=user_settings, mqtt_client=paho)
         # System-info in the background; do not block BLE start on iwconfig.
-        asyncio.create_task(scanner.periodic_system_info_publish())
+        background.add(asyncio.create_task(scanner.periodic_system_info_publish()))
         await scanner.start_scanner_with_retry()
 
-    loop = asyncio.get_event_loop()
-    loop.create_task(_run())
+    def _startup_done(task: asyncio.Task) -> None:
+        # A crash during startup used to leave the loop running with nothing
+        # scanning (only the healthcheck noticed, minutes later). Stop instead so
+        # the container restarts right away.
+        if not task.cancelled() and task.exception() is not None:
+            _module_logger.critical("victron_ble2mqtt startup failed", exc_info=task.exception())
+            loop.stop()
+
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    run_task = loop.create_task(_run())
+    background.add(run_task)
+    run_task.add_done_callback(_startup_done)
     loop.run_forever()
+    if not run_task.cancelled() and run_task.done() and run_task.exception() is not None:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
