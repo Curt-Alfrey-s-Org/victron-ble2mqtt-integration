@@ -10,11 +10,13 @@
 
 From [#4](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/pull/4) (open for review 2026-09-26: purge script crash, RSSI cache growth, silent startup failure, H5082 rediscovery, ruff CI fix). There is no deps PR this round (`pip-audit` on the lockfile is clean). No new env vars, nothing to rotate.
 
+Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); the steps below run on the Pi 4, and the Pi 5 runs nothing this PR changes. MQTT broker + Home Assistant are on `.105` (`/home/ansible/victron-ble2mqtt-integration`).
+
 **Before pulling**
 
 - [ ] Nothing to back up (no tracked files removed).
 
-**After merging PR #4 (fixes)** — on the Pi 4 (`/home/n4s1/victron-ble2mqtt-integration`):
+**After merging PR #4 (fixes)** — on the Pi 4 `.223` (`/home/n4s1/victron-ble2mqtt-integration`):
 
 - [ ] `cd /home/n4s1/victron-ble2mqtt-integration && git pull`.
 - [ ] **Rebuild/recreate the victron container:** `docker compose -f docker-compose.victron.yml up -d --build` (or the usual `sudo bash scripts/redeploy_victron.sh`). Check `docker logs victron_ble2mqtt`: a startup failure now logs CRITICAL and exits 1, so `restart: unless-stopped` restarts it right away instead of sitting idle.
