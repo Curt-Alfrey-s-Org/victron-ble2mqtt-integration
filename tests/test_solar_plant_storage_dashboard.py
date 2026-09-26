@@ -47,3 +47,10 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "climate.417373300314" in blob
     assert "KMRX_loop.gif" in blob
     assert config["views"][0].get("type") == "sections"
+    headings = []
+    for section in config["views"][0]["sections"]:
+        for card in section.get("cards") or []:
+            if card.get("type") == "heading":
+                headings.append(card.get("heading"))
+    assert "KU 24 V" in headings
+    assert "sensor.battery_2_power" in blob

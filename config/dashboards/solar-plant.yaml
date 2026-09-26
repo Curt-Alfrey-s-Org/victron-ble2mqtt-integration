@@ -106,7 +106,8 @@ views:
           - type: tile
             entity: sensor.battery_2_rssi
             name: RSSI
-          - type: tile
+
+      - type: grid
         cards:
           - type: heading
             heading: KU outlet to Sungold
