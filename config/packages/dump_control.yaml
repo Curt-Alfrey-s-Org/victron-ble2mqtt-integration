@@ -4,10 +4,10 @@
 # input_select.h5082_<id>_<side>_use is "dump" (helpers from
 # scripts/create_h5082_socket_labels.py, default "normal"). A "normal" socket is never
 # turned on or off by these automations. See docs/DUMP_LOAD_HA_CONTROL.md.
-# C38D is not in the socket list: it has no pairing key on the bridge yet (NO_KEY), so
-# HA cannot switch it. What is plugged into each socket and where each plug sits are
-# NOT written here: they are the input_text Where / Load helpers you set in HA
-# (Site solar > Plug names), and the logbook lines read them live.
+# All 8 plugs / 16 sockets are in the socket lists (C38D was paired 2026-09-28 and
+# added after 2F9D ... C061, before CF79). What is plugged into each socket and where
+# each plug sits are NOT written here: they are the input_text Where / Load helpers
+# you set in HA (Site solar > Plug names), and the logbook lines read them live.
 # Stage/shed order is the list order below (stage first, shed last-first).
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
@@ -286,6 +286,20 @@ input_select:
       - T2
       - KU
     icon: mdi:car-battery
+  h5082_c38d_left_inverter:
+    name: C38D left socket inverter (bus)
+    options:
+      - Sungold
+      - T2
+      - KU
+    icon: mdi:car-battery
+  h5082_c38d_right_inverter:
+    name: C38D right socket inverter (bus)
+    options:
+      - Sungold
+      - T2
+      - KU
+    icon: mdi:car-battery
   h5082_cf79_left_inverter:
     name: CF79 left socket inverter (bus)
     options:
@@ -398,6 +412,22 @@ timer:
     name: C061 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
+  h5082_c38d_left_min_on:
+    name: C38D left dump min-on (15 min, display only)
+    duration: "00:15:00"
+    restore: true
+  h5082_c38d_left_cooldown:
+    name: C38D left dump cooldown (10 min)
+    duration: "00:10:00"
+    restore: true
+  h5082_c38d_right_min_on:
+    name: C38D right dump min-on (15 min, display only)
+    duration: "00:15:00"
+    restore: true
+  h5082_c38d_right_cooldown:
+    name: C38D right dump cooldown (10 min)
+    duration: "00:10:00"
+    restore: true
   h5082_cf79_left_min_on:
     name: CF79 left dump min-on (15 min, display only)
     duration: "00:15:00"
@@ -426,7 +456,7 @@ template:
           {% for s in [
             '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
             '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-            'cf79_left', 'cf79_right'
+            'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] %}
             {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}{% set ns.n = ns.n + 1 %}{% endif %}
           {% endfor %}
@@ -437,7 +467,7 @@ template:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}
                 {% set ns.out = ns.out + ['switch.ihoment_h5082_' ~ s] %}
@@ -496,7 +526,7 @@ template:
           {% set socks = [
             '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
             '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-            'cf79_left', 'cf79_right'
+            'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] %}
           {% set lim_t2 = states('input_number.dump_ac_limit_t2_w') | float(2000) %}
           {% set lim_ku = states('input_number.dump_ac_limit_ku_w') | float(2000) %}
@@ -566,7 +596,7 @@ template:
           {% for s in [
             '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
             '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-            'cf79_left', 'cf79_right'
+            'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] | reverse %}
             {% set eid = 'switch.ihoment_h5082_' ~ s %}
             {% if pick.eid == 'none' and is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
@@ -797,7 +827,7 @@ automation dump_load:
                   entity_id: binary_sensor.dump_load_exceeds_solar
                   state: "on"
             - condition: template
-              value_template: "{{ states('sensor.dump_next_plug').startswith('switch.ihoment_h5082_') and repeat.index <= 14 }}"
+              value_template: "{{ states('sensor.dump_next_plug').startswith('switch.ihoment_h5082_') and repeat.index <= 16 }}"
           sequence:
             - variables:
                 target: "{{ states('sensor.dump_next_plug') }}"
@@ -934,7 +964,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
@@ -990,7 +1020,7 @@ automation dump_load:
             - condition: template
               value_template: "{{ states('sensor.dump_shed_plug').startswith('switch.ihoment_h5082_') }}"
             - condition: template
-              value_template: "{{ repeat.index <= 14 }}"
+              value_template: "{{ repeat.index <= 16 }}"
           sequence:
             - variables:
                 target: "{{ states('sensor.dump_shed_plug') }}"
@@ -1038,7 +1068,7 @@ automation dump_load:
             - condition: template
               value_template: "{{ states('sensor.dump_shed_plug').startswith('switch.ihoment_h5082_') }}"
             - condition: template
-              value_template: "{{ repeat.index <= 14 }}"
+              value_template: "{{ repeat.index <= 16 }}"
           sequence:
             - variables:
                 target: "{{ states('sensor.dump_shed_plug') }}"
@@ -1116,7 +1146,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
@@ -1170,7 +1200,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
@@ -1224,7 +1254,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
@@ -1278,7 +1308,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
@@ -1332,7 +1362,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
@@ -1387,7 +1417,7 @@ automation dump_load:
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
-              'cf79_left', 'cf79_right'
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')

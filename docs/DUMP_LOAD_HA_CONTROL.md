@@ -62,7 +62,7 @@ survive restarts and Ask ALFa may tune them.
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
-| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. C38D (no pairing key yet) is not in the list at all. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
+| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
 | **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
 | **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (recommended `persistent_notification`; empty = persistent notification only; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
@@ -93,12 +93,10 @@ Depends on:
 - The per-socket helpers `input_select.h5082_<id>_<side>_use` (normal / dump) from
   `scripts/create_h5082_socket_labels.py`. Missing or unknown = normal.
 
-Dump sockets: the 14 sockets of 2F9D, 3013, 3EC9, 82FB, 9607, C061, CF79 whose
+Dump sockets: the 16 sockets of 2F9D, 3013, 3EC9, 82FB, 9607, C061, C38D, CF79 whose
 **Use** is dump. Stage order is that list (left before right); shed order is the
-reverse. C38D is left out because it has no pairing key on the bridge yet (`NO_KEY`),
-so HA cannot switch it. Including it later means adding `c38d_left` / `c38d_right` to
-the socket lists in `dump_control.yaml` plus its Inverter selects and timers (a logic
-change, not done here).
+reverse. C38D was paired on the bridge 2026-09-28 and has the same Use / Inverter
+selects and min-on / cooldown timers as every other socket.
 
 **What is plugged in is not in the repo.** Loads move and plugs move, so the repo never
 says what a socket feeds or where a plug is. Set **Where** (per plug) and **Load** (per

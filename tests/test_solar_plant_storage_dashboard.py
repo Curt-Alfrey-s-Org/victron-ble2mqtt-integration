@@ -37,7 +37,7 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "timer.h5082_*" in blob
     assert "timer.dump_plug_" not in blob
     assert "input_select.h5082_82fb_left_inverter" in blob
-    assert "input_select.h5082_c38d_left_inverter" not in blob
+    assert "input_select.h5082_c38d_left_inverter" in blob
     assert "input_text.dump_notify_service" in blob
     assert "switch.ihoment_h5082_82fb_left" in blob
     assert "switch.ihoment_h5082_c38d_right" in blob

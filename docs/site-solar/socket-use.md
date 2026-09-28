@@ -13,8 +13,7 @@ Decides which sockets Home Assistant may switch **by itself**.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (14 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed). **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
-| live name + ` - not in the dump list (no key yet)` (2 rows) | `input_select.h5082_c38d_<side>_use` | `normal`, `dump` | C38D has no pairing key on the bridge yet, and it is not in any list in the package: it is never switched by the dump rules, even set to dump. Leave it normal. |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed). **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
 
 Each row's name is live: the socket's **Load** and its plug's **Where** from
 [Plug names](plug-names.md), with the plug id and side in brackets, for example

@@ -7,7 +7,7 @@
 
 ## What this box is for
 
-Two timers per dump-capable socket (14 sockets: every plug except C38D). They show
+Two timers per dump-capable socket (16 sockets: all 8 plugs). They show
 why a socket is being skipped right now.
 
 ## The entities

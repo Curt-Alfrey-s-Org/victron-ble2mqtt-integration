@@ -1,5 +1,22 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "C38D dump sockets" (2026-09-28)
+
+From branch `c38d-dump-sockets` (after #7). C38D was paired on the Pi 4 on 2026-09-28 (`~/bin/h5082_pair_c38d.py`, `hci1`; key file now 8 lines) and both sockets logged `SET C38D ... OK` from HA. This change makes C38D a dump-capable plug like the other seven: 16 sockets in every dump list, plus `input_select.h5082_c38d_{left,right}_inverter` and `timer.h5082_c38d_{left,right}_{min_on,cooldown}`. No `initial:` was added. **C38D Use stays `normal`**, so nothing switches C38D until you choose dump. Your current Where / Load / Use / Inverter values are kept. Only `.105` changes. **Pi 4 `.223`: nothing to do** (bridge and key file are already done). If the "no hard-coded plug loads" steps below were not run yet, these steps cover them too.
+
+**`.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Token file for the scripts (never commit it):
+  `install -m 600 /dev/null ~/.ha_token`, then `nano ~/.ha_token` and paste a long-lived HA token, then
+  `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** Backup first: `python3 scripts/site_solar_settings.py export` (every Where / Load / Use / Inverter value and the live dashboard).
+- [ ] **d.** `bash scripts/install_dump_control_ha.sh` (copies the package, runs check_config, restarts HA). The new C38D Inverter selects and timers appear after this restart.
+- [ ] **e.** Dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `python3 scripts/save_solar_plant_storage_dashboard.py --force` (backs the live dashboard up to `.backups/site-solar/<stamp>-before-seed/` first).
+- [ ] **f.** `rm ~/.ha_token` and `unset HA_TOKEN_FILE`.
+- [ ] **g.** In HA, Site solar > **Socket inverter**: set **C38D left / right** Inverter to the bus each socket is really on **before** setting its Use to dump (a new select starts on the first option, `Sungold`). Then, only if you want HA to switch it, set C38D Use to dump in **Socket Use**. Use defaults to `normal`.
+- [ ] **h.** Checks: **Socket inverter** shows 16 rows; **Dump timers** lists the C38D timers; with a C38D socket set to dump, `sensor.dump_sockets` counts it and **Dump sockets by name** lists it.
+
 ## Next step: host steps for "no hard-coded plug loads" (2026-09-28)
 
 From branch `fix/no-hardcoded-plug-loads` (after #6). The Pi 4 is **not** plugged into a Govee plug, and loads and locations will change, so the repo no longer says what is plugged into any H5082 socket or where any plug is. The dashboard and the Dump control logbook lines read the live **Where** / **Load** helpers (`input_text.h5082_<id>_location`, `input_text.h5082_<id>_<side>_load`) and show the plug id and side when one is blank. Entity ids, helper values and dump logic are unchanged, and no `initial:` was added. **Your current Where / Load / Use / Inverter values are kept**: nothing in this change writes to them. Only `.105` changes. **Pi 4 `.223` / Pi 5 `.240`: nothing to do** (the bridge is untouched).
@@ -73,7 +90,7 @@ Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); 
 
 - [ ] `cd /home/n4s1/victron-ble2mqtt-integration && git pull`.
 - [ ] Deps: no change (the bridge runs from `/home/n4s1/govee-ble-venv`, same bleak as today). Nothing to reinstall.
-- [ ] `sudo systemctl restart h5082-mqtt`, then `journalctl -u h5082-mqtt -f` and toggle each socket from HA. Expect `LINK_UP <id>`, then `SET <id> <side> ON|OFF` (`... try 2`/`try 3` when a retry saved it; each failed try logs `GATT <id> <side> ... try n/3 <Exception>: <message>`). A link closes after 120 s idle (`LINK_IDLE`) so the plug advertises again. There should be no `SET_FAIL` on in-range plugs. C38D still logs `NO_KEY` (expected until the dongle + key).
+- [ ] `sudo systemctl restart h5082-mqtt`, then `journalctl -u h5082-mqtt -f` and toggle each socket from HA. Expect `LINK_UP <id>`, then `SET <id> <side> ON|OFF` (`... try 2`/`try 3` when a retry saved it; each failed try logs `GATT <id> <side> ... try n/3 <Exception>: <message>`). A link closes after 120 s idle (`LINK_IDLE`) so the plug advertises again. There should be no `SET_FAIL` on in-range plugs. (At the time C38D still logged `NO_KEY`; it was paired 2026-09-28 and now logs `SET C38D ... OK`.)
 - [ ] Optional: `H5082_IDLE_DISCONNECT_S=0` in the unit keeps links open until they drop. Leave it at the default unless you want that: a connected plug stops advertising, so button presses and RSSI/"heard by" for it pause.
 
 **Pi 5 `.240`** (`h5082-rssi-pi5`, RSSI only)
@@ -87,7 +104,7 @@ Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); 
 - [ ] In Settings → Entities (search `sim_` / `dump_plug_`, status "not provided"), delete the orphaned entities: `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power`, `input_boolean.sim_ac_plug_*_internal`, `input_text.dump_plug_*_power_entity`, `input_select.dump_plug_*_inverter`, `timer.dump_plug_*`, `sensor.dump_plug_*_last_w`, and the old `automation.dump_load_*` entries (their unique IDs start with `sim_dump_`). If `sensor.sim_dump_energy_kwh` exists as a UI helper, delete it too. Doing this before the next step keeps the new automations from getting `_2` ids.
 - [ ] If the per-socket selects are missing: `python3 scripts/create_h5082_socket_labels.py` (HA token; skips the ones that exist and, since the persistence fix, strips `initial`).
 - [ ] Install dump control: `bash scripts/install_dump_control_ha.sh` (removes any sim package, copies `dump_control.yaml`, runs check config, restarts HA).
-- [ ] Site solar dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py` (HA token) to load the repo seed. **Superseded by step h above: the script now needs `--force` and backs up first.** If you edited it in the UI, replace the **Dump dwell** card (now auto-entities over `timer.h5082_*`) and delete **Dump plug wiring** by hand instead. Then confirm there are no red "entity not available" cards and each Plugs card has an **Inverter** row (not C38D).
+- [ ] Site solar dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py` (HA token) to load the repo seed. **Superseded by step h above: the script now needs `--force` and backs up first.** If you edited it in the UI, replace the **Dump dwell** card (now auto-entities over `timer.h5082_*`) and delete **Dump plug wiring** by hand instead. Then confirm there are no red "entity not available" cards and each Plugs card has an **Inverter** row (not C38D at the time; C38D has Inverter selects since 2026-09-28).
 - [ ] Energy: `python3 scripts/save_solar_plant_energy_prefs.py --force` (backs up first; or remove the **Sim dump** device in Settings → Energy).
 - [ ] Dump automations: Settings → Automations shows `Dump load turn on`, `... turn off solar gone`, `... shed while not float`, `... shed Sungold load above site solar`, the six re-bulk/battery turn-offs and the notify, all **enabled** and with no `_2` suffix. `sensor.dump_next_plug` / `sensor.dump_shed_plug` show `none` or a `switch.ihoment_h5082_*` id.
 - [ ] Set **Use = dump** on the dump sockets (plan: 4 sockets = 2 plugs), set each one's **Inverter**, and check `sensor.dump_sockets` counts them. Leave `input_boolean.dump_control_enabled` off until one dump socket has been switched by hand and by the automation (H5082_INSTALL_PLAN.md Checkpoint 7).

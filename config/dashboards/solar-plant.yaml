@@ -339,7 +339,7 @@ views:
 
               **Set to dump:**
               {%- set ns = namespace(any=false) %}
-              {%- for s in ['2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right', '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right', 'cf79_left', 'cf79_right'] %}
+              {%- for s in ['2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right', '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right', 'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'] %}
               {%- if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}{% set ns.any = true %}
               - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, {{ states('input_select.h5082_' ~ s ~ '_inverter') }} bus
               {%- endif %}
@@ -735,7 +735,7 @@ views:
           - type: markdown
             content: |
               Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can).
-              Only choose dump for a socket whose load may lose power at any time; each row shows the live Load and Where you typed (or the plug id and side when blank), and C38D is not in the dump list.
+              Only choose dump for a socket whose load may lose power at any time; each row shows the live Load and Where you typed (or the plug id and side when blank).
               Safe start: everything normal, then one dump socket with a lamp to test.
               [Help: Socket Use (normal / dump)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
             grid_options:
@@ -761,8 +761,7 @@ views:
                   'input_select.h5082_cf79_left_use', 'input_select.h5082_cf79_right_use',
                 ] -%}
                 {%- set s = e.split('.')[1][6:].rsplit('_', 1)[0] -%}
-                {%- set extra = ' - not in the dump list (no key yet)' if s.startswith('c38d') else '' -%}
-                {{ {'entity': e, 'name': sock_name(s) ~ extra} | tojson }}{{ ',' if not loop.last else '' }}
+                {{ {'entity': e, 'name': sock_name(s)} | tojson }}{{ ',' if not loop.last else '' }}
                 {%- endfor -%}
                 ]
             show_empty: true
@@ -799,11 +798,11 @@ views:
                   'input_select.h5082_82fb_left_inverter', 'input_select.h5082_82fb_right_inverter',
                   'input_select.h5082_9607_left_inverter', 'input_select.h5082_9607_right_inverter',
                   'input_select.h5082_c061_left_inverter', 'input_select.h5082_c061_right_inverter',
+                  'input_select.h5082_c38d_left_inverter', 'input_select.h5082_c38d_right_inverter',
                   'input_select.h5082_cf79_left_inverter', 'input_select.h5082_cf79_right_inverter',
                 ] -%}
                 {%- set s = e.split('.')[1][6:].rsplit('_', 1)[0] -%}
-                {%- set extra = '' -%}
-                {{ {'entity': e, 'name': sock_name(s) ~ extra} | tojson }}{{ ',' if not loop.last else '' }}
+                {{ {'entity': e, 'name': sock_name(s)} | tojson }}{{ ',' if not loop.last else '' }}
                 {%- endfor -%}
                 ]
             show_empty: true

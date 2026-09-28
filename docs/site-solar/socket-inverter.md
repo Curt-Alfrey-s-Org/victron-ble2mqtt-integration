@@ -14,7 +14,7 @@ the right battery.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (14 rows, not C38D) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. |
 
 What each choice watches:
 

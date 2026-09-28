@@ -13,7 +13,7 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 
 | Row | Entity | On / value means | Set by |
 |---|---|---|---|
-| Sockets set to dump | `sensor.dump_sockets` | How many of the 14 sockets have Use = dump (attribute `entities` lists them) | [Socket Use](socket-use.md) |
+| Sockets set to dump | `sensor.dump_sockets` | How many of the 16 sockets have Use = dump (attribute `entities` lists them) | [Socket Use](socket-use.md) |
 | Next socket HA would add | `sensor.dump_next_plug` | The socket the add rule would switch on next, or `none` | all gates below |
 | Next socket HA would shed | `sensor.dump_shed_plug` | The dump socket that goes first when shedding (last in stage order that is on), or `none` | Socket Use + plug state |
 | T2 charger in float | `binary_sensor.dump_charge_float` | T2 MPPT charge state is `float` | charger |
