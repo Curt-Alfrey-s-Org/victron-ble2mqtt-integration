@@ -8,13 +8,14 @@
 ## What this box is for
 
 Tells HA which inverter / battery bus each socket's power comes from, so it watches
-the right battery.
+the right battery. **House** marks a plug that is on house grid power (not on any
+solar bus): dump control never switches it, even if its Use is dump.
 
 ## The entities
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (16 rows) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU`, `House` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. `House` = grid-powered house plug: never switched by dump control (on or off), still switchable by you. |
 
 What each choice watches:
 
@@ -23,6 +24,7 @@ What each choice watches:
 | T2 | `sensor.battery_1_voltage` | `sensor.battery_1_power` | T2 limit - T2 battery discharge | minus `sensor.battery_1_power` |
 | KU | `sensor.battery_2_voltage` | `sensor.battery_2_power` | KU limit - KU battery discharge | minus `sensor.battery_2_power` |
 | Sungold | `sensor.sungold_sph302480a_battery_voltage` | Sungold charging power (or current x voltage) | Sungold limit - Sungold AC-out | `sensor.sungold_sph302480a_load_power` |
+| House | none | none | none | none: dump control skips the socket entirely |
 
 Each row's name is live: the socket's **Load** and its plug's **Where** from
 [Plug names](plug-names.md), with the plug id and side in brackets (`Heater (<ID> left)
@@ -40,6 +42,13 @@ switch on. A brand-new select starts on **Sungold** (the first option).
   not at/below stop volts, battery ok and under its AC limit.
 - `dump_turn_on` reads **its** bus meter before and after to confirm the load.
 - `Dump OFF <bus> sockets: ...` rules turn off only sockets whose inverter is that bus.
+- **House:** every socket pick in the package uses the same test, "Use is dump **and**
+  Inverter is not House". So a House socket is not counted in `sensor.dump_sockets`,
+  never offered by `sensor.dump_next_plug` or `sensor.dump_shed_plug`, and never in any
+  turn-off list (solar gone, stop volts, battery, shed). It is never turned on **or**
+  off by dump control; the Plugs buttons and the plug's own button still work.
+  Changing a socket to House while dump control has it on leaves it on: turn it off
+  yourself if needed. Setting its Use to normal as well keeps the rows clear.
 - It only matters for sockets whose Use is dump.
 - A wrong choice makes HA watch the wrong battery: a heater really on KU but set to T2
   would stay on while the KU battery drains, as long as T2 looks fine.
@@ -50,7 +59,8 @@ switch on. A brand-new select starts on **Sungold** (the first option).
 Socket `<ID> left` is plugged into an outlet fed by the KU inverter: set it to **KU**.
 When the KU battery starts discharging for a minute, that socket turns off even though
 T2 and Sungold are fine. If you later move the plug to a Sungold outlet, change this
-row (and its Where) to match.
+row (and its Where) to match. If the plug goes onto a house outlet on grid power, set
+it to **House**.
 
 ## Recommended first test
 

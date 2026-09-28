@@ -13,7 +13,7 @@ Decides which sockets Home Assistant may switch **by itself**.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed). **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed), unless its [Inverter](socket-inverter.md) is **House**. **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
 
 Each row's name is live: the socket's **Load** and its plug's **Where** from
 [Plug names](plug-names.md), with the plug id and side in brackets, for example
@@ -32,9 +32,11 @@ fridge, freezer, pump or computer). Check the socket's Load first.
 
 ## How it works in the package
 
-- `sensor.dump_sockets` counts sockets with Use = dump; `sensor.dump_next_plug` and
-  `sensor.dump_shed_plug` only consider dump sockets; every turn-off rule builds its
-  list from sockets with Use = dump.
+- A socket is a dump socket when Use = dump **and** its Inverter is not **House**
+  (House = grid-powered house plug). `sensor.dump_sockets` counts those;
+  `sensor.dump_next_plug` and `sensor.dump_shed_plug` only consider those; every
+  turn-off rule builds its list from those. A House socket set to dump is still never
+  switched (Dump sockets by name shows it as "House (grid power): never switched").
 - Stage order is 2F9D left, 2F9D right, 3013 left, ... CF79 right; sheds go in the
   reverse order.
 - Changing a socket from **dump to normal** while it is on: HA stops touching it and

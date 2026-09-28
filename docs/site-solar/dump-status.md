@@ -13,7 +13,7 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 
 | Row | Entity | On / value means | Set by |
 |---|---|---|---|
-| Sockets set to dump | `sensor.dump_sockets` | How many of the 16 sockets have Use = dump (attribute `entities` lists them) | [Socket Use](socket-use.md) |
+| Sockets set to dump | `sensor.dump_sockets` | How many of the 16 sockets have Use = dump and Inverter not House (attribute `entities` lists them) | [Socket Use](socket-use.md) |
 | Next socket HA would add | `sensor.dump_next_plug` | The socket the add rule would switch on next, or `none` | all gates below |
 | Next socket HA would shed | `sensor.dump_shed_plug` | The dump socket that goes first when shedding (last in stage order that is on), or `none` | Socket Use + plug state |
 | T2 charger in float | `binary_sensor.dump_charge_float` | T2 MPPT charge state is `float` | charger |
@@ -28,7 +28,8 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 | <bus> battery within discharge limit | `binary_sensor.dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` | Battery not discharging more than its limit; off for 1 min turns that bus's dump sockets off | [Battery discharge limits](dump-battery-limits.md) |
 
 Below the list, **Dump sockets by name (live)** repeats the next socket to add, the
-next to shed and every socket set to dump (with on/off and its bus) by **name**: the
+next to shed and every socket set to dump (with on/off and its bus; a House socket
+is listed as "House (grid power): never switched by dump control") by **name**: the
 socket's Load and its plug's Where from [Plug names](plug-names.md), with the plug id
 and side in brackets, or just `<ID> left` when Load is blank. The sensors themselves
 still hold switch entity ids.
@@ -40,7 +41,7 @@ HA **adds** a socket (`dump_turn_on`) only when all of these hold:
 - master switch on; T2 charger in float for 1 min; solar present for 1 min; SoC ok;
 - PV falling **off**; Sungold load above solar **off**;
 - `sensor.dump_next_plug` names a socket. It picks, in the order 2F9D left, 2F9D
-  right, 3013 left ... CF79 right, the first socket that has Use = dump, is **off**,
+  right, 3013 left ... CF79 right, the first socket that has Use = dump (and Inverter not House), is **off**,
   has an idle cooldown, and whose Inverter bus is at/above start volts, not at/below
   stop volts, battery ok, and under its AC limit.
 

@@ -1,5 +1,22 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "House inverter option" (2026-09-28)
+
+From branch `house-inverter-option` (after #8). Some Govee plugs are used in the house on grid power, so each socket's **Inverter** select (`input_select.h5082_<id>_<side>_inverter`, 16 selects) gets a 4th option, **House**. Dump control never switches a House socket, on or off, even if its Use is dump: every socket pick in `dump_control.yaml` now tests "Use is dump **and** Inverter is not House". You can still switch a House socket yourself (Plugs button or the plug's own button). No `initial:` was added. Your current Inverter choices stay (Sungold / T2 / KU are still valid options, so HA restores them). Only `.105` changes. **Pi 4 `.223`: nothing to do.**
+
+**`.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Token file for the scripts (never commit it):
+  `install -m 600 /dev/null ~/.ha_token && nano ~/.ha_token` (paste a long-lived HA token), then
+  `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** Backup first: `python3 scripts/site_solar_settings.py export`
+- [ ] **d.** `bash scripts/install_dump_control_ha.sh` (copies the package, runs check_config, restarts HA). After the restart each Inverter select offers House.
+- [ ] **e.** The dashboard seed changed (Socket inverter / Socket Use help, Dump sockets by name, plug-button label and gold border), so: `python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `python3 scripts/save_solar_plant_storage_dashboard.py --force` (backs the live dashboard up first).
+- [ ] **f.** `rm ~/.ha_token && unset HA_TOKEN_FILE`
+- [ ] **g.** In HA, Site solar > **Socket inverter**: set **House** on every socket whose plug is on house grid power. Setting its Use to normal too keeps the rows clear. If dump control had one of those sockets on, it stays on: switch it yourself if needed.
+- [ ] **h.** Checks: a House socket shows `house` on its Plugs button (no gold border); if its Use is dump, **Dump sockets by name** lists it as "House (grid power): never switched by dump control" and `sensor.dump_sockets` does not count it.
+
 ## Next step: host steps for "C38D dump sockets" (2026-09-28)
 
 From branch `c38d-dump-sockets` (after #7). C38D was paired on the Pi 4 on 2026-09-28 (`~/bin/h5082_pair_c38d.py`, `hci1`; key file now 8 lines) and both sockets logged `SET C38D ... OK` from HA. This change makes C38D a dump-capable plug like the other seven: 16 sockets in every dump list, plus `input_select.h5082_c38d_{left,right}_inverter` and `timer.h5082_c38d_{left,right}_{min_on,cooldown}`. No `initial:` was added. **C38D Use stays `normal`**, so nothing switches C38D until you choose dump. Your current Where / Load / Use / Inverter values are kept. Only `.105` changes. **Pi 4 `.223`: nothing to do** (bridge and key file are already done). If the "no hard-coded plug loads" steps below were not run yet, these steps cover them too.

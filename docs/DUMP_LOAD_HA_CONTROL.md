@@ -62,7 +62,7 @@ survive restarts and Ask ALFa may tune them.
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
-| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
+| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. A socket whose `input_select.h5082_<id>_<side>_inverter` is **House** (plug on house grid power) is never switched either, even if its Use is dump. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
 | **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
 | **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (recommended `persistent_notification`; empty = persistent notification only; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
@@ -71,7 +71,7 @@ survive restarts and Ask ALFa may tune them.
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
 | Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, recommended 5) and `input_number.dump_site_delta_min_w` (5-500 W, recommended 25) |
 | Per-socket min-on / cooldown | HA `timer.h5082_<id>_<side>_min_on` (15 min, `restore: true`) and `timer.h5082_<id>_<side>_cooldown` (10 min, `restore: true`) |
-| Inverter caps, socket->bus | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `input_select.h5082_<id>_<side>_inverter` (Sungold / T2 / KU; no `initial`, so the choice survives restarts). H5082 sends no watts. |
+| Inverter caps, socket->bus | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `input_select.h5082_<id>_<side>_inverter` (Sungold / T2 / KU / House; House = grid-powered house plug, never dump-switched; no `initial`, so the choice survives restarts). H5082 sends no watts. |
 | Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
 | Tune helpers, inspect meters | Ask ALFa `ha_set_number` / `ha_select_option` / `ha_get_states` (no Approve). **Never** dump-actuate standing night loads. |
 | Surplus W (`sensor.dump_surplus_w`) | Briefing only. **Not** the ON/OFF trigger. |
@@ -94,8 +94,17 @@ Depends on:
   `scripts/create_h5082_socket_labels.py`. Missing or unknown = normal.
 
 Dump sockets: the 16 sockets of 2F9D, 3013, 3EC9, 82FB, 9607, C061, C38D, CF79 whose
-**Use** is dump. Stage order is that list (left before right); shed order is the
-reverse. C38D was paired on the bridge 2026-09-28 and has the same Use / Inverter
+**Use** is dump and whose **Inverter** is not House. Stage order is that list (left
+before right); shed order is the reverse.
+
+**House guard.** Every socket pick in `dump_control.yaml` (the `sensor.dump_sockets`
+count and list, `sensor.dump_next_plug`, `sensor.dump_shed_plug`, the recheck in
+`dump_turn_on`, and every turn-off list: solar gone, per-bus stop volts, per-bus battery)
+uses the same test: Use is `dump` **and** Inverter is not `House`. A House socket is
+therefore never turned on or off by dump control; the Plugs buttons and the plug's own
+button still switch it. Switching a socket to House while dump control has it on leaves
+it on (turn it off yourself if needed). A House socket needs no bus: its volts, battery
+and AC limits are never read. C38D was paired on the bridge 2026-09-28 and has the same Use / Inverter
 selects and min-on / cooldown timers as every other socket.
 
 **What is plugged in is not in the repo.** Loads move and plugs move, so the repo never
@@ -127,7 +136,7 @@ trigger (float throttles PV watts to the load).
 4. `dump_soc_unsynced` off **and** SoC < `dump_min_soc_percent` (95) blocks T2/KU add.
    While unsynced, skip SoC (float voltage is the full-enough gate)
    ([SmartShunt 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-5. `sensor.dump_next_plug` picks an **off** dump socket whose **cooldown timer is idle**,
+5. `sensor.dump_next_plug` picks an **off** dump socket (Inverter not House) whose **cooldown timer is idle**,
    on a bus still in the float band, batt ok, and inverter headroom. An unavailable
    socket (bridge offline) is never picked. H5082 has no per-socket watts, so
    watts never block staging.
