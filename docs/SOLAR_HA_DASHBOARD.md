@@ -35,7 +35,7 @@ W sensors and Riemann kWh ([Template](https://www.home-assistant.io/integrations
 [Integral](https://www.home-assistant.io/integrations/integration/#energy),
 [packages](https://www.home-assistant.io/docs/configuration/packages/)).
 That is how numbers get **into** Energy. Dump on/off stays
-`sim_dump_control.yaml` ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md));
+`dump_control.yaml` ([DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md));
 knobs live under **Settings > Helpers** (`input_boolean.dump_control_enabled`).
 
 Site physics: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
@@ -111,8 +111,9 @@ feed Energy; do **not** add a Utility Meter (first cycle incomplete --
 [utility meter](https://www.home-assistant.io/integrations/utility_meter/)).
 Do **not** put `energy-sources-table` on a custom Lovelace view: Energy solar is
 T2-only ([energy cards](https://www.home-assistant.io/dashboards/energy/)).
-Energy individual devices are Sungold **AC-out** plus sim dump **nested** under it
-(`included_in_stat`; [individual devices](https://www.home-assistant.io/docs/energy/individual-devices/)).
+Energy individual device is Sungold **AC-out**
+([individual devices](https://www.home-assistant.io/docs/energy/individual-devices/)).
+The sim dump device is retired (2026-09-28); H5082 dump sockets report no watts.
 Do **not** add trailer-outlet / Sungold AC-in as a house-load device (that double-counts
 the cord against INV OUTPUT).
 
@@ -137,7 +138,8 @@ Lovelace dashboard ([YAML dashboards](https://www.home-assistant.io/dashboards/d
 are not movable in the UI). If a prior install added `lovelace: solar-plant`,
 the script unregisters it. It appends `recorder:` / `history:` / `energy:` /
 `mobile_app:` when missing,
-refreshes `packages/sim_dump_control.yaml` **if that file is already installed**,
+refreshes `packages/dump_control.yaml` **if that file is already installed**
+(and removes a retired `sim_dump_control.yaml` / `sim_dump_plugs.yaml`),
 runs `check_config`, then `docker restart homeassistant`.
 
 Open **Energy** (sidebar, or Settings > Dashboards > Energy). Configure sources
@@ -212,13 +214,11 @@ Add **power** sensors (W) and the matching **integral kWh** sensors:
 | Battery T2 | charge `sensor.battery_1_charge_power`, discharge `sensor.battery_1_discharge_power` | matching `*_energy_kwh` |
 | Battery KU | charge/discharge `sensor.battery_2_*` | matching `*_energy_kwh` |
 | Device: Sungold A/C out | `sensor.sungold_sph302480a_load_power` | `sensor.sungold_load_energy_kwh` |
-| Device: sim dump | `sensor.sim_dump_load_power` (`included_in_stat` = Sungold AC-out kWh) | `sensor.sim_dump_energy_kwh` |
 
-The script also sets display names (Sungold A/C out, Sim dump). Trailer-outlet
+The script also sets the display name (Sungold A/C out). Trailer-outlet
 (`sensor.trailer_outlet_power` / `sensor.em16_a3_energy_kwh`) stays on Site solar
-tiles and History; it is **not** an Energy house-load device. Sim dump watts are
-already inside Sungold INV OUTPUT, so `included_in_stat` nests them
-([HA `DeviceConsumption.included_in_stat`](https://github.com/home-assistant/core/blob/master/homeassistant/components/energy/data.py)).
+tiles and History; it is **not** an Energy house-load device. Dump loads are
+already inside Sungold INV OUTPUT, so they get no Energy device of their own.
 Leave **grid**, Electricity Maps, gas, and water empty. Do **not** add KU
 equal-share as a second solar source (double-count). Do **not** add A1 monthly
 kWh or battery charge/discharge as individual devices.
@@ -242,7 +242,7 @@ taint Energy / statistics going forward.
 
 1. **`.105`:** `bash scripts/install_solar_plant_ha.sh` (reloads `solar_plant.yaml`).
 2. **Energy prefs:** `python scripts/save_solar_plant_energy_prefs.py` (drops
-   Sungold A/C-in as a house device; nests sim dump under AC-out).
+   Sungold A/C-in as a house device and the retired Sim dump device).
 3. **Site solar Lovelace:** re-seed storage dashboard from repo YAML if Load now
    still points at the wrong entity (see install script / storage seed docs).
 4. **Purge recorder + statistics (recommended after formula fix):**
@@ -253,7 +253,7 @@ taint Energy / statistics going forward.
    ```
    Uses [recorder.purge_entities](https://www.home-assistant.io/actions/recorder/purge_entities/)
    (`keep_days: 0`) and WebSocket `recorder/clear_statistics` for Victron,
-   Sungold, site totals, sim dump, and `solar_plant.yaml` helpers. Excludes NWS
+   Sungold, site totals, retired sim dump leftovers, and `solar_plant.yaml` helpers. Excludes NWS
    and Ecobee. Set `HA_TOKEN` or `HA_TOKEN_FILE` (admin long-lived token).
 5. **Victron / Sungold on-device logs** are unchanged; only the Home Assistant
    database is cleared. Integral kWh sensors restart from zero after purge.
@@ -313,18 +313,18 @@ same watts that already sit on those tiles. Do **not** use masonry glance
 together.
 
 **Instant W** is the only mixed-bus pie (live clamps + dump). Bus detail watts
-stay on that bus's tiles. Per-plug dump watts stay on **History**.
+stay on that bus's tiles. H5082 dump sockets have no watt reading.
 
 | Card | Entities |
 |------|----------|
 | Site totals | First **Now** section. Heading + markdown (what is summed) + tiles **Solar now** / **Charge now** / **Load now** + **Solar today** / **Charge today** / **Load today** on `sensor.site_solar_today`, `sensor.site_charge_today`, `sensor.sungold_load_today` ([utility meter](https://www.home-assistant.io/integrations/utility_meter/) daily on each kWh integral). Do **not** use statistic-card `change` on `*_energy_kwh` (lifetime state != today). Load now/today = Sungold AC out / `sungold_load_today`. |
 | Intro markdown | Energy sankey hint; dump header toggle is manual; Sungold AC out = total INV OUTPUT LOAD KW; trailer outlet = Sungold A/C-in (not LED/vent). Do **not** show KU PV est or KU share est (unmetered residual, not a clamp). |
-| Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV, Sim dump — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
+| Instant W distribution | T2 MPPT, Sungold **AC out**, Sungold PV — **no** trailer outlet (that would double-count Sungold A/C-in vs A/C-out), **no** KU PV est., **no** LED/vent tiles, **no** KU share est. |
 | T2 24 V | Heading + tiles: MPPT W, charge state, charge W, yield today, **Jumper to KU** (`sensor.t2_ku_jumper_at_t2_power`, leftover already in Batt 1; negative when T2→KU), Batt 1 W/V/A, `sensor.battery_1_state_of_charge`, `sensor.battery_1_consumed_ah`, `sensor.battery_1_remaining_minutes`, RSSI, T2 MPPT conversion loss. Do **not** duplicate as gauges. |
 | KU 24 V | Heading + tiles: **Jumper from T2**, Batt 2 W/V/A, SoC, consumed Ah, remaining min, RSSI. No KU PV est / KU share est (those sensors stay in the package for Solar now clamp only). Do **not** put Sungold A/C-in here. |
 | KU outlet to Sungold | Measured cord only: **Trailer outlet**, **Trailer CT A3**, B3 breaker, UTI V×A, AC out V×A, Cart to AC out, Sungold conversion loss. No KU Renogy AC est tile. |
 | Sungold | Sungold MQTT only (LCD §4.1 names): PV V/A/W, INPUT BATT kW/V/A, remaining battery, charge state, output mode, INV OUTPUT LOAD KW, AC INPUT V/A/Hz, OUTPUT LOAD V/Hz/A, fault / error flags. **No** EM16, **no** V×A helpers, **no** battery temperature (not an LCD page; 0 °C shows as 32 °F). Unknown output-mode codes stay the raw integer. |
-| Dump | Five sections (same entities, not one list): **Dump** heading badges (kill / next plug / surplus) + tiles for gates including Automations kill switch, **Sungold confirm W**, **Load > solar** (`binary_sensor.dump_load_exceeds_solar`), **Shed plug**; **Dump voltages** entities (notify service / site confirm s / site delta min W / float / re-bulk / min solar / min SoC / unsynced); **Dump limits** entities (AC caps / max discharge / batt ok); **Dump dwell** entities (per-plug 15 min min-on / 10 min cooldown timers); **Dump plugs** six switch tiles + six live-W tiles + **Dump plug wiring** (`input_text` / `input_select`). Lab names that say fan are **dump loads**, not trailer LED/fan. Do **not** repeat T2/KU shunt W or Sungold AC out here (Sungold confirm W is the dump confirm meter). Do **not** add a footer duplicate of the kill switch. |
+| Dump | Five sections (same entities, not one list): **Dump** heading badges (kill / next plug / surplus) + tiles for gates including Automations kill switch, **Sungold confirm W**, **Load > solar** (`binary_sensor.dump_load_exceeds_solar`), **Shed plug**; **Dump voltages** entities (notify service / site confirm s / site delta min W / float / re-bulk / min solar / min SoC / unsynced); **Dump limits** entities (AC caps / max discharge / batt ok); **Dump dwell** (auto-entities over `timer.h5082_*`: per-socket 15 min min-on / 10 min cooldown); the H5082 **Plugs** cards carry each socket's **Use** (normal / dump) and **Inverter** select. Lab names that say fan are **dump loads**, not trailer LED/fan. Do **not** repeat T2/KU shunt W or Sungold AC out here (Sungold confirm W is the dump confirm meter). Do **not** add a footer duplicate of the kill switch. |
 | House | Thermostat [name](https://www.home-assistant.io/dashboards/thermostat/) **Ecobee** on `climate.417373300314` -- **indoor setpoint** (house, not trailer). Humidity is on History (SoC / %). Device is cloud **ecobee3 lite**, HA area Living Room. Serial `417373300314` is the ecobee identifier ([12-digit ESN](https://support.ecobee.com/s/articles/Where-s-my-ecobee-device-s-serial-number); [ecobee integration](https://www.home-assistant.io/integrations/ecobee)). Site solar **Sungold A/C-in** is `sensor.trailer_outlet_power` (watts), not this thermostat and not LED/vent. Stock [weather-forecast](https://www.home-assistant.io/dashboards/weather-forecast/) `weather.417373300314` daily + hourly (`forecast_type` required). **NWS KMRX radar** is a [picture](https://www.home-assistant.io/dashboards/picture/) of the official standard loop `https://radar.weather.gov/ridge/standard/KMRX_loop.gif` ([animated GIFs](https://www.weather.gov/radarfaq/), [ridge/standard](https://radar.weather.gov/ridge/standard/)). [api.weather.gov points](https://www.weather.gov/documentation/services-web-api) for Watauga Lake `36.32,-82.12` returns `radarStation: KMRX` (Hampton / Carter County). The GIF **plays on this page**. Tap opens [KMRX standard radar](https://radar.weather.gov/station/KMRX/standard). Alerts: `sensor.nws_watauga_lake_alerts` ([RESTful](https://www.home-assistant.io/integrations/rest/), NWS `User-Agent` required). Do **not** iframe `radar.weather.gov` RIDGE2 (GIS app; [webpage card](https://www.home-assistant.io/dashboards/iframe/) is for pages that allow embedding). Do **not** add HACS radar cards. Optional later: [Generic Camera](https://www.home-assistant.io/integrations/generic/) UI still-image URL uses the same NWS `ridge/standard` path (HA example is `CONUS_0.gif`). Trailer hygrometer Govee H5072/75 MQTT Theengs `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc`, `_hum`, `_batt` (MAC `A4:C1:38:CA:AF:6F`, HA area Front Cargo Trailer; may be unknown if cells are dead -- [DEVICES.md](DEVICES.md)). |
 
 Do **not** add a **Loads (not losses)** card, a **Conversion losses** card, **Sungold cart** /
@@ -336,16 +336,16 @@ T2/Sungold conversion-loss watts live on those bus tiles. Combined total is Hist
 
 | Graph | Entities (live ids) |
 |-------|---------------------|
-| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sim_dump_load_power`, `sungold_sph302480a_load_power` (label **Sungold A/C out**), `sungold_sph302480a_pv_power` |
+| Watts | `solar_controller_solar`, `battery_1_power`, `battery_2_power`, `t2_ku_jumper_power`, `trailer_outlet_power` (label **Sungold A/C-in**), `sungold_sph302480a_load_power` (label **Sungold A/C out**), `sungold_sph302480a_pv_power` |
 | Watts (chargers) | `solar_controller_charging_power`, `sungold_sph302480a_charging_power` (no KU PV/share est on the graph) |
 | Watts (losses) | `solar_component_losses_power`, `t2_mppt_conversion_loss_power`, `sungold_conversion_loss_power` |
-| H5082 sockets | Site solar **Plugs** cards. On/off, Where, Load, and Use. Grafana tables read `solar_plant_socket`. Sim dump switches are removed. |
+| H5082 sockets | Site solar **Plugs** cards. On/off, Where, Load, Use, and Inverter. Grafana tables read `solar_plant_socket`. Sim dump switches and packages are removed. |
 | Hz | Sungold `grid_frequency`, `ac_output_frequency` |
 | Volts | `battery_1_voltage`, `battery_2_voltage`, `solar_controller_battery`, `sungold_sph302480a_battery_voltage`, `sungold_sph302480a_pv_voltage`, `sungold_sph302480a_grid_voltage`, `sungold_sph302480a_ac_output_voltage` |
 | Amps | `battery_1_current`, `battery_2_current`, `solar_controller_battery_charging`, `sungold_sph302480a_battery_current`, `sungold_sph302480a_pv_current`, `sungold_sph302480a_load_current`, `sungold_sph302480a_grid_current` |
 | SoC / % | `battery_1_state_of_charge`, `battery_2_state_of_charge`, `sungold_sph302480a_battery_soc`, Ecobee `sensor.417373300314_humidity`, trailer hygrometer hum/batt |
 | Temperature | Ecobee `sensor.417373300314_temperature`, trailer hygrometer tempc, Sungold batt/heatsink temps |
-| kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + Sungold A/C-in (`em16_a3_energy_kwh` from trailer outlet W) + Sungold A/C out + sim dump |
+| kWh (statistics-graph) | T2 MPPT + batt 1/2 charge/discharge + Sungold A/C-in (`em16_a3_energy_kwh` from trailer outlet W) + Sungold A/C out |
 
 `hours_to_show: 72` on history-graph ([history graph](https://www.home-assistant.io/dashboards/history-graph/); minimum 1 hour).
 `days_to_show: 7` on the kWh statistics-graph ([statistics graph](https://www.home-assistant.io/dashboards/statistics-graph/); minimum 1 day).

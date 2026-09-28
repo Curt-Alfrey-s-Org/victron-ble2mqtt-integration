@@ -65,8 +65,8 @@ Battery 2 net is **not** that load: it is KU PV + jumper − Renogy DC.
 **Sungold A/C out** (Sungold INV OUTPUT / `node-sg-acout`,
 `sensor.sungold_sph302480a_load_active_power` per
 [reprint §4.1](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf)), not
-from KU Renogy. Sim dump loads use `path-sim-*` only (sim-plug sum or **0 W**) -- branch
-starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. Do **not** use A3 as
+from KU Renogy. Dump loads are H5082 sockets set to **dump** (no watt reading; they
+show inside Sungold A/C out) -- the branch starts at Sungold A/C out, never A3/B3/UTI. Do **not** add A3+B2. Do **not** use A3 as
 `ha_load_entity`. See [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md).
 
 Eight suitcase panels total: **6** on the three Victron chargers, **2** on the PWM into KU.

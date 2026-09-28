@@ -399,7 +399,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             sg_load,
             sg_load,
             unmetered=True,
-            note="always-on Victron BLE radio; no HA watt entity; not a sim dump plug",
+            note="always-on Victron BLE radio; no HA watt entity; not a dump socket",
         )
     )
 

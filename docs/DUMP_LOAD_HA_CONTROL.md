@@ -27,8 +27,8 @@ Official manuals (RULE #1):
 - Derivative helper (PV rising/falling): [Derivative](https://www.home-assistant.io/integrations/derivative/)
 - Template sensors: [Template](https://www.home-assistant.io/integrations/template/)
 - Number helper (AC watt cap and max battery discharge): [Input number](https://www.home-assistant.io/integrations/input_number/)
-- Dropdown helper (which inverter feeds each plug): [Input select](https://www.home-assistant.io/integrations/input_select/)
-- Live power entity id per plug: [Input text](https://www.home-assistant.io/integrations/input_text/)
+- Dropdown helpers (which sockets are dump, which inverter feeds each): [Input select](https://www.home-assistant.io/integrations/input_select/)
+- Wait for the plug to report on: [Wait for a template](https://www.home-assistant.io/docs/scripts/#wait-for-a-template)
 - Staged ON (`repeat` / `while` / `delay` / `if` / `stop`): [Script syntax](https://www.home-assistant.io/docs/scripts/)
 - Notifications: [Notify](https://www.home-assistant.io/integrations/notify/) and [Companion](https://companion.home-assistant.io/docs/notifications/notifications-basic/)
 - State `for:` 10 min / 1 min: [State trigger](https://www.home-assistant.io/docs/automation/trigger/)
@@ -61,15 +61,16 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
-| **How many** plugs (claim leftover PV) | HA staged ON: one plug, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
-| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all six) |
-| **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs `sensor.site_solar_power`) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (default `persistent_notification`; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
+| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. C38D (feeds the Pi 4) is not in the list at all. |
+| **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
+| **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
+| **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (default `persistent_notification`; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
 | Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
 | Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
 | Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, default 5) and `input_number.dump_site_delta_min_w` (5-500 W, default 25) |
-| Per-plug min-on / cooldown | HA `timer.dump_plug_N_min_on` (15 min, `restore: true`) and `timer.dump_plug_N_cooldown` (10 min, `restore: true`) |
-| Inverter caps, plug->bus, live meters | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `dump_plug_N_inverter`; optional `dump_plug_N_power_entity` |
+| Per-socket min-on / cooldown | HA `timer.h5082_<id>_<side>_min_on` (15 min, `restore: true`) and `timer.h5082_<id>_<side>_cooldown` (10 min, `restore: true`) |
+| Inverter caps, socket->bus | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `input_select.h5082_<id>_<side>_inverter` (Sungold / T2 / KU; no `initial`, so the choice survives restarts). H5082 sends no watts. |
 | Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
 | Tune helpers, inspect meters | Ask ALFa `ha_set_number` / `ha_select_option` / `ha_get_states` (no Approve). **Never** dump-actuate standing night loads. |
 | Surplus W (`sensor.dump_surplus_w`) | Briefing only. **Not** the ON/OFF trigger. |
@@ -81,12 +82,20 @@ Do **not** add a second dump ticker in alfa-ai that calls `switch.turn_on` /
 
 ## Package
 
-Tracked source: `config/packages/sim_dump_control.yaml`.
+Tracked source: `config/packages/dump_control.yaml` (replaced the retired
+`sim_dump_control.yaml` + `sim_dump_plugs.yaml` on 2026-09-28).
 
 Depends on:
 
-- [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) (`switch.sim_ac_plug_*`, `sensor.sim_dump_load_power`)
-- Optional: [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md) `sensor.solar_component_losses_power` (0 W if missing)
+- The H5082 MQTT switches `switch.ihoment_h5082_<id>_<side>` from `govee_h5082`
+  (`h5082-mqtt.service` on the Pi 4, `hci1`) -- see [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md).
+- The per-socket helpers `input_select.h5082_<id>_<side>_use` (normal / dump) from
+  `scripts/create_h5082_socket_labels.py`. Missing or unknown = normal.
+
+Dump sockets: the 14 sockets of 2F9D, 3013, 3EC9, 82FB, 9607, C061, CF79 whose
+**Use** is dump. Stage order is that list (left before right); shed order is the
+reverse. C38D is left out because it powers the Pi 4 that runs the bridge.
+`sensor.dump_sockets` shows how many sockets are dump (attribute `entities`).
 
 PV watts: live MQTT id `sensor.solar_controller_solar`, with fallback
 `sensor.solar_controller_solar_power`. Charge stage: live
@@ -109,19 +118,23 @@ trigger (float throttles PV watts to the load).
 4. `dump_soc_unsynced` off **and** SoC < `dump_min_soc_percent` (95) blocks T2/KU add.
    While unsynced, skip SoC (float voltage is the full-enough gate)
    ([SmartShunt 5.7](https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html)).
-5. `sensor.dump_next_plug` picks an **off** plug whose **cooldown timer is idle**,
-   on a bus still in the float band, batt ok, and inverter headroom. **Do not**
-   require last_w <= surplus W. Unknown per-plug watts do **not** block staging.
-6. One `switch.turn_on`, then [delay](https://www.home-assistant.io/docs/scripts/#wait-for-time-to-pass-delay)
+5. `sensor.dump_next_plug` picks an **off** dump socket whose **cooldown timer is idle**,
+   on a bus still in the float band, batt ok, and inverter headroom. An unavailable
+   socket (bridge offline) is never picked. H5082 has no per-socket watts, so
+   watts never block staging.
+   Staging also waits while `dump_load_exceeds_solar` is on (that rule would shed
+   the socket a minute later), and stops if `dump_control_enabled` goes off.
+6. One `switch.turn_on`, then wait (up to 2 min) until the H5082 **reports on** (the
+   bridge publishes on only after the plug acks over BLE; a cold link is connect +
+   login + retries), then [delay](https://www.home-assistant.io/docs/scripts/#wait-for-time-to-pass-delay)
    `input_number.dump_site_confirm_s` seconds (default **5**; Sungold Modbus poll
-   default is also 5 s).
+   default is also 5 s). A socket that never reports on counts as not confirmed.
 7. **Site confirm** (solar-system load, not indoor Govee energy monitoring):
    - **Sungold:** `sensor.sungold_sph302480a_load_power` must rise by >=
      `dump_site_delta_min_w` (default 25 W).
    - **T2:** signed `-sensor.battery_1_power` (more AC load => more negative pack
      power / less charge).
    - **KU:** signed `-sensor.battery_2_power`.
-   Optional: mapped `sensor.sim_ac_plug_N_power` numeric and > 0 also confirms.
 8. If solar-present or charge-float is already off after the delay: turn that plug
    off, start its 10 min cooldown, cancel its min-on, stop staging.
 9. If **not** confirmed: turn off, start 10 min cooldown, try the next plug (do
@@ -136,9 +149,9 @@ That is how leftover PV is claimed: add until voltage sags toward re-bulk or the
 inverter is full -- not until a 200 W surplus helper trips. Clouds: if **Load now**
 (Sungold AC-out, includes dump) stays **above Solar now**, HA sheds dump plugs one
 per minute so dump tracks solar. It does **not** switch trailer A/C. End of day
-or dark storm (`dump_solar_present` off 1 min) still dumps all six off. After the
+or dark storm (`dump_solar_present` off 1 min) still turns every dump socket off. After the
 first float of the day, leaving absorb/float sheds **one** plug per minute instead
-of all six, so the MPPT is not forced back into a same-day float-idle cycle.
+of all of them, so the MPPT is not forced back into a same-day float-idle cycle.
 
 **Govee H5082 (this site's dump hardware):** same *shape* as Victron BLE, not
 the same product. Victron Instant Readout is a documented advertisement;
@@ -146,14 +159,10 @@ the same product. Victron Instant Readout is a documented advertisement;
 HA never speaks Victron BLE. H5082 also has no official HA plug integration
 ([govee_ble](https://www.home-assistant.io/integrations/govee_ble/) is sensors
 only). Forums/GitHub drive it with extra software (HACS or a BLE/cloud MQTT
-bridge). A **sidecar that publishes MQTT switches** (like this repo already
-does for Victron) would keep HA on official MQTT. That sidecar is **not** in
-the repo yet. Template `switch.sim_ac_plug_*` stay until it is. Confirm stays
-**Sungold AC-out** (and T2/KU pack sign), not Govee energy monitoring. HACS Govee
-plugins are not used on this HA.
-
-Until MQTT (or another official HA switch) actually toggles a load on Sungold AC
-out, site-delta fails confirm and that slot cools 10 min.
+bridge). This repo's `govee_h5082` bridge on the Pi 4 publishes one MQTT switch
+per socket (16), so HA stays on official MQTT. Confirm stays **Sungold AC-out**
+(and T2/KU pack sign), not Govee energy monitoring. HACS Govee plugins are not
+used for the plugs.
 
 Default AC caps are **2000 W** per inverter (operator / Renogy 2 kW class).
 Sungold nameplate is **3000 W**; raise **Sungold AC limit** only if dumps are on that
@@ -166,16 +175,18 @@ house/inverter, not dump plugs (95%+ leftover if the day reached float).
 
 Turn-**off** (Victron 1 minute; per-plug 10 min cooldown after any off):
 
-- **All six:** `dump_solar_present` off 1 min (weather / end of day) -- cancels
-  all min-on, starts all cooldowns. This is the 95%+ after solar stops rule.
+- **All dump sockets:** `dump_solar_present` off 1 min (weather / end of day) --
+  every dump socket that is not already off is turned off, its min-on cancelled
+  and its cooldown started. This is the 95%+ after solar stops rule.
 - **One plug per minute:** `dump_load_exceeds_solar` on 1 min (Load now > Solar now)
-  -- highest-number dump switch first (`sensor.dump_shed_plug`), cancel min-on,
+  -- last dump socket in the stage order first (`sensor.dump_shed_plug`), cancel min-on,
   start cooldown, wait 1 min, repeat while still over.
 - **One plug per minute:** T2 MPPT not absorption/float 1 min -- same shed-one
   until float returns or no dump is on.
 - **That inverter only:** bus voltage <= re-bulk helper 1 min, or `dump_batt_*_ok`
-  off 1 min (pack supplying the inverter) -- turn off matching plugs, cancel each
-  plug's min-on, start each plug's cooldown.
+  off 1 min (pack supplying the inverter) -- turn off the dump sockets on that
+  inverter that are not already off (unavailable ones are sent off too), cancel
+  each one's min-on, start each one's cooldown.
 - **Failed site confirm:** turn off that plug only, start its 10 min cooldown
   (no min-on started).
 
@@ -202,9 +213,8 @@ If that bus's pack starts discharging, `dump_batt_*_ok` goes off: no new dumps o
 that inverter, and existing dumps on **that** inverter turn off after 1 minute.
 Sungold AC-out watts also shrink Sungold headroom immediately.
 
-Dump-plug watts are the **smart plug power sensor** (via
-`input_text.dump_plug_N_power_entity` → `sensor.sim_ac_plug_N_power`). There is
-no typed rating helper.
+H5082 advertisements carry on/off only (no watts). There is no typed rating
+helper and no per-socket power sensor; confirm is the site load delta.
 
 Ask ALFa may **observe** shunt/Sungold/plug power and voltage (`ha_get_states` /
 `ha_dump_tick`) and write float/re-bulk/AC-cap/inverter helpers immediately.
@@ -212,19 +222,42 @@ It does not invent plug watts and does not own dump on/off.
 
 ---
 
+### Review 2026-09-28 (ported from the sim package)
+
+- Dump actions only ever target sockets whose **Use** is dump. The sim package used
+  a hardcoded list of six switches (the solar-gone all-off hit all six); pointed at
+  the 16 real sockets that would have switched normal loads.
+- Turn-off rules send off only to dump sockets that are not already off (fewer BLE
+  commands); they no longer start cooldowns on sockets that were already off.
+- Staging waits for the plug to report on before the site confirm delay; with a
+  cold BLE link the 5 s confirm used to run before the plug switched.
+- Staging stops when the kill switch goes off and does not start while Sungold
+  load is above solar (it used to add a socket the shed rule removed a minute later).
+- `input_select.h5082_<id>_<side>_inverter` has no `initial`: the old
+  `dump_plug_N_inverter` reset to Sungold on every HA restart, so re-bulk and
+  battery rules could watch the wrong bus.
+- `sensor.dump_surplus_w` is PV watts (no plug watts to subtract); the derivative
+  behind `dump_pv_falling` no longer drops when a dump turns on.
+- Unchanged, owner's call: the `input_number` helpers keep `initial:` (tuned volts /
+  caps revert to the defaults at each HA restart), and `dump_soc_unsynced` starts
+  **on** at every restart (float voltage stays the gate).
+
+---
+
 ## Enable on `.105` (one path)
 
-Prerequisites: sim dump plugs already installed
-(`bash scripts/install_sim_dump_plugs_ha.sh`).
+Prerequisites: the 16 H5082 switches are in HA and the per-socket helpers exist
+(`python3 scripts/create_h5082_socket_labels.py`, skips helpers that exist).
 
 ```bash
 cd /home/ansible/victron-ble2mqtt-integration
 git pull --ff-only origin main
-bash scripts/install_sim_dump_control_ha.sh
+bash scripts/install_dump_control_ha.sh
 ```
 
-The script copies `sim_dump_control.yaml` into `/opt/homeassistant/packages/` and
-restarts the `homeassistant` container
+The script removes any retired `sim_dump_control.yaml` / `sim_dump_plugs.yaml`,
+copies `dump_control.yaml` into `/opt/homeassistant/packages/`, runs
+`check_config`, and restarts the `homeassistant` container
 ([HA Container](https://www.home-assistant.io/installation/linux#install-home-assistant-container)).
 After a later dump-package change, `git pull` then rerun this script (or
 `install_solar_plant_ha.sh`, which refreshes the dump file when it already
@@ -232,9 +265,9 @@ exists). A stale copy leaves helpers such as
 `input_boolean.dump_soc_unsynced` / `input_number.dump_float_t2_v` missing from
 `/api/states` while Energy / Helpers still expect them.
 
-Operator dump UI is **Energy** (individual device Sim dump), **Site solar**
-(`/site-solar` storage tiles: Sungold confirm W, site confirm/delta helpers, per-plug
-15 min min-on / 10 min cooldown), plus **Settings > Devices & services > Helpers**.
+Operator dump UI is **Site solar** (`/site-solar`: **Plugs** cards with Use and
+Inverter per socket, site confirm/delta helpers, **Dump dwell** per-socket 15 min
+min-on / 10 min cooldown), plus **Settings > Devices & services > Helpers**.
 Disable: `input_boolean.dump_control_enabled` (Dump Automations helper), or delete
 the package file and restart HA. YAML Lovelace is not the daily dump control.
 
@@ -245,6 +278,6 @@ the install script.
 
 ## Related
 
-- [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md)
+- [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md)
 - [SOLAR_HA_DASHBOARD.md](SOLAR_HA_DASHBOARD.md)
 - alfa-ai observe/audit only: sibling `docs/HOME_ASSISTANT_BRAIN_INTEGRATION.md`

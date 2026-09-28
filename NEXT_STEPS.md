@@ -1,5 +1,37 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps from the 2026-09-28 H5082 reliability + sim removal
+
+From the 2026-09-28 PR (branch `fix/h5082-reliability-remove-sim`, after #4). The H5082 bridge keeps one BLE link per plug, retries failed commands, and handles plugs independently. The simulated dump plugs are gone, and dump control now drives the real H5082 sockets whose **Use** is `dump` (`config/packages/dump_control.yaml`). No new env vars and no `requirements*.txt` change. Node-RED flows did not change.
+
+Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); Home Assistant + MQTT broker on `.105` (`/home/ansible/victron-ble2mqtt-integration`).
+
+**Pi 4 `.223`** (`h5082-mqtt`, adapter `hci1`)
+
+- [ ] `cd /home/n4s1/victron-ble2mqtt-integration && git pull`.
+- [ ] Deps: no change (the bridge runs from `/home/n4s1/govee-ble-venv`, same bleak as today). Nothing to reinstall.
+- [ ] `sudo systemctl restart h5082-mqtt`, then `journalctl -u h5082-mqtt -f` and toggle each socket from HA. Expect `LINK_UP <id>`, then `SET <id> <side> ON|OFF` (`... try 2`/`try 3` when a retry saved it; each failed try logs `GATT <id> <side> ... try n/3 <Exception>: <message>`). A link closes after 120 s idle (`LINK_IDLE`) so the plug advertises again. There should be no `SET_FAIL` on in-range plugs. C38D still logs `NO_KEY` (expected until the dongle + key).
+- [ ] Optional: `H5082_IDLE_DISCONNECT_S=0` in the unit keeps links open until they drop. Leave it at the default unless you want that: a connected plug stops advertising, so button presses and RSSI/"heard by" for it pause.
+
+**Pi 5 `.240`** (`h5082-rssi-pi5`, RSSI only)
+
+- [ ] `cd /home/n4s1/victron-ble2mqtt-integration && git pull && sudo systemctl restart h5082-rssi-pi5` (it runs the same `govee_h5082` module; RSSI-only behaviour is unchanged). Check `journalctl -u h5082-rssi-pi5 -n 20` shows `DISCOVERY 8 listener=pi5`.
+
+**`.105`** (Home Assistant + MQTT broker)
+
+- [ ] `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`.
+- [ ] If `/opt/homeassistant/packages/sim_dump_control.yaml` or `sim_dump_plugs.yaml` exists: `sudo rm -f /opt/homeassistant/packages/sim_dump_*.yaml`, then HA check config (`docker exec homeassistant python -m homeassistant --script check_config -c /config`) and `docker restart homeassistant`.
+- [ ] In Settings → Entities (search `sim_` / `dump_plug_`, status "not provided"), delete the orphaned entities: `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power`, `input_boolean.sim_ac_plug_*_internal`, `input_text.dump_plug_*_power_entity`, `input_select.dump_plug_*_inverter`, `timer.dump_plug_*`, `sensor.dump_plug_*_last_w`, and the old `automation.dump_load_*` entries (their unique IDs start with `sim_dump_`). If `sensor.sim_dump_energy_kwh` exists as a UI helper, delete it too. Doing this before the next step keeps the new automations from getting `_2` ids.
+- [ ] If the per-socket selects are missing: `python3 scripts/create_h5082_socket_labels.py` (HA token; skips the ones that exist).
+- [ ] Install dump control: `bash scripts/install_dump_control_ha.sh` (removes any sim package, copies `dump_control.yaml`, runs check config, restarts HA).
+- [ ] Site solar dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py` (HA token) to load the repo seed. **This overwrites UI edits to `/site-solar`.** If you edited it in the UI, replace the **Dump dwell** card (now auto-entities over `timer.h5082_*`) and delete **Dump plug wiring** by hand instead. Then confirm there are no red "entity not available" cards and each Plugs card has an **Inverter** row (not C38D).
+- [ ] Energy: `python3 scripts/save_solar_plant_energy_prefs.py` (or remove the **Sim dump** device in Settings → Energy).
+- [ ] Dump automations: Settings → Automations shows `Dump load turn on`, `... turn off solar gone`, `... shed while not float`, `... shed Sungold load above site solar`, the six re-bulk/battery turn-offs and the notify, all **enabled** and with no `_2` suffix. `sensor.dump_next_plug` / `sensor.dump_shed_plug` show `none` or a `switch.ihoment_h5082_*` id.
+- [ ] Set **Use = dump** on the dump sockets (plan: 4 sockets = 2 plugs), set each one's **Inverter**, and check `sensor.dump_sockets` counts them. Leave `input_boolean.dump_control_enabled` off until one dump socket has been switched by hand and by the automation (H5082_INSTALL_PLAN.md Checkpoint 7).
+- [ ] Node-RED: flows unchanged, no redeploy.
+
+**Tests:** `pytest tests/` → 139 passed, 2 skipped, 2 failed. The 2 failures were already on `main` and are listed under the 09-26 decisions below (`test_solar_ku_estimates::test_now_view_has_ku_est_tile`, `test_solar_plant_ha::test_device_policy_doc`). `tests/test_sim_dump_control.py` is gone with the sim package.
+
 ## Done in 2026-07 repo cleanup
 
 - Untracked TLS key/cert (`ssl/tools.*`); see `SECURITY_REMOVE_SECRETS.md` for history purge.

@@ -85,13 +85,21 @@ if [[ -f "$EM16_LIVE_SRC" ]]; then
   echo "[solar-plant] Installed $EM16_LIVE_DST"
 fi
 
-DUMP_SRC="$ROOT/config/packages/sim_dump_control.yaml"
-DUMP_DST="$HA_CONFIG_DIR/packages/sim_dump_control.yaml"
+DUMP_SRC="$ROOT/config/packages/dump_control.yaml"
+DUMP_DST="$HA_CONFIG_DIR/packages/dump_control.yaml"
 if [[ -f "$DUMP_DST" && -f "$DUMP_SRC" ]]; then
   sudo cp "$DUMP_SRC" "$DUMP_DST"
   sudo chown "${SUDO_USER:-$USER}:${SUDO_USER:-$USER}" "$DUMP_DST" 2>/dev/null || true
   echo "[solar-plant] Refreshed already-installed dump control $DUMP_DST"
 fi
+# Retired sim packages drove switch.sim_ac_plug_* (gone). Remove them; opt in to the
+# H5082 dump package with scripts/install_dump_control_ha.sh.
+for old in sim_dump_control.yaml sim_dump_plugs.yaml; do
+  if [[ -f "$HA_CONFIG_DIR/packages/$old" ]]; then
+    sudo rm -f "$HA_CONFIG_DIR/packages/$old"
+    echo "[solar-plant] Removed retired $HA_CONFIG_DIR/packages/$old (dump control: bash scripts/install_dump_control_ha.sh)"
+  fi
+done
 
 if docker ps --format '{{.Names}}' | grep -qw homeassistant; then
   echo "[solar-plant] check_config ..."

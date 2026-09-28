@@ -69,12 +69,6 @@ DEVICE_CONSUMPTION: list[dict[str, Any]] = [
         "stat_rate": "sensor.sungold_sph302480a_load_power",
         "name": "Sungold A/C out",
     },
-    {
-        "stat_consumption": "sensor.sim_dump_energy_kwh",
-        "stat_rate": "sensor.sim_dump_load_power",
-        "name": "Sim dump",
-        "included_in_stat": "sensor.sungold_load_energy_kwh",
-    },
 ]
 
 

@@ -34,7 +34,10 @@ def test_seed_config_has_leftover_live_tiles() -> None:
     assert "sensor.ku_unmetered_pv_est_power" not in blob
     assert "input_boolean.dump_control_enabled" in blob
     assert "input_number.dump_site_confirm_s" in blob
-    assert "timer.dump_plug_1_cooldown" in blob
+    assert "timer.h5082_*" in blob
+    assert "timer.dump_plug_" not in blob
+    assert "input_select.h5082_82fb_left_inverter" in blob
+    assert "input_select.h5082_c38d_left_inverter" not in blob
     assert "input_text.dump_notify_service" in blob
     assert "switch.ihoment_h5082_82fb_left" in blob
     assert "switch.ihoment_h5082_c38d_right" in blob
