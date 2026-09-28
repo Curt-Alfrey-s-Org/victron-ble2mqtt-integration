@@ -1,10 +1,10 @@
 # H5082 plugs, then the Grafana one-line
 
 **Status:** Bluetooth chosen. Cloud API key is not the path. Plugs are not installed. Grafana is not redrawn.
-**Resume here:** Checkpoint 4. Sixteen switches are in HA. `C38D` remains state-only until a key exists.
+**Resume here:** Checkpoint 7 on `.105`. `dump_control.yaml` reads the per-socket selects (2026-09-28). `C38D` remains state-only until a key exists and is never a dump socket.
 **Do not start at the Grafana redraw. Do not take `hci0`.**
 
-Operator decision (2026-09-25), over the older "no HACS / write an MQTT sidecar" notes in [SIM_DUMP_PLUGS.md](SIM_DUMP_PLUGS.md) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md):
+Operator decision (2026-09-25), over the older "no HACS / write an MQTT sidecar" notes (the retired sim dump plug doc) and [DUMP_LOAD_HA_CONTROL.md](DUMP_LOAD_HA_CONTROL.md):
 
 - Those repo notes are **not** the install authority.
 - Install the plugs the way [HACS](https://www.hacs.xyz/docs/setup/download) and the Govee integration docs say. Do not write a new BLE or MQTT bridge unless that install cannot see an H5082.
@@ -79,15 +79,17 @@ Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassi
 
 ## Checkpoint 4 — normal vs dump, manual vs auto
 
-`[ ]` Add one [input_select](https://www.home-assistant.io/integrations/input_select/) per socket, options `normal` and `dump`. Default **normal**. The operator sets **dump** on the 4 sockets that are the two dump plugs. Helpers stay editable under Settings → Helpers.
+`[x]` (repo, 2026-09-28) `config/packages/dump_control.yaml` replaces `sim_dump_control.yaml` and reads `input_select.h5082_<id>_<side>_use`; each socket also has `input_select.h5082_<id>_<side>_inverter` and its own min-on / cooldown timers. C38D (Pi supply) is left out. Install on `.105` with `bash scripts/install_dump_control_ha.sh`.
+
+Add one [input_select](https://www.home-assistant.io/integrations/input_select/) per socket, options `normal` and `dump`. Default **normal**. The operator sets **dump** on the 4 sockets that are the two dump plugs. Helpers stay editable under Settings → Helpers.
 
 Rules:
 
 - **Manual:** the Govee switch. Always. Dashboard tile and Developer Tools. Works in either assignment.
-- **Auto:** `sim_dump_control.yaml` may call `switch.turn_on` / `turn_off` only when that socket's select is `dump`. A `normal` socket is not in the shed list, the add list, or the all-off list.
+- **Auto:** `dump_control.yaml` may call `switch.turn_on` / `turn_off` only when that socket's select is `dump`. A `normal` socket is not in the shed list, the add list, or the all-off list.
 - Reassigning is changing the select. No package rewrite, no entity rename.
-- Retire the hardcoded `switch.sim_ac_plug_1`…`_6` list. The dump package reads the selects.
-- Sim template switches stay installed until one real dump socket has been turned on and off by the automation **and** by hand. Then remove `sim_dump_plugs.yaml` from the HA packages and from git. Do not delete them first.
+- The hardcoded sim switch list is retired. The dump package reads the selects.
+- Sim template switches and both sim packages are removed from git (2026-09-28); `install_dump_control_ha.sh` deletes any copy left in `/opt/homeassistant/packages/`.
 
 ## Checkpoint 5 — Node-RED
 
@@ -102,9 +104,9 @@ Rules:
 `[ ]` A normal socket toggles from HA and the dump automation does not touch it.
 `[ ]` A dump socket toggles from HA **and** from the dump automation.
 `[ ]` Changing the select moves a socket between those two behaviors.
-`[ ]` Sim switches are gone.
+`[x]` Sim switches are gone (repo). On `.105`, delete leftover `switch.sim_ac_plug_*` / sim helper entities if the registry still lists them.
 `[ ]` Grafana matches that split.
 
 ## Where a new session starts
 
-Checkpoint **4**. Node-RED and Grafana already show the 16 sockets. Dump automation still does not switch them. `C38D` has no key. `hci1` only. Do not touch `hci0`. Do not paste a Govee API key.
+Checkpoint **7**. Node-RED and Grafana already show the 16 sockets. `dump_control.yaml` switches only sockets whose Use is dump; install it on `.105`, set Use + Inverter, then test one dump socket by hand and by the automation. `C38D` has no key. `hci1` only. Do not touch `hci0`. Do not paste a Govee API key.

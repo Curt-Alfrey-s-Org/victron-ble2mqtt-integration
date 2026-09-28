@@ -51,7 +51,7 @@ def test_skips_timestamp_and_switches(tmp_path: Path) -> None:
                         "entity_id": "sensor.last_seen",
                         "original_device_class": "timestamp",
                     },
-                    {"entity_id": "switch.sim_ac_plug_1"},
+                    {"entity_id": "switch.ihoment_h5082_2f9d_left"},
                     {
                         "entity_id": "number.example_setpoint",
                         "options": {},
@@ -79,7 +79,7 @@ def test_skips_timestamp_and_switches(tmp_path: Path) -> None:
     assert "options" not in ents["sensor.last_seen"] or "sensor" not in ents[
         "sensor.last_seen"
     ].get("options", {})
-    assert ents["switch.sim_ac_plug_1"].get("options") in (None, {})
+    assert ents["switch.ihoment_h5082_2f9d_left"].get("options") in (None, {})
     num = ents["number.example_setpoint"]["options"]["number"]
     assert num["display_precision"] == 1
     assert "suggested_display_precision" not in num

@@ -312,34 +312,17 @@ views:
         cards:
           - type: heading
             heading: Dump dwell
-          - type: entities
-            title: Dump dwell
-            show_header_toggle: false
-            entities:
-              - entity: timer.dump_plug_1_min_on
-                name: 1 min on
-              - entity: timer.dump_plug_1_cooldown
-                name: 1 cooldown
-              - entity: timer.dump_plug_2_min_on
-                name: 2 min on
-              - entity: timer.dump_plug_2_cooldown
-                name: 2 cooldown
-              - entity: timer.dump_plug_3_min_on
-                name: 3 min on
-              - entity: timer.dump_plug_3_cooldown
-                name: 3 cooldown
-              - entity: timer.dump_plug_4_min_on
-                name: 4 min on
-              - entity: timer.dump_plug_4_cooldown
-                name: 4 cooldown
-              - entity: timer.dump_plug_5_min_on
-                name: 5 min on
-              - entity: timer.dump_plug_5_cooldown
-                name: 5 cooldown
-              - entity: timer.dump_plug_6_min_on
-                name: 6 min on
-              - entity: timer.dump_plug_6_cooldown
-                name: 6 cooldown
+          - type: custom:auto-entities
+            card:
+              type: entities
+              title: Dump dwell
+              show_header_toggle: false
+            filter:
+              include:
+                - entity_id: timer.h5082_*
+            sort:
+              method: entity_id
+            show_empty: true
             grid_options:
               columns: full
 
@@ -352,7 +335,9 @@ views:
               The id (2F9D, 82FB, …) is the plug. It stays with that plug when you move it.
               **Heard by** is the closest live radio (strongest RSSI). **Where** is the room you type.
               Type the load name in **Load** and change it when you plug something else in.
-              Set **Use** to dump only for a socket Home Assistant may turn on by itself.
+              Set **Use** to dump only for a socket Home Assistant may turn on by itself,
+              and set its **Inverter** (T2, KU, or Sungold) so re-bulk, battery, and AC-cap rules watch the right bus.
+              C38D feeds the Pi 4 and is never a dump socket.
               Home Assistant cannot see the appliance.
               The buttons use the names you type in the cards under them.
             grid_options:
@@ -387,12 +372,16 @@ views:
                 name: Load
               - entity: input_select.h5082_2f9d_left_use
                 name: Use
+              - entity: input_select.h5082_2f9d_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_2f9d_right
                 name: Right
               - entity: input_text.h5082_2f9d_right_load
                 name: Load
               - entity: input_select.h5082_2f9d_right_use
                 name: Use
+              - entity: input_select.h5082_2f9d_right_inverter
+                name: Inverter
           - type: entities
             title: 3013
             show_header_toggle: false
@@ -407,12 +396,16 @@ views:
                 name: Load
               - entity: input_select.h5082_3013_left_use
                 name: Use
+              - entity: input_select.h5082_3013_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_3013_right
                 name: Right
               - entity: input_text.h5082_3013_right_load
                 name: Load
               - entity: input_select.h5082_3013_right_use
                 name: Use
+              - entity: input_select.h5082_3013_right_inverter
+                name: Inverter
           - type: entities
             title: 3EC9
             show_header_toggle: false
@@ -427,12 +420,16 @@ views:
                 name: Load
               - entity: input_select.h5082_3ec9_left_use
                 name: Use
+              - entity: input_select.h5082_3ec9_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_3ec9_right
                 name: Right
               - entity: input_text.h5082_3ec9_right_load
                 name: Load
               - entity: input_select.h5082_3ec9_right_use
                 name: Use
+              - entity: input_select.h5082_3ec9_right_inverter
+                name: Inverter
           - type: entities
             title: 82FB
             show_header_toggle: false
@@ -447,12 +444,16 @@ views:
                 name: Load
               - entity: input_select.h5082_82fb_left_use
                 name: Use
+              - entity: input_select.h5082_82fb_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_82fb_right
                 name: Right
               - entity: input_text.h5082_82fb_right_load
                 name: Load
               - entity: input_select.h5082_82fb_right_use
                 name: Use
+              - entity: input_select.h5082_82fb_right_inverter
+                name: Inverter
           - type: entities
             title: 9607
             show_header_toggle: false
@@ -467,12 +468,16 @@ views:
                 name: Load
               - entity: input_select.h5082_9607_left_use
                 name: Use
+              - entity: input_select.h5082_9607_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_9607_right
                 name: Right
               - entity: input_text.h5082_9607_right_load
                 name: Load
               - entity: input_select.h5082_9607_right_use
                 name: Use
+              - entity: input_select.h5082_9607_right_inverter
+                name: Inverter
           - type: entities
             title: C061
             show_header_toggle: false
@@ -487,12 +492,16 @@ views:
                 name: Load
               - entity: input_select.h5082_c061_left_use
                 name: Use
+              - entity: input_select.h5082_c061_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_c061_right
                 name: Right
               - entity: input_text.h5082_c061_right_load
                 name: Load
               - entity: input_select.h5082_c061_right_use
                 name: Use
+              - entity: input_select.h5082_c061_right_inverter
+                name: Inverter
           - type: entities
             title: C38D (Pi supply)
             show_header_toggle: false
@@ -527,42 +536,16 @@ views:
                 name: Load
               - entity: input_select.h5082_cf79_left_use
                 name: Use
+              - entity: input_select.h5082_cf79_left_inverter
+                name: Inverter
               - entity: switch.ihoment_h5082_cf79_right
                 name: Right
               - entity: input_text.h5082_cf79_right_load
                 name: Load
               - entity: input_select.h5082_cf79_right_use
                 name: Use
-          - type: entities
-            title: Dump plug wiring
-            show_header_toggle: false
-            entities:
-              - entity: input_text.dump_plug_1_power_entity
-                name: 1 power sensor
-              - entity: input_select.dump_plug_1_inverter
-                name: 1 inverter
-              - entity: input_text.dump_plug_2_power_entity
-                name: 2 power sensor
-              - entity: input_select.dump_plug_2_inverter
-                name: 2 inverter
-              - entity: input_text.dump_plug_3_power_entity
-                name: 3 power sensor
-              - entity: input_select.dump_plug_3_inverter
-                name: 3 inverter
-              - entity: input_text.dump_plug_4_power_entity
-                name: 4 power sensor
-              - entity: input_select.dump_plug_4_inverter
-                name: 4 inverter
-              - entity: input_text.dump_plug_5_power_entity
-                name: 5 power sensor
-              - entity: input_select.dump_plug_5_inverter
-                name: 5 inverter
-              - entity: input_text.dump_plug_6_power_entity
-                name: 6 power sensor
-              - entity: input_select.dump_plug_6_inverter
-                name: 6 inverter
-            grid_options:
-              columns: full
+              - entity: input_select.h5082_cf79_right_inverter
+                name: Inverter
 
       - type: grid
         cards:

@@ -105,6 +105,7 @@ def discovery_payload(address: str, name: str, side: str, side_name: str) -> dic
         "state_on": "ON",
         "state_off": "OFF",
         "device_class": "outlet",
+        "qos": 1,
         "device": {
             "identifiers": [ident],
             "name": name,

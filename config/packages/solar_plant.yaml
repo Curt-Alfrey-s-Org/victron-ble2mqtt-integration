@@ -1,7 +1,7 @@
 # Solar plant HA package on .105 -- device REST only (NWS alerts).
 # Victron / Sungold / EM16 sensors come from MQTT discovery on pi4 and Refoss.
 # No template power math and no Riemann integration in this package.
-# Dump automations: config/packages/sim_dump_control.yaml
+# Dump automations: config/packages/dump_control.yaml (H5082 sockets)
 # https://www.home-assistant.io/docs/configuration/packages/
 
 rest:

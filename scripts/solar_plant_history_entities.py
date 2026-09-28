@@ -17,8 +17,14 @@ ENTITIES = [
     "sensor.sungold_sph302480a_pv_power",
     "sensor.sungold_sph302480a_charging_power",
     "sensor.sungold_sph302480a_load_power",
-    "sensor.sim_dump_load_power",
 ]
+
+# Retired sim dump plugs (removed 2026-09-28). Kept so --apply clears their history.
+RETIRED_SIM_DUMP_ENTITY_IDS: tuple[str, ...] = (
+    "sensor.sim_dump_load_power",
+    *(f"sensor.sim_ac_plug_{n}_power" for n in range(1, 7)),
+    *(f"sensor.dump_plug_{n}_last_w" for n in range(1, 7)),
+)
 
 # Former solar_plant.yaml templates, integrals and utility_meter ids (removed from
 # HA on 2026-09-24). Kept so --apply also clears their leftover recorder history.
@@ -56,7 +62,7 @@ SOLAR_PLANT_PACKAGE_ENTITY_IDS: tuple[str, ...] = (
     "sensor.sungold_load_today",
 )
 
-# Match live Victron MQTT, Sungold modbus, sim dump packages on HA.
+# Match live Victron MQTT, Sungold modbus, dump packages on HA (sim_* = retired leftovers).
 SOLAR_ENTITY_ID_PREFIXES: tuple[str, ...] = (
     "sensor.solar_controller_",
     "sensor.battery_1_",
@@ -97,7 +103,9 @@ def merge_purge_entity_ids(
     discovered: list[str] | None = None,
 ) -> list[str]:
     """Sorted unique entity ids to purge (states + statistics)."""
-    ids: set[str] = set(SOLAR_PLANT_PACKAGE_ENTITY_IDS) | set(ENTITIES)
+    ids: set[str] = (
+        set(SOLAR_PLANT_PACKAGE_ENTITY_IDS) | set(ENTITIES) | set(RETIRED_SIM_DUMP_ENTITY_IDS)
+    )
     if discovered:
         for eid in discovered:
             if matches_solar_prefix(eid) and not entity_id_excluded(eid):

@@ -4,7 +4,7 @@
 
 - **Device clamps only** on Site solar: Victron BLE, Sungold Modbus, EM16 (via `site_em16_*` live wrappers when stale/off-path).
 - **No** template site totals, KU PWM+MPPT est, jumper tiles, or equal-share sensors in HA packages or Site solar storage.
-- Dump automations stay in `sim_dump_control.yaml` (small templates for staging only).
+- Dump automations stay in `dump_control.yaml` (H5082 dump sockets; small templates for staging only).
 
 ## Node-RED (`http://192.168.0.105:1880/`)
 

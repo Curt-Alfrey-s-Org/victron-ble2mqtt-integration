@@ -2,7 +2,7 @@
 
 **Status (2026-09-20):** Pi collectors stay **read-only MQTT** (no `mqtt_publish`
 back to Victron hardware). **Dump on/off** is Home Assistant
-(`sim_dump_control.yaml`). alfa-ai on `.111` **observes** HA REST; it does not
+(`dump_control.yaml`, H5082 sockets set to **dump**). alfa-ai on `.111` **observes** HA REST; it does not
 toggle dumps. Operator UI is built-in **Energy**.
 
 Do not scrape Lovelace (`/dashboard-solar/0`). Official API:

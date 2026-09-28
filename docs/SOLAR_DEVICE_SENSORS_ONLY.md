@@ -29,7 +29,7 @@
 | Trailer / breaker clamp | `sensor.em16_a3_power`, `sensor.em16_b3_power` |
 | Sungold AC-in (inverter) | `sensor.sungold_sph302480a_grid_voltage` / `grid_current` |
 
-Dump automations still use **small templates inside** `sim_dump_control.yaml`
+Dump automations still use **small templates inside** `dump_control.yaml`
 (for staging confirm and T2+PV compare). Those are not shown on the Site solar tiles.
 
 ## Deploy
