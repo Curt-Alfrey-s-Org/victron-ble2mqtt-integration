@@ -8,8 +8,10 @@
 # /home/n4s1/.config/h5082-bridge.env (outside git): H5082_PLUGS=<plug ids> and
 # optionally H5082_ADAPTER=hciN. Pairing keys stay in /home/n4s1/.govee-h5082-keys
 # (mode 600); this script never reads, copies, or prints them. It only checks the
-# file exists with mode 600. On pi5 it stops h5082-rssi-pi5 (the full bridge also
-# publishes pi5 RSSI) and does not start the bridge until H5082_PLUGS is set.
+# file exists with mode 600. It stops (before touching systemd) if the bridge venv
+# cannot import bleak, paho.mqtt and dbus_fast. On pi5 it stops h5082-rssi-pi5 (the
+# full bridge also publishes pi5 RSSI) and does not start the bridge until
+# H5082_PLUGS is set.
 set -euo pipefail
 
 HOST=""
@@ -18,7 +20,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) HOST="${2:-}"; shift 2 ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0"; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -33,12 +35,26 @@ USER_HOME="${H5082_HOME:-/home/n4s1}"
 HOST_ENV="$USER_HOME/.config/h5082-bridge.env"
 KEYS="$USER_HOME/.govee-h5082-keys"
 UNIT_DST="/etc/systemd/system/h5082-mqtt.service"
+VENV_PY="${H5082_VENV_PY:-$USER_HOME/govee-ble-venv/bin/python}"  # same as ExecStart
 
 run() {
   if [[ "$DRY" == 1 ]]; then echo "+ $*"; else "$@"; fi
 }
 
 echo "host=$HOST unit=$UNIT_SRC -> $UNIT_DST"
+
+# The unit runs $VENV_PY -m govee_h5082: it needs bleak, paho-mqtt and dbus-fast.
+# (2026-09-28: the Pi 5 venv had paho-mqtt and dbus-fast but no bleak.)
+if ! VERSIONS="$("$VENV_PY" -c 'import bleak, paho.mqtt, dbus_fast
+from importlib.metadata import version as v
+print("bleak", v("bleak"), "paho-mqtt", v("paho-mqtt"), "dbus-fast", v("dbus-fast"))' 2>&1)"; then
+  echo "ERROR: $VENV_PY cannot import bleak / paho.mqtt / dbus_fast:" >&2
+  echo "$VERSIONS" | tail -n 1 >&2
+  echo "Fix (as n4s1, not root): $(dirname "$VENV_PY")/pip install bleak paho-mqtt" >&2
+  if [[ "$DRY" != 1 ]]; then exit 1; fi
+else
+  echo "venv ok: $VERSIONS"
+fi
 
 if [[ ! -f "$KEYS" ]]; then
   echo "WARN: $KEYS is missing. Copy the key line(s) for this Pi's plugs first (see docs/H5082_MULTI_BRIDGE.md)." >&2

@@ -4,44 +4,72 @@
 
 From branch `pi5-h5082-bridge` (from main `90c762e`, merged with main after #10; independent of the dump manual hold). Plug `82FB` (the fan) fails from the Pi 4 (`GATT 82FB left ON try 1..3/3 TimeoutError`, then `SET_FAIL`). The Pi 5 hears it best. Now each Pi runs the bridge only for the plugs in its own allowlist, `H5082_PLUGS` in `/home/n4s1/.config/h5082-bridge.env` (outside git). A bridge ignores commands for plugs it does not own (`NOT_OWNER`) and publishes availability per host (`govee/h5082/bridge/<host>/status`). HA's command, state and discovery topics are unchanged. With no allowlist the Pi 4 behaves exactly as before. Plug timings did not change. Details: `docs/H5082_MULTI_BRIDGE.md`.
 
-Hosts: Pi 4 `.223` (`n4s1@pi4`) and Pi 5 `.240` (`n4s1@raspberrypi`), both at `/home/n4s1/victron-ble2mqtt-integration`. **`.105` / HA: nothing to do.** The 16 entities stay the same, and HA picks up the new availability topic from the retained discovery. Do the Pi 4 first so no plug ever has two owners. Between Pi 4 step 4 and Pi 5 step 6, `82FB` shows unavailable in HA. That is expected.
+Hosts: Pi 4 `.223` (`n4s1@pi4`) and Pi 5 `.240` (`n4s1@raspberrypi`), both at `/home/n4s1/victron-ble2mqtt-integration`; Home Assistant on `.105`. Do the Pi 4 first, so no plug ever has two owners. `82FB` shows unavailable in HA from the Pi 4 restart until the Pi 5 bridge is up and HA's MQTT integration is reloaded. That is expected. Use `journalctl ... -n 30` instead of `--since`: the Pi 5 clock/timezone was an hour off, so `--since "-2 min"` showed nothing.
+
+**Done live 2026-09-28** (with PR head `83e2b07`): Pi 4 owns `2F9D 3013 3EC9 9607 CF79 C061 C38D` (hci1). Pi 5 owns `82FB` (hci0) and switches it from HA. RSSI for `82FB` was pi5 −74 vs pi4 −90.
 
 **Pi 4 `.223`** (keeps 7 plugs on `hci1`, stops handling `82FB`)
 
-- [ ] **1.** `cd /home/n4s1/victron-ble2mqtt-integration && git pull --ff-only origin main`
-- [ ] **2.** Host allowlist (not secret, not in git):
+- [x] **1.** `cd /home/n4s1/victron-ble2mqtt-integration && git pull --ff-only origin main` (use `git pull` on the branch until PR #11 is merged)
+- [x] **2.** Host allowlist (not secret, not in git):
   `mkdir -p ~/.config && install -m 600 /dev/null ~/.config/h5082-bridge.env && echo 'H5082_PLUGS=2F9D,3013,3EC9,9607,CF79,C061,C38D' > ~/.config/h5082-bridge.env`
-- [ ] **3.** `sudo bash scripts/install_h5082_bridge.sh --host pi4`. This installs the updated unit (it adds the optional `EnvironmentFile=-/home/n4s1/.config/h5082-bridge.env`), runs daemon-reload, and restarts `h5082-mqtt`. Add `--dry-run` first if you want to see the commands.
-- [ ] **4.** `journalctl -u h5082-mqtt -n 30`. Expect `OWNS 2F9D 3013 3EC9 9607 CF79 C061 C38D listener=pi4 adapter=hci1 mode=per-host` (no `82FB`) and `DISCOVERY 8 listener=pi4`, with no `KEY_FILE` warning (`ls -l ~/.govee-h5082-keys` should show `-rw-------`).
+- [x] **3.** `sudo bash scripts/install_h5082_bridge.sh --host pi4`. This installs the unit (it adds the optional `EnvironmentFile=-/home/n4s1/.config/h5082-bridge.env`), runs daemon-reload, and restarts `h5082-mqtt`. Add `--dry-run` first to see the commands. The script now stops first if `~/govee-ble-venv` cannot `import bleak, paho.mqtt, dbus_fast`.
+- [x] **4.** `journalctl -u h5082-mqtt -n 30`. Expect `OWNS 2F9D 3013 3EC9 9607 CF79 C061 C38D listener=pi4 adapter=hci1 mode=per-host` (no `82FB`) and `DISCOVERY 8 listener=pi4`, and no `KEY_FILE` warning (`ls -l ~/.govee-h5082-keys` should show `-rw-------`).
 
 **Pi 5 `.240`** (owns `82FB` on `hci0`)
 
-- [ ] **1.** `cd /home/n4s1/victron-ble2mqtt-integration && git pull --ff-only origin main`
-- [ ] **2.** Check what is already there: `ls ~/govee-ble-venv/bin/python` (the venv `h5082-rssi-pi5` uses today; it has bleak and paho), `ls -l hosts/pi5/mqtt.env` (MQTT login, gitignored), and `bluetoothctl list` or `hciconfig -a` (the onboard adapter should be `hci0`; see step 4 if not).
-- [ ] **3.** Copy only the `82FB` key line from the Pi 4 with scp (the key never shows on screen):
-  ```bash
-  umask 077
-  scp n4s1@192.168.0.223:.govee-h5082-keys ~/h5082-keys.pi4.tmp
-  grep -i '^D4:13:68:61:82:FB ' ~/h5082-keys.pi4.tmp >> ~/.govee-h5082-keys
-  rm -f ~/h5082-keys.pi4.tmp
-  chmod 600 ~/.govee-h5082-keys && wc -l ~/.govee-h5082-keys   # expect 1
-  ```
-- [ ] **4.** Host allowlist and adapter:
+- [x] **1.** `cd /home/n4s1/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [x] **2.** Check the venv, MQTT file and adapter:
+  - `~/govee-ble-venv/bin/python -c 'import bleak, paho.mqtt, dbus_fast'`. On 2026-09-28 this failed with `ModuleNotFoundError: No module named 'bleak'`: the venv had paho-mqtt 2.1.0 and dbus-fast only. Fix it as `n4s1` (not root): `~/govee-ble-venv/bin/pip install bleak paho-mqtt`. That installed bleak 3.0.2.
+  - `ls -l hosts/pi5/mqtt.env`: the MQTT login (gitignored), with `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`.
+  - `bluetoothctl list` or `hciconfig -a`: the onboard adapter should be `hci0`. If not, see step 4.
+- [x] **3.** Copy only the `82FB` key line from the Pi 4 by hand. scp from the Pi 5 to the Pi 4 failed with `Permission denied (publickey)`, because there is no SSH key between the Pis.
+  - **On the Pi 4**, print that one line: `grep -i '^D4:13:68:61:82:FB ' ~/.govee-h5082-keys`. It shows the key on your screen. Copy it only into the Pi 5 file.
+  - **On the Pi 5**, paste it:
+    ```bash
+    [ -f ~/.govee-h5082-keys ] || install -m 600 /dev/null ~/.govee-h5082-keys   # only if missing
+    nano ~/.govee-h5082-keys          # paste that one line, save
+    chmod 600 ~/.govee-h5082-keys && wc -l ~/.govee-h5082-keys   # expect 1
+    ```
+  - Optional, only if the Pi 5 has an SSH key on the Pi 4: `umask 077; scp n4s1@192.168.0.223:.govee-h5082-keys ~/h5082-keys.pi4.tmp && grep -i '^D4:13:68:61:82:FB ' ~/h5082-keys.pi4.tmp >> ~/.govee-h5082-keys; rm -f ~/h5082-keys.pi4.tmp; chmod 600 ~/.govee-h5082-keys`
+- [x] **4.** Host allowlist and adapter:
   `mkdir -p ~/.config && install -m 600 /dev/null ~/.config/h5082-bridge.env && printf 'H5082_PLUGS=82FB\nH5082_ADAPTER=hci0\n' > ~/.config/h5082-bridge.env`
   (If step 2 showed the onboard adapter under another name, put that name here.)
-- [ ] **5.** `sudo bash scripts/install_h5082_bridge.sh --host pi5`. This installs `systemd/h5082-mqtt-pi5.service` as `/etc/systemd/system/h5082-mqtt.service`, disables and stops `h5082-rssi-pi5` (the new bridge publishes the pi5 RSSI instead), and then enables and restarts `h5082-mqtt`. If you prefer to start it yourself: `sudo systemctl enable --now h5082-mqtt`.
-- [ ] **6.** Verify with `journalctl -u h5082-mqtt -f`. Expect `OWNS 82FB listener=pi5 adapter=hci0 mode=per-host` and `DISCOVERY 8 listener=pi5`, and no `NO_KEY_OWNED`, `KEY_FILE` or `OWNER_CONFLICT`.
-- [ ] **7.** SET test: in HA, toggle `switch.ihoment_h5082_82fb_left` (the fan) on and then off. The Pi 5 log should show `LINK_UP 82FB` and `SET 82FB left ON`, then `SET 82FB left OFF`, with no `SET_FAIL`. At the same moment the Pi 4 log (`journalctl -u h5082-mqtt -f` there) shows `NOT_OWNER 82FB left` and no `GATT 82FB`. Do the same for `_right` if you use it.
-- [ ] **8.** In HA, `switch.ihoment_h5082_82fb_*` should be available again (its availability now follows `govee/h5082/bridge/pi5/status`). **Heard by** / pi5 RSSI keeps updating.
+- [x] **5.** `sudo bash scripts/install_h5082_bridge.sh --host pi5`. It first checks the venv imports (and exits with the pip command if bleak is missing). Then it installs `systemd/h5082-mqtt-pi5.service` as `/etc/systemd/system/h5082-mqtt.service`, disables and stops `h5082-rssi-pi5` (the new bridge publishes the pi5 RSSI instead), and enables and restarts `h5082-mqtt`. To start it yourself instead: `sudo systemctl enable --now h5082-mqtt`.
+- [x] **6.** `journalctl -u h5082-mqtt -n 30`. Expect `OWNS 82FB listener=pi5 adapter=hci0 mode=per-host` and `DISCOVERY 8 listener=pi5`, and no `ModuleNotFoundError`, `NO_KEY_OWNED`, `KEY_FILE` or `OWNER_CONFLICT`.
+
+**Home Assistant `.105`** (after both bridges are up)
+
+- [x] **7.** Reload MQTT: **Settings > Devices & services > MQTT > ⋮ > Reload**. On 2026-09-28 HA kept the old `82FB` entity config (the old availability topic) and sent no commands for it until this reload. No entity changes are needed.
+
+**Checks**
+
+- [x] **8.** SET test: in HA, toggle `switch.ihoment_h5082_82fb_left` (the fan) on and then off. Then run `journalctl -u h5082-mqtt -n 30` on the Pi 5. Expect `LINK_UP 82FB`, `SET 82FB left ON`, then `SET 82FB left OFF`, and no `SET_FAIL`. On the Pi 4, `journalctl -u h5082-mqtt -n 30` shows `NOT_OWNER 82FB left` and no `GATT 82FB`. Do the same for `_right` if you use it.
+- [x] **9.** In HA, `switch.ihoment_h5082_82fb_*` is available (it now follows `govee/h5082/bridge/pi5/status`), and **Heard by** / pi5 RSSI keeps updating.
+- [ ] **10.** Optional broker check from the Pi 5 (`mosquitto_sub` was not installed there):
+  ```bash
+  sudo apt install -y mosquitto-clients
+  cd /home/n4s1/victron-ble2mqtt-integration
+  set -a; source hosts/pi5/mqtt.env; set +a
+  mosquitto_sub -h "$MQTT_HOST" -p "${MQTT_PORT:-1883}" -u "$MQTT_USERNAME" -P "$MQTT_PASSWORD" \
+    -t 'govee/h5082/+/owner' -t 'govee/h5082/bridge/+/status' -v -W 5
+  ```
+  Expect `govee/h5082/d413686182fb/owner pi5`, seven `... pi4` claims, and `govee/h5082/bridge/pi4/status online` / `.../pi5/status online`. (`-W 5` stops after 5 s. The `Timed out` at the end is normal.)
+
+**Still open**
+
+- [ ] **11.** Pull this follow-up on both Pis (`git pull`) and restart: `sudo systemctl restart h5082-mqtt`. The `OWNS` line now ends in `bleak=<version>`. The bridge now pins the adapter on any bleak version: bleak 3.x (Pi 5, 3.0.2) takes `bluez={"adapter": ...}`, and older bleak gets `adapter=` instead. Before this, older bleak ignored the bluez form and could fall back to the default adapter, which is `hci0` (Victron) on the Pi 4. On the Pi 4, check `~/govee-ble-venv/bin/pip show bleak | head -2`. If it is older than 3.0, that restart is when the Pi 4 bridge really starts connecting on `hci1`. Toggle one Pi 4 socket and expect `SET <id> ...`.
+- [ ] **12.** Optional, Pi 5 clock: `timedatectl` (check the time zone and "System clock synchronized: yes"), then `sudo timedatectl set-timezone America/New_York`.
 
 **Move a plug between Pis later** (see `docs/H5082_MULTI_BRIDGE.md`)
 
-- [ ] Choose the Pi first (optional): `/home/n4s1/govee-ble-venv/bin/python scripts/h5082_rssi_scan.py --adapter hci1 --seconds 30` on the Pi 4 and `--adapter hci0` on the Pi 5. Pick the better best/avg RSSI. The script is read-only.
+- [ ] Choose the Pi first (optional): run `/home/n4s1/govee-ble-venv/bin/python scripts/h5082_rssi_scan.py --adapter hci1 --seconds 30` on the Pi 4 and the same with `--adapter hci0` on the Pi 5. Pick the Pi with the better best/avg RSSI. The script is read-only.
 - [ ] **Old Pi:** remove the id from `H5082_PLUGS` in `~/.config/h5082-bridge.env`, then `sudo systemctl restart h5082-mqtt`.
-- [ ] **New Pi:** copy that plug's key line with scp as in Pi 5 step 3 (use its MAC), add the id to `H5082_PLUGS`, then `sudo systemctl restart h5082-mqtt`.
-- [ ] Check: `OWNS` on each Pi lists the plug once, there is no `OWNER_CONFLICT`, and a toggle in HA logs `SET <id> ...` on the new Pi.
+- [ ] **New Pi:** copy that plug's key line by hand as in Pi 5 step 3: on the old Pi run `grep -i '^<MAC> ' ~/.govee-h5082-keys`, then on the new Pi paste it with `nano ~/.govee-h5082-keys`, then `chmod 600` and `wc -l`. scp is fine only if SSH keys exist. Add the id to `H5082_PLUGS`, then `sudo systemctl restart h5082-mqtt`.
+- [ ] HA: reload MQTT (**Settings > Devices & services > MQTT > ⋮ > Reload**).
+- [ ] Check with `journalctl -u h5082-mqtt -n 30` on both Pis: `OWNS` lists the plug on one Pi only, there is no `OWNER_CONFLICT`, and a toggle in HA logs `SET <id> ...` on the new Pi.
 
-**Undo** (Pi 5 back to RSSI only): on the Pi 5, `sudo systemctl disable --now h5082-mqtt && sudo systemctl enable --now h5082-rssi-pi5`. On the Pi 4, `rm ~/.config/h5082-bridge.env && sudo systemctl restart h5082-mqtt` (it owns all 8 again on the old availability topic).
+**Undo** (Pi 5 back to RSSI only): on the Pi 5, `sudo systemctl disable --now h5082-mqtt && sudo systemctl enable --now h5082-rssi-pi5`. On the Pi 4, `rm ~/.config/h5082-bridge.env && sudo systemctl restart h5082-mqtt` (it owns all 8 again on the old availability topic). Then reload MQTT in HA.
 
 ## Next step: host steps for "dump manual hold" (2026-09-28)
 

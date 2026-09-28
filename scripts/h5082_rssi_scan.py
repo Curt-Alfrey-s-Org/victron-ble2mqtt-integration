@@ -28,6 +28,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from govee_h5082.mqtt_bridge import PLUGS  # noqa: E402
 
+
+def adapter_kwargs(adapter: str) -> dict:
+    """bleak >= 3 takes bluez={"adapter": ...}; older bleak needs adapter=."""
+    from importlib.metadata import version  # noqa: PLC0415
+
+    try:
+        major = int(version("bleak").split(".")[0])
+    except Exception:  # noqa: BLE001 - unknown version: assume current API
+        major = 3
+    return {"bluez": {"adapter": adapter}} if major >= 3 else {"adapter": adapter}  # noqa: PLR2004
+
 VICTRON_HOSTS = {"pi4"}  # hosts whose hci0 belongs to Victron
 
 
@@ -87,7 +98,7 @@ async def scan(adapter: str, seconds: float) -> Tally:
     def seen(device, adv) -> None:
         tally.add(device.address, getattr(adv, "rssi", None), time.monotonic())
 
-    async with BleakScanner(detection_callback=seen, bluez={"adapter": adapter}):
+    async with BleakScanner(detection_callback=seen, **adapter_kwargs(adapter)):
         await asyncio.sleep(seconds)
     return tally
 

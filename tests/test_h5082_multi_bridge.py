@@ -347,3 +347,23 @@ def test_rssi_scan_helper_is_read_only_and_guards_victron(monkeypatch):
     source = path.read_text()
     assert "connect(" not in source and "write_gatt_char" not in source
     assert ".govee-h5082-keys" not in source
+
+
+# --- bleak versions (Pi 5 got bleak 3.0.2; the Pi 4 venv may be older) -------------
+
+
+def test_adapter_kwargs_pin_the_adapter_on_old_and_new_bleak():
+    kwargs = govee_main.adapter_kwargs
+    assert kwargs("hci0", "3.0.2") == {"bluez": {"adapter": "hci0"}}
+    assert kwargs("hci1", "4.1") == {"bluez": {"adapter": "hci1"}}
+    # bleak < 3 ignores bluez={"adapter"} and would fall back to hci0 (Victron).
+    assert kwargs("hci1", "0.22.3") == {"adapter": "hci1"}
+    assert kwargs("hci1", "2.1.1") == {"adapter": "hci1"}
+    assert kwargs("hci1", "missing") == {"bluez": {"adapter": "hci1"}}
+
+
+def test_install_script_checks_the_venv_before_systemd():
+    text = (ROOT / "scripts" / "install_h5082_bridge.sh").read_text()
+    assert "import bleak, paho.mqtt, dbus_fast" in text
+    assert "pip install bleak paho-mqtt" in text
+    assert text.index("import bleak") < text.index("systemctl daemon-reload")

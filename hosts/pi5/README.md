@@ -63,8 +63,19 @@ sudo bash scripts/write_pi5_mqtt_env.sh /tmp/pi5-theengs-mqtt.env
 The Pi 5 can run the same `govee_h5082` bridge as the Pi 4, for the plugs listed
 in `/home/n4s1/.config/h5082-bridge.env` (`H5082_PLUGS=82FB`, adapter `hci0`).
 It keeps its own `/home/n4s1/.govee-h5082-keys` (mode 600) with only those plugs'
-lines. Install it with `sudo bash scripts/install_h5082_bridge.sh --host pi5`: the
-unit is installed as `h5082-mqtt` and replaces `h5082-rssi-pi5`. Steps and how to
+lines, pasted by hand with `nano`. There is no SSH key to the Pi 4, so scp from here
+failed. Live since 2026-09-28 (Pi 5 owns `82FB`).
+
+- The venv needs bleak: `~/govee-ble-venv/bin/pip install bleak paho-mqtt` (as `n4s1`).
+  It only had paho-mqtt and dbus-fast, so the bridge failed with `No module named 'bleak'`.
+- Install with `sudo bash scripts/install_h5082_bridge.sh --host pi5`. It checks the venv
+  first, installs the unit as `h5082-mqtt`, and replaces `h5082-rssi-pi5`.
+- Then reload MQTT in HA (**Settings > Devices & services > MQTT > ⋮ > Reload**).
+- Check with `journalctl -u h5082-mqtt -n 30`. This Pi's clock/timezone was an hour off,
+  so `--since` can miss lines. Optional: `sudo timedatectl set-timezone America/New_York`.
+- `mosquitto_sub` is not installed here: `sudo apt install -y mosquitto-clients`, then
+  `set -a; source hosts/pi5/mqtt.env; set +a` (`MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`,
+  `MQTT_PASSWORD`). Steps and how to
 move a plug: [docs/H5082_MULTI_BRIDGE.md](../../docs/H5082_MULTI_BRIDGE.md).
 
 ## Prometheus
