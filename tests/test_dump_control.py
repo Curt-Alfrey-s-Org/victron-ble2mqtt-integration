@@ -85,7 +85,8 @@ def test_helpers_per_socket() -> None:
     data = _load()
     for s in SOCKS:
         sel = data["input_select"][f"h5082_{s}_inverter"]
-        assert sel["options"] == ["Sungold", "T2", "KU"]
+        # Sungold stays first (first-install default); House = grid-powered house plug.
+        assert sel["options"] == ["Sungold", "T2", "KU", "House"]
         assert "initial" not in sel  # bus choice must survive HA restarts
         assert data["timer"][f"h5082_{s}_min_on"]["duration"] == "00:15:00"
         assert data["timer"][f"h5082_{s}_cooldown"]["duration"] == "00:10:00"
@@ -99,6 +100,21 @@ def test_helpers_per_socket() -> None:
     # (tests/test_site_solar_persist_and_help.py covers every helper).
     assert "initial" not in data["input_number"]["dump_site_confirm_s"]
     assert data["input_number"]["dump_site_confirm_s"]["min"] == 5
+
+
+USE_DUMP = re.compile(r"is_state\('input_select\.h5082_' ~ (\w+) ~ '_use', 'dump'\)")
+
+
+def test_every_dump_pick_has_the_house_guard() -> None:
+    """One guard everywhere: Use is dump AND Inverter is not House."""
+    text = PACKAGE.read_text(encoding="utf-8")
+    hits = list(USE_DUMP.finditer(text))
+    # dump_sockets (count + list), next, shed, turn_on recheck, solar gone, 3 re-bulk, 3 batt.
+    assert len(hits) == 12
+    for m in hits:
+        guard = f" and not is_state('input_select.h5082_' ~ {m.group(1)} ~ '_inverter', 'House'))"
+        assert text[m.start() - 1] == "(", text[m.start() - 40 : m.end()]
+        assert text[m.end() : m.end() + len(guard)] == guard, text[m.start() : m.end() + 80]
 
 
 def test_switch_actions_are_never_hardcoded() -> None:
@@ -313,3 +329,38 @@ def test_bus_turn_off_hits_only_dump_sockets_on_that_bus() -> None:
     for aid in ("dump_turn_off_rebulk_sph", "dump_turn_off_batt_sph"):
         assert _targets(aid, st) == []
     assert _targets("dump_turn_off_solar_gone", st) == ["2f9d_left", "3013_left", "3ec9_left"]
+
+
+def test_house_sockets_are_never_picked_or_switched() -> None:
+    """Inverter = House (grid-powered house plug): dump control never switches it."""
+    house = {
+        "input_select.h5082_2f9d_left_use": "dump",
+        "input_select.h5082_2f9d_left_inverter": "House",
+    }
+    tpl = _templates()
+    # Off: never offered to turn on.
+    st = _ok_states(**house)
+    assert _next(st) == "none"
+    assert _render(tpl["dump_sockets"]["state"], st) == "0"
+    assert yaml.safe_load(_render(tpl["dump_sockets"]["attributes"]["entities"], st)) == []
+    # The next real dump socket is still picked.
+    st["input_select.h5082_3013_left_use"] = "dump"
+    assert _next(st) == "switch.ihoment_h5082_3013_left"
+    # On: never shed and never in any turn-off list (solar gone, re-bulk, battery).
+    st = _ok_states(**house, **{"switch.ihoment_h5082_2f9d_left": "on"})
+    assert _shed(st) == "none"
+    offs = [a for a in _automations() if a.startswith("dump_turn_off_") and a != "dump_turn_off_bulk"]
+    assert len(offs) == 7
+    for aid in offs:
+        assert "2f9d_left" not in _targets(aid, st), aid
+    # dump_turn_on rechecks the socket right before switch.turn_on.
+    seq = _automations()["dump_turn_on"]["actions"][0]["repeat"]["sequence"]
+    recheck = [n for n in seq if n.get("condition") == "template"]
+    assert len(recheck) == 1
+    env_st = dict(st)
+    tmpl = recheck[0]["value_template"].replace("sock", "'2f9d_left'")
+    assert _render(tmpl, env_st) == "False"
+    env_st["input_select.h5082_2f9d_left_inverter"] = "KU"
+    assert _render(tmpl, env_st) == "True"
+    # Dashboard "Dump sockets by name" says so instead of naming a bus.
+    assert "House (grid power): never switched by dump control" in DASHBOARD.read_text(encoding="utf-8")

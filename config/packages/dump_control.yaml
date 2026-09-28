@@ -2,8 +2,11 @@
 # Drives the real Govee H5082 sockets (switch.ihoment_h5082_<id>_<side>, MQTT from
 # govee_h5082 on the Pi 4). A socket is a dump socket only while its
 # input_select.h5082_<id>_<side>_use is "dump" (helpers from
-# scripts/create_h5082_socket_labels.py, default "normal"). A "normal" socket is never
-# turned on or off by these automations. See docs/DUMP_LOAD_HA_CONTROL.md.
+# scripts/create_h5082_socket_labels.py, default "normal") AND its
+# input_select.h5082_<id>_<side>_inverter is not "House". A "normal" socket and a
+# "House" socket (plug on house grid power) are never turned on or off by these
+# automations: every socket pick below uses that same two-part test (the guard).
+# See docs/DUMP_LOAD_HA_CONTROL.md.
 # All 8 plugs / 16 sockets are in the socket lists (C38D was paired 2026-09-28 and
 # added after 2F9D ... C061, before CF79). What is plugged into each socket and where
 # each plug sits are NOT written here: they are the input_text Where / Load helpers
@@ -204,10 +207,13 @@ input_select:
     name: 2F9D left socket inverter (bus)
     # No initial: the operator's bus choice survives HA restarts.
     # First option (Sungold) is the first-install default, as before.
+    # House = a plug on house grid power, not on a solar bus: dump control never
+    # switches it (on or off), even if its Use is dump. You can still switch it.
     options:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_2f9d_right_inverter:
     name: 2F9D right socket inverter (bus)
@@ -215,6 +221,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_3013_left_inverter:
     name: 3013 left socket inverter (bus)
@@ -222,6 +229,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_3013_right_inverter:
     name: 3013 right socket inverter (bus)
@@ -229,6 +237,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_3ec9_left_inverter:
     name: 3EC9 left socket inverter (bus)
@@ -236,6 +245,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_3ec9_right_inverter:
     name: 3EC9 right socket inverter (bus)
@@ -243,6 +253,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_82fb_left_inverter:
     name: 82FB left socket inverter (bus)
@@ -250,6 +261,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_82fb_right_inverter:
     name: 82FB right socket inverter (bus)
@@ -257,6 +269,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_9607_left_inverter:
     name: 9607 left socket inverter (bus)
@@ -264,6 +277,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_9607_right_inverter:
     name: 9607 right socket inverter (bus)
@@ -271,6 +285,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_c061_left_inverter:
     name: C061 left socket inverter (bus)
@@ -278,6 +293,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_c061_right_inverter:
     name: C061 right socket inverter (bus)
@@ -285,6 +301,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_c38d_left_inverter:
     name: C38D left socket inverter (bus)
@@ -292,6 +309,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_c38d_right_inverter:
     name: C38D right socket inverter (bus)
@@ -299,6 +317,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_cf79_left_inverter:
     name: CF79 left socket inverter (bus)
@@ -306,6 +325,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
   h5082_cf79_right_inverter:
     name: CF79 right socket inverter (bus)
@@ -313,6 +333,7 @@ input_select:
       - Sungold
       - T2
       - KU
+      - House
     icon: mdi:car-battery
 
 timer:
@@ -458,7 +479,7 @@ template:
             '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
             'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] %}
-            {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) %}{% set ns.n = ns.n + 1 %}{% endif %}
           {% endfor %}
           {{ ns.n }}
         attributes:
@@ -469,7 +490,7 @@ template:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) %}
                 {% set ns.out = ns.out + ['switch.ihoment_h5082_' ~ s] %}
               {% endif %}
             {% endfor %}
@@ -569,7 +590,7 @@ template:
               {% set eid = 'switch.ihoment_h5082_' ~ s %}
               {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
               {% if pick.eid == 'none'
-                 and is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+                 and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state(eid, 'off')
                  and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
                  and batt.get(bus, False)
@@ -599,7 +620,7 @@ template:
             'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] | reverse %}
             {% set eid = 'switch.ihoment_h5082_' ~ s %}
-            {% if pick.eid == 'none' and is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+            {% if pick.eid == 'none' and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                and is_state(eid, 'on') %}
               {% set pick.eid = eid %}
             {% endif %}
@@ -753,8 +774,9 @@ automation dump_load:
       Adds one dump socket at a time. Starts when the T2 MPPT has been in float for
       1 min and T2 PV has been at or above "Dump min solar" for 1 min, the master
       switch is on, SoC is ok (or ignored), PV is not falling and Sungold load is not
-      above solar. sensor.dump_next_plug picks the first OFF dump socket whose
-      cooldown is idle, whose bus is at or above its start volts and above its stop
+      above solar. sensor.dump_next_plug picks the first OFF dump socket (Use dump,
+      Inverter not House) whose cooldown is idle, whose bus is at or above its start
+      volts and above its stop
       volts, whose battery is not discharging past its limit and whose inverter is
       under its AC limit. After the plug reports on, waits "Dump confirm wait" and
       keeps it only if that bus's load rose by "Dump confirm min load rise".
@@ -841,7 +863,7 @@ automation dump_load:
             - variables:
                 load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
-              value_template: "{{ is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') }}"
+              value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) }}"
             # Live name for the logbook line: the socket's Load text and its plug's
             # Where text (input_text helpers you set in HA), else the plug id + side.
             # Nothing about what is plugged in is hard-coded here. Reused below.
@@ -966,7 +988,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
               {% endif %}
@@ -1148,7 +1170,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1202,7 +1224,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1256,7 +1278,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1310,7 +1332,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1364,7 +1386,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1419,7 +1441,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'dump')
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}

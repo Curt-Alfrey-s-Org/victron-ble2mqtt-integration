@@ -27,7 +27,8 @@ button_card_templates:
         const where = states["input_text.h5082_" + plug + "_location"];
         const use = states["input_select.h5082_" + id + "_use"];
         const place = where && where.state && where.state !== "unknown" && where.state !== "unavailable" && where.state !== "" ? where.state : plug.toUpperCase();
-        const role = use && use.state === "dump" ? "dump" : "normal";
+        const inv = states["input_select.h5082_" + id + "_inverter"];
+        const role = inv && inv.state === "House" ? "house" : (use && use.state === "dump" ? "dump" : "normal");
         const heard = states["sensor.h5082_" + plug + "_heard_by"];
         const radio = heard && heard.state && heard.state !== "unknown" && heard.state !== "unavailable" && heard.state !== "none" ? heard.state.split(" ")[0] : "";
         return place + " · " + role + (radio ? " · " + radio : "");
@@ -47,7 +48,9 @@ button_card_templates:
             [[[
               const id = entity.entity_id.replace("switch.ihoment_h5082_", "");
               const use = states["input_select.h5082_" + id + "_use"];
-              return use && use.state === "dump" ? "2px solid #c9a227" : "1px solid var(--divider-color)";
+              const inv = states["input_select.h5082_" + id + "_inverter"];
+              const dump = use && use.state === "dump" && !(inv && inv.state === "House");
+              return dump ? "2px solid #c9a227" : "1px solid var(--divider-color)";
             ]]]
       name:
         - font-size: 14px
@@ -341,7 +344,11 @@ views:
               {%- set ns = namespace(any=false) %}
               {%- for s in ['2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right', '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right', 'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'] %}
               {%- if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}{% set ns.any = true %}
+              {%- if is_state('input_select.h5082_' ~ s ~ '_inverter', 'House') %}
+              - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, House (grid power): never switched by dump control
+              {%- else %}
               - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, {{ states('input_select.h5082_' ~ s ~ '_inverter') }} bus
+              {%- endif %}
               {%- endif %}
               {%- endfor %}
               {%- if not ns.any %} none{% endif %}
@@ -734,7 +741,7 @@ views:
             icon: mdi:toggle-switch
           - type: markdown
             content: |
-              Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can).
+              Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can). A socket whose Inverter is **House** (grid power) is never switched by dump control, even set to dump.
               Only choose dump for a socket whose load may lose power at any time; each row shows the live Load and Where you typed (or the plug id and side when blank).
               Safe start: everything normal, then one dump socket with a lamp to test.
               [Help: Socket Use (normal / dump)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
@@ -775,7 +782,7 @@ views:
             icon: mdi:car-battery
           - type: markdown
             content: |
-              Which inverter / battery bus feeds each socket (T2, KU or Sungold): HA uses that bus's volts, battery and AC limit to decide on/off, and its meter to confirm the load.
+              Which inverter / battery bus feeds each socket (T2, KU or Sungold): HA uses that bus's volts, battery and AC limit to decide on/off, and its meter to confirm the load. **House** = plug on house grid power: dump control never switches it (even set to dump); you still can.
               A wrong choice makes HA watch the wrong battery, so set it to where the socket is really wired.
               It only matters for sockets whose Use is dump; a brand-new socket starts on Sungold.
               [Help: Socket inverter (bus)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-inverter.md)

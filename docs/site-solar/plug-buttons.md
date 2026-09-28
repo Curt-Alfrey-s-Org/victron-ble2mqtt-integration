@@ -16,8 +16,8 @@ seeing at a glance which sockets are dump sockets.
 |---|---|---|
 | Button | `switch.ihoment_h5082_<id>_<side>` | Tap = toggle, hold = details. Green plug = on, grey = off. |
 | Big text | `input_text.h5082_<id>_<side>_load` | The load you typed in [Plug names](plug-names.md); if blank, the id and side (`2F9D LEFT`). |
-| Small text | `input_text.h5082_<id>_location`, `input_select.h5082_<id>_<side>_use`, `sensor.h5082_<id>_heard_by` | Where you typed for that plug (else the plug id) · normal or dump · the radio that hears the plug best (pi5, ha-105, pi4). |
-| Gold border | `input_select.h5082_<id>_<side>_use` | Use = dump |
+| Small text | `input_text.h5082_<id>_location`, `input_select.h5082_<id>_<side>_use`, `sensor.h5082_<id>_heard_by` | Where you typed for that plug (else the plug id) · normal, dump or house (Inverter = House: never dump-switched) · the radio that hears the plug best (pi5, ha-105, pi4). |
+| Gold border | `input_select.h5082_<id>_<side>_use`, `input_select.h5082_<id>_<side>_inverter` | Use = dump and Inverter is not House |
 
 Nothing to raise or lower here.
 
