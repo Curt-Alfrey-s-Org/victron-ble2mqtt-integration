@@ -1,5 +1,22 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "dump manual hold" (2026-09-28)
+
+From branch `dump-manual-hold` (after #9). When a dump socket is switched by hand (Plugs button, the plug's own button, any change dump control did not ask for), dump control leaves it alone for **Dump manual hold** minutes, then resumes. New: `input_number.dump_manual_hold_min` (0-720 min, 0 = off), `input_boolean.dump_hold_blocks_turn_off`, 16 `timer.h5082_<id>_<side>_hold`, `sensor.dump_control_switching`, automations `Dump HOLD start` / `Dump HOLD end`, `script.dump_clear_holds`, a **Dump manual hold** box on Site solar. No `initial:`: the new number starts at **0 = hold off** and the new toggle **off**, so nothing changes until you set them. Your current values are kept. Only `.105` changes. **Pi 4 `.223`: nothing to do** (the bridge is untouched).
+
+**`.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Token file for the scripts (never commit it):
+  `install -m 600 /dev/null ~/.ha_token && nano ~/.ha_token` (paste a long-lived HA token), then
+  `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** Backup first: `python3 scripts/site_solar_settings.py export`
+- [ ] **d.** `bash scripts/install_dump_control_ha.sh` (copies the package, runs check_config, restarts HA).
+- [ ] **e.** The dashboard seed changed (new Dump manual hold box, hold on the Plugs button label, Dump timers box without the hold timers, help text), so: `python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `python3 scripts/save_solar_plant_storage_dashboard.py --force` (backs the live dashboard up first).
+- [ ] **f.** `rm ~/.ha_token && unset HA_TOKEN_FILE`
+- [ ] **g.** In HA, Site solar > **Dump manual hold**: set **Hold after a hand switch** (recommended 60 min) and choose **Hold also blocks turn-offs** (recommended on = a held socket is left alone even by solar gone / stop volts / battery limit / sheds; off = those still turn it off). Set these two by hand: **Dump master switch > Load recommended starting values** also sets them (60 / on) but replaces **every** tuned dump number.
+- [ ] **h.** Check: tap a dump socket's Plugs button. The Dump activity log shows `switched ... by hand ... Hold N min`, the button label shows `hold to HH:MM`, and its row under **Holds (per socket)** is active. **Clear all holds** logs `hold ended (cleared)`. A dump rule's own switching must **not** start a hold (no "by hand" line after a `turning ON` / `turned OFF by` line).
+
 ## Next step: host steps for "House inverter option" (2026-09-28)
 
 From branch `house-inverter-option` (after #8). Some Govee plugs are used in the house on grid power, so each socket's **Inverter** select (`input_select.h5082_<id>_<side>_inverter`, 16 selects) gets a 4th option, **House**. Dump control never switches a House socket, on or off, even if its Use is dump: every socket pick in `dump_control.yaml` now tests "Use is dump **and** Inverter is not House". You can still switch a House socket yourself (Plugs button or the plug's own button). No `initial:` was added. Your current Inverter choices stay (Sungold / T2 / KU are still valid options, so HA restores them). Only `.105` changes. **Pi 4 `.223`: nothing to do.**

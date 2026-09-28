@@ -26,8 +26,10 @@ There is nothing to raise or lower in the dashboard: the lengths are in the pack
 
 ## How it works in the package
 
-- Only HA's own turn-offs start a cooldown. If you switch a dump socket off by hand,
-  no cooldown starts and HA may turn it back on at the next chance.
+- Only HA's own turn-offs start a cooldown. If you switch a dump socket by hand, no
+  cooldown starts; instead its manual hold starts (see [Dump manual hold](dump-hold.md)).
+  The per-socket hold timers (`timer.h5082_*_hold`) are left out of this box and shown
+  in the Dump manual hold box.
 - A socket in cooldown shows **active** with the time left; **idle** means HA may use
   it again (if every other gate is open).
 

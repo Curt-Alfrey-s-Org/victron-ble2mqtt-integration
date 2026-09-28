@@ -13,6 +13,10 @@ button_card_templates:
       action: toggle
     hold_action:
       action: more-info
+    # The label reads helpers and the socket's hold timer by built-up ids, which
+    # button-card cannot detect, so re-render on any change (hold starts just after
+    # the switch changes).
+    triggers_update: all
     name: |
       [[[
         const id = entity.entity_id.replace("switch.ihoment_h5082_", "");
@@ -31,7 +35,15 @@ button_card_templates:
         const role = inv && inv.state === "House" ? "house" : (use && use.state === "dump" ? "dump" : "normal");
         const heard = states["sensor.h5082_" + plug + "_heard_by"];
         const radio = heard && heard.state && heard.state !== "unknown" && heard.state !== "unavailable" && heard.state !== "none" ? heard.state.split(" ")[0] : "";
-        return place + " · " + role + (radio ? " · " + radio : "");
+        const hold = states["timer.h5082_" + id + "_hold"];
+        let held = "";
+        if (hold && hold.state === "active" && hold.attributes.finishes_at) {
+          const end = new Date(hold.attributes.finishes_at);
+          held = " · hold to " + String(end.getHours()).padStart(2, "0") + ":" + String(end.getMinutes()).padStart(2, "0");
+        } else if (hold && hold.state === "paused") {
+          held = " · hold paused";
+        }
+        return place + " · " + role + held + (radio ? " · " + radio : "");
       ]]]
     state:
       - value: "on"
@@ -261,8 +273,8 @@ views:
                   perform_action: script.dump_load_recommended_defaults
                   confirmation:
                     text: >-
-                      Replace ALL dump volt, watt, SoC and confirm numbers with the
-                      recommended starting values? Your tuned values will be lost.
+                      Replace ALL dump volt, watt, SoC, confirm and manual hold settings
+                      with the recommended starting values? Your tuned values will be lost.
 
       - type: grid
         cards:
@@ -347,7 +359,7 @@ views:
               {%- if is_state('input_select.h5082_' ~ s ~ '_inverter', 'House') %}
               - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, House (grid power): never switched by dump control
               {%- else %}
-              - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, {{ states('input_select.h5082_' ~ s ~ '_inverter') }} bus
+              - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, {{ states('input_select.h5082_' ~ s ~ '_inverter') }} bus{% if is_state('timer.h5082_' ~ s ~ '_hold', 'active') %}, on hold to {{ as_timestamp(state_attr('timer.h5082_' ~ s ~ '_hold', 'finishes_at')) | timestamp_custom('%H:%M') }}{% endif %}
               {%- endif %}
               {%- endif %}
               {%- endfor %}
@@ -532,8 +544,66 @@ views:
             filter:
               include:
                 - entity_id: timer.h5082_*
+              exclude:
+                - entity_id: timer.h5082_*_hold
             sort:
               method: entity_id
+            show_empty: true
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump manual hold
+            icon: mdi:hand-back-right-outline
+          - type: markdown
+            content: |
+              When a dump socket is switched by hand (Plugs button, the plug's own button, another app), the dump rules leave it alone for **Dump manual hold** minutes, then resume (0 = no hold).
+              Hold always stops HA turning that socket **on**; **Hold also blocks turn-offs** on = it also stops solar-gone, stop-volts, battery and shed turn-offs (off = those still turn a held socket off).
+              End one hold early from its row below (tap, then Cancel) or all with Clear all holds.
+              [Help: Dump manual hold](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-hold.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump manual hold
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_number.dump_manual_hold_min
+                name: Hold after a hand switch (0 = off)
+              - entity: input_boolean.dump_hold_blocks_turn_off
+                name: Hold also blocks turn-offs
+              - type: button
+                name: Clear all holds
+                icon: mdi:hand-back-right-off
+                action_name: CLEAR
+                tap_action:
+                  action: perform-action
+                  perform_action: script.dump_clear_holds
+          - type: custom:auto-entities
+            card:
+              type: entities
+              title: Holds (per socket)
+              show_header_toggle: false
+              state_color: true
+            filter:
+              template: |-
+                {%- macro sock_name(s) -%}{%- set b = ['', 'unknown', 'unavailable', 'none'] -%}{%- set p = s[:4] -%}{%- set tag = p | upper ~ ' ' ~ s[5:] -%}{%- set l = states('input_text.h5082_' ~ s ~ '_load') | trim -%}{%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}{{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}{%- endmacro -%}
+                [
+                {%- for s in [
+                  '2f9d_left', '2f9d_right',
+                  '3013_left', '3013_right',
+                  '3ec9_left', '3ec9_right',
+                  '82fb_left', '82fb_right',
+                  '9607_left', '9607_right',
+                  'c061_left', 'c061_right',
+                  'c38d_left', 'c38d_right',
+                  'cf79_left', 'cf79_right',
+                ] -%}
+                {{ {'entity': 'timer.h5082_' ~ s ~ '_hold', 'name': sock_name(s)} | tojson }}{{ ',' if not loop.last else '' }}
+                {%- endfor -%}
+                ]
             show_empty: true
             grid_options:
               columns: full
@@ -546,7 +616,7 @@ views:
           - type: markdown
             content: |
               One button per socket: tap to switch it by hand, hold for details; a gold border means its Use is dump, and the label shows Where · normal/dump · the radio that hears it.
-              A dump socket you switch by hand can still be switched by the dump rules later.
+              A dump socket you switch by hand (here or on the plug) is put on hold: the dump rules leave it alone for **Dump manual hold** minutes and the label shows "hold to HH:MM".
               The big name is that socket's **Load** and the small text its plug's **Where** (set both under Plug names); a blank one shows the plug id and side.
               [Help: Plugs](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-buttons.md)
             grid_options:

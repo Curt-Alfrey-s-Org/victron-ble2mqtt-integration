@@ -37,6 +37,9 @@ fridge, freezer, pump or computer). Check the socket's Load first.
   `sensor.dump_next_plug` and `sensor.dump_shed_plug` only consider those; every
   turn-off rule builds its list from those. A House socket set to dump is still never
   switched (Dump sockets by name shows it as "House (grid power): never switched").
+- A dump socket you switch by hand is put on [manual hold](dump-hold.md) for **Dump
+  manual hold** minutes: the dump rules do not turn it on during the hold, and turn it
+  off only if **Hold also blocks turn-offs** is off.
 - Stage order is 2F9D left, 2F9D right, 3013 left, ... CF79 right; sheds go in the
   reverse order.
 - Changing a socket from **dump to normal** while it is on: HA stops touching it and
