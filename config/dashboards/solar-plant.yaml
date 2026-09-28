@@ -30,8 +30,7 @@ button_card_templates:
         const role = use && use.state === "dump" ? "dump" : "normal";
         const heard = states["sensor.h5082_" + plug + "_heard_by"];
         const radio = heard && heard.state && heard.state !== "unknown" && heard.state !== "unavailable" && heard.state !== "none" ? heard.state.split(" ")[0] : "";
-        const pi = plug === "c38d" ? " · Pi supply" : "";
-        return place + " · " + role + (radio ? " · " + radio : "") + pi;
+        return place + " · " + role + (radio ? " · " + radio : "");
       ]]]
     state:
       - value: "on"
@@ -328,6 +327,26 @@ views:
                 name: Sungold at/below stop volts (turns off)
               - entity: binary_sensor.dump_batt_sph_ok
                 name: Sungold battery within discharge limit
+          - type: markdown
+            title: Dump sockets by name (live)
+            content: |
+              {%- macro sock_name(s) -%}{%- set b = ['', 'unknown', 'unavailable', 'none'] -%}{%- set p = s[:4] -%}{%- set tag = p | upper ~ ' ' ~ s[5:] -%}{%- set l = states('input_text.h5082_' ~ s ~ '_load') | trim -%}{%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}{{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}{%- endmacro -%}
+              {%- set n = states('sensor.dump_next_plug') -%}
+              {%- set d = states('sensor.dump_shed_plug') -%}
+              **Next to add:** {{ sock_name(n | replace('switch.ihoment_h5082_', '')) if n.startswith('switch.ihoment_h5082_') else 'none' }}
+
+              **Next to shed:** {{ sock_name(d | replace('switch.ihoment_h5082_', '')) if d.startswith('switch.ihoment_h5082_') else 'none' }}
+
+              **Set to dump:**
+              {%- set ns = namespace(any=false) %}
+              {%- for s in ['2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right', '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right', 'cf79_left', 'cf79_right'] %}
+              {%- if is_state('input_select.h5082_' ~ s ~ '_use', 'dump') %}{% set ns.any = true %}
+              - {{ sock_name(s) }}: {{ states('switch.ihoment_h5082_' ~ s) }}, {{ states('input_select.h5082_' ~ s ~ '_inverter') }} bus
+              {%- endif %}
+              {%- endfor %}
+              {%- if not ns.any %} none{% endif %}
+            grid_options:
+              columns: full
 
       - type: grid
         cards:
@@ -521,7 +540,7 @@ views:
             content: |
               One button per socket: tap to switch it by hand, hold for details; a gold border means its Use is dump, and the label shows Where · normal/dump · the radio that hears it.
               A dump socket you switch by hand can still be switched by the dump rules later.
-              C38D feeds the Pi 4: do not turn it off.
+              The big name is that socket's **Load** and the small text its plug's **Where** (set both under Plug names); a blank one shows the plug id and side.
               [Help: Plugs](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-buttons.md)
             grid_options:
               columns: full
@@ -555,6 +574,22 @@ views:
               [Help: Plug names (Where / Load)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-names.md)
             grid_options:
               columns: full
+          - type: markdown
+            title: Current names (live)
+            content: |
+              {%- macro txt(e) -%}{%- set v = states(e) | trim | replace('|', '/') -%}{{ v if v not in ['', 'unknown', 'unavailable', 'none'] else '_not set_' }}{%- endmacro %}
+              | Plug | Where | Left load | Right load |
+              |---|---|---|---|
+              | 2F9D | {{ txt('input_text.h5082_2f9d_location') }} | {{ txt('input_text.h5082_2f9d_left_load') }} | {{ txt('input_text.h5082_2f9d_right_load') }} |
+              | 3013 | {{ txt('input_text.h5082_3013_location') }} | {{ txt('input_text.h5082_3013_left_load') }} | {{ txt('input_text.h5082_3013_right_load') }} |
+              | 3EC9 | {{ txt('input_text.h5082_3ec9_location') }} | {{ txt('input_text.h5082_3ec9_left_load') }} | {{ txt('input_text.h5082_3ec9_right_load') }} |
+              | 82FB | {{ txt('input_text.h5082_82fb_location') }} | {{ txt('input_text.h5082_82fb_left_load') }} | {{ txt('input_text.h5082_82fb_right_load') }} |
+              | 9607 | {{ txt('input_text.h5082_9607_location') }} | {{ txt('input_text.h5082_9607_left_load') }} | {{ txt('input_text.h5082_9607_right_load') }} |
+              | C061 | {{ txt('input_text.h5082_c061_location') }} | {{ txt('input_text.h5082_c061_left_load') }} | {{ txt('input_text.h5082_c061_right_load') }} |
+              | C38D | {{ txt('input_text.h5082_c38d_location') }} | {{ txt('input_text.h5082_c38d_left_load') }} | {{ txt('input_text.h5082_c38d_right_load') }} |
+              | CF79 | {{ txt('input_text.h5082_cf79_location') }} | {{ txt('input_text.h5082_cf79_left_load') }} | {{ txt('input_text.h5082_cf79_right_load') }} |
+            grid_options:
+              columns: full
           - type: entities
             title: 2F9D
             show_header_toggle: false
@@ -573,7 +608,7 @@ views:
               - entity: input_text.h5082_2f9d_right_load
                 name: Right load
           - type: entities
-            title: 3013
+            title: "3013"
             show_header_toggle: false
             state_color: true
             entities:
@@ -624,7 +659,7 @@ views:
               - entity: input_text.h5082_82fb_right_load
                 name: Right load
           - type: entities
-            title: 9607
+            title: "9607"
             show_header_toggle: false
             state_color: true
             entities:
@@ -658,7 +693,7 @@ views:
               - entity: input_text.h5082_c061_right_load
                 name: Right load
           - type: entities
-            title: C38D (Pi supply)
+            title: C38D
             show_header_toggle: false
             state_color: true
             entities:
@@ -700,48 +735,39 @@ views:
           - type: markdown
             content: |
               Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can).
-              Only choose dump for a load that may go off at any time (heater, water heater), and never for C38D (it is ignored anyway).
+              Only choose dump for a socket whose load may lose power at any time; each row shows the live Load and Where you typed (or the plug id and side when blank), and C38D is not in the dump list.
               Safe start: everything normal, then one dump socket with a lamp to test.
               [Help: Socket Use (normal / dump)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
             grid_options:
               columns: full
-          - type: entities
-            title: Socket Use
-            show_header_toggle: false
-            state_color: true
-            entities:
-              - entity: input_select.h5082_2f9d_left_use
-                name: 2F9D left
-              - entity: input_select.h5082_2f9d_right_use
-                name: 2F9D right
-              - entity: input_select.h5082_3013_left_use
-                name: 3013 left
-              - entity: input_select.h5082_3013_right_use
-                name: 3013 right
-              - entity: input_select.h5082_3ec9_left_use
-                name: 3EC9 left
-              - entity: input_select.h5082_3ec9_right_use
-                name: 3EC9 right
-              - entity: input_select.h5082_82fb_left_use
-                name: 82FB left
-              - entity: input_select.h5082_82fb_right_use
-                name: 82FB right
-              - entity: input_select.h5082_9607_left_use
-                name: 9607 left
-              - entity: input_select.h5082_9607_right_use
-                name: 9607 right
-              - entity: input_select.h5082_c061_left_use
-                name: C061 left
-              - entity: input_select.h5082_c061_right_use
-                name: C061 right
-              - entity: input_select.h5082_c38d_left_use
-                name: C38D left (Pi supply, never dumped)
-              - entity: input_select.h5082_c38d_right_use
-                name: C38D right (Pi supply, never dumped)
-              - entity: input_select.h5082_cf79_left_use
-                name: CF79 left
-              - entity: input_select.h5082_cf79_right_use
-                name: CF79 right
+          - type: custom:auto-entities
+            card:
+              type: entities
+              title: Socket Use
+              show_header_toggle: false
+              state_color: true
+            filter:
+              template: |-
+                {%- macro sock_name(s) -%}{%- set b = ['', 'unknown', 'unavailable', 'none'] -%}{%- set p = s[:4] -%}{%- set tag = p | upper ~ ' ' ~ s[5:] -%}{%- set l = states('input_text.h5082_' ~ s ~ '_load') | trim -%}{%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}{{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}{%- endmacro -%}
+                [
+                {%- for e in [
+                  'input_select.h5082_2f9d_left_use', 'input_select.h5082_2f9d_right_use',
+                  'input_select.h5082_3013_left_use', 'input_select.h5082_3013_right_use',
+                  'input_select.h5082_3ec9_left_use', 'input_select.h5082_3ec9_right_use',
+                  'input_select.h5082_82fb_left_use', 'input_select.h5082_82fb_right_use',
+                  'input_select.h5082_9607_left_use', 'input_select.h5082_9607_right_use',
+                  'input_select.h5082_c061_left_use', 'input_select.h5082_c061_right_use',
+                  'input_select.h5082_c38d_left_use', 'input_select.h5082_c38d_right_use',
+                  'input_select.h5082_cf79_left_use', 'input_select.h5082_cf79_right_use',
+                ] -%}
+                {%- set s = e.split('.')[1][6:].rsplit('_', 1)[0] -%}
+                {%- set extra = ' - not in the dump list (no key yet)' if s.startswith('c38d') else '' -%}
+                {{ {'entity': e, 'name': sock_name(s) ~ extra} | tojson }}{{ ',' if not loop.last else '' }}
+                {%- endfor -%}
+                ]
+            show_empty: true
+            grid_options:
+              columns: full
 
       - type: grid
         cards:
@@ -756,39 +782,33 @@ views:
               [Help: Socket inverter (bus)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-inverter.md)
             grid_options:
               columns: full
-          - type: entities
-            title: Socket inverter
-            show_header_toggle: false
-            state_color: true
-            entities:
-              - entity: input_select.h5082_2f9d_left_inverter
-                name: 2F9D left
-              - entity: input_select.h5082_2f9d_right_inverter
-                name: 2F9D right
-              - entity: input_select.h5082_3013_left_inverter
-                name: 3013 left
-              - entity: input_select.h5082_3013_right_inverter
-                name: 3013 right
-              - entity: input_select.h5082_3ec9_left_inverter
-                name: 3EC9 left
-              - entity: input_select.h5082_3ec9_right_inverter
-                name: 3EC9 right
-              - entity: input_select.h5082_82fb_left_inverter
-                name: 82FB left
-              - entity: input_select.h5082_82fb_right_inverter
-                name: 82FB right
-              - entity: input_select.h5082_9607_left_inverter
-                name: 9607 left
-              - entity: input_select.h5082_9607_right_inverter
-                name: 9607 right
-              - entity: input_select.h5082_c061_left_inverter
-                name: C061 left
-              - entity: input_select.h5082_c061_right_inverter
-                name: C061 right
-              - entity: input_select.h5082_cf79_left_inverter
-                name: CF79 left
-              - entity: input_select.h5082_cf79_right_inverter
-                name: CF79 right
+          - type: custom:auto-entities
+            card:
+              type: entities
+              title: Socket inverter
+              show_header_toggle: false
+              state_color: true
+            filter:
+              template: |-
+                {%- macro sock_name(s) -%}{%- set b = ['', 'unknown', 'unavailable', 'none'] -%}{%- set p = s[:4] -%}{%- set tag = p | upper ~ ' ' ~ s[5:] -%}{%- set l = states('input_text.h5082_' ~ s ~ '_load') | trim -%}{%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}{{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}{%- endmacro -%}
+                [
+                {%- for e in [
+                  'input_select.h5082_2f9d_left_inverter', 'input_select.h5082_2f9d_right_inverter',
+                  'input_select.h5082_3013_left_inverter', 'input_select.h5082_3013_right_inverter',
+                  'input_select.h5082_3ec9_left_inverter', 'input_select.h5082_3ec9_right_inverter',
+                  'input_select.h5082_82fb_left_inverter', 'input_select.h5082_82fb_right_inverter',
+                  'input_select.h5082_9607_left_inverter', 'input_select.h5082_9607_right_inverter',
+                  'input_select.h5082_c061_left_inverter', 'input_select.h5082_c061_right_inverter',
+                  'input_select.h5082_cf79_left_inverter', 'input_select.h5082_cf79_right_inverter',
+                ] -%}
+                {%- set s = e.split('.')[1][6:].rsplit('_', 1)[0] -%}
+                {%- set extra = '' -%}
+                {{ {'entity': e, 'name': sock_name(s) ~ extra} | tojson }}{{ ',' if not loop.last else '' }}
+                {%- endfor -%}
+                ]
+            show_empty: true
+            grid_options:
+              columns: full
 
       - type: grid
         cards:

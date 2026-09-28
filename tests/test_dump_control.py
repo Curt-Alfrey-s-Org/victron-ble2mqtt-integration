@@ -20,13 +20,14 @@ DOCS = ROOT / "docs" / "DUMP_LOAD_HA_CONTROL.md"
 DASHBOARD = ROOT / "config" / "dashboards" / "solar-plant.yaml"
 INSTALL = ROOT / "scripts" / "install_dump_control_ha.sh"
 
-# C38D feeds the Pi 4; it is deliberately not a dump candidate.
-PI_SUPPLY = "c38d"
+# C38D has no pairing key on the bridge yet (NO_KEY); it is deliberately not a dump
+# candidate. (Nothing here says what is plugged into it: that is the HA Load text.)
+NO_KEY_PLUG = "c38d"
 # Stage order = plug id order (same as the Site solar cards and the label script).
 SOCKS = [
     f"{plug}_{side}"
     for plug in sorted(name[-4:].lower() for _address, name in PLUGS)
-    if plug != PI_SUPPLY
+    if plug != NO_KEY_PLUG
     for side, _port, _label in SIDES
 ]
 ALL_H5082_SWITCHES = {
@@ -78,7 +79,7 @@ def test_socket_list_matches_bridge_discovery() -> None:
     # The switch ids the templates build are the ids HA gives the bridge's discovery.
     for s in SOCKS:
         assert f"switch.ihoment_h5082_{s}" in ALL_H5082_SWITCHES
-    assert PI_SUPPLY not in text.split("# Victron float hold")[1]
+    assert NO_KEY_PLUG not in text.split("# Victron float hold")[1]
 
 
 def test_helpers_per_socket() -> None:

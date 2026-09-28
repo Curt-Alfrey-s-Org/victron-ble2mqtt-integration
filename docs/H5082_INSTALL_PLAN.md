@@ -54,7 +54,7 @@ Home Assistant on `.105` has no Bluetooth radio. Its Bluetooth docs only accept 
 
 `[ ]` Pair each plug with the button procedure in [virtuald/govee-ble-plugs](https://github.com/virtuald/govee-ble-plugs) `GoveePlugPairer` (message `aa b1`, reply `aa b1 01` is the key). Arm every unpaired plug at once (`/home/n4s1/bin/h5082_listen.py` on `hci1`). A press on any socket is the pairing press for that whole plug. Keys go in `/home/n4s1/.govee-h5082-keys` mode `600` on the Pi, never in git. Then publish one MQTT switch per socket. Do not write a second protocol.
 
-Partial, listener stopped 2026-09-25 at the operator's "done": **7 keys saved** (`2F9D`, `CF79`, `3EC9`, `3013`, `82FB`, `C061`, `9607`). **`C38D` is not paired.** The Pi 4 power cord is plugged into that H5082. Do not press the button on the socket feeding the Pi. The other socket's button is safe. If that socket must also stay on, move the Pi's cord to a wall outlet first, then press. MQTT switches are not published yet.
+Partial, listener stopped 2026-09-25 at the operator's "done": **7 keys saved** (`2F9D`, `CF79`, `3EC9`, `3013`, `82FB`, `C061`, `9607`). **`C38D` is not paired.** (Correction 2026-09-28: an earlier note here said the Pi 4 was powered from C38D. It is not; the Pi 4 is not plugged into any H5082.) Before pressing a plug's button to pair it, check that socket's **Load** in HA and move anything that must stay on first. MQTT switches are not published yet.
 
 ## Retired — cloud install
 
@@ -62,7 +62,7 @@ Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassi
 
 ## Checkpoint 3 — sixteen switches exist
 
-`[x]` Home Assistant on `.105` has **two MQTT switches per plug** (16), discovered from `h5082-mqtt.service` on the Pi (`hci1` only). States were set from each plug's advertisement, not by turning sockets. `C38D` has no pairing key, so a command for that plug is ignored and the switch stays on the reported state. The Pi does not need a remote off.
+`[x]` Home Assistant on `.105` has **two MQTT switches per plug** (16), discovered from `h5082-mqtt.service` on the Pi (`hci1` only). States were set from each plug's advertisement, not by turning sockets. `C38D` has no pairing key, so a command for that plug is ignored and the switch stays on the reported state.
 
 `[x]` Site solar (`/site-solar`, Now view, heading **Plugs**) shows those 16 tiles. The sim plug package and the **Sim dump plugs** history card are removed. `switch.sim_ac_plug_*` is gone.
 
@@ -79,7 +79,7 @@ Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassi
 
 ## Checkpoint 4 — normal vs dump, manual vs auto
 
-`[x]` (repo, 2026-09-28) `config/packages/dump_control.yaml` replaces `sim_dump_control.yaml` and reads `input_select.h5082_<id>_<side>_use`; each socket also has `input_select.h5082_<id>_<side>_inverter` and its own min-on / cooldown timers. C38D (Pi supply) is left out. Install on `.105` with `bash scripts/install_dump_control_ha.sh`.
+`[x]` (repo, 2026-09-28) `config/packages/dump_control.yaml` replaces `sim_dump_control.yaml` and reads `input_select.h5082_<id>_<side>_use`; each socket also has `input_select.h5082_<id>_<side>_inverter` and its own min-on / cooldown timers. C38D (no pairing key yet) is left out. What each socket feeds and where each plug is are the HA **Where** / **Load** helpers, not repo text. Install on `.105` with `bash scripts/install_dump_control_ha.sh`.
 
 Add one [input_select](https://www.home-assistant.io/integrations/input_select/) per socket, options `normal` and `dump`. Default **normal**. The operator sets **dump** on the 4 sockets that are the two dump plugs. Helpers stay editable under Settings → Helpers.
 

@@ -4,7 +4,10 @@
 # input_select.h5082_<id>_<side>_use is "dump" (helpers from
 # scripts/create_h5082_socket_labels.py, default "normal"). A "normal" socket is never
 # turned on or off by these automations. See docs/DUMP_LOAD_HA_CONTROL.md.
-# C38D is not in the socket list: it feeds the Pi 4 (docs/H5082_INSTALL_PLAN.md).
+# C38D is not in the socket list: it has no pairing key on the bridge yet (NO_KEY), so
+# HA cannot switch it. What is plugged into each socket and where each plug sits are
+# NOT written here: they are the input_text Where / Load helpers you set in HA
+# (Site solar > Plug names), and the logbook lines read them live.
 # Stage/shed order is the list order below (stage first, shed last-first).
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
@@ -809,12 +812,24 @@ automation dump_load:
                 load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
               value_template: "{{ is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') }}"
+            # Live name for the logbook line: the socket's Load text and its plug's
+            # Where text (input_text helpers you set in HA), else the plug id + side.
+            # Nothing about what is plugged in is hard-coded here. Reused below.
+            - &socket_label
+              variables:
+                label: >-
+                  {%- set b = ['', 'unknown', 'unavailable', 'none'] -%}
+                  {%- set p = sock[:4] -%}
+                  {%- set tag = p | upper ~ ' ' ~ sock[5:] -%}
+                  {%- set l = states('input_text.h5082_' ~ sock ~ '_load') | trim -%}
+                  {%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}
+                  {{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "{{ target }}"
                 message: >-
-                  turning ON ({{ bus }} bus): charger in float, T2 PV
+                  {{ label }}: turning ON ({{ bus }} bus): charger in float, T2 PV
                   {{ states('sensor.dump_surplus_w') }} W, bus {{ states(volts_eid) }} V
                   >= start {{ states(start_v_eid) }} V, {{ bus }} load before
                   {{ load_before }} W.
@@ -854,12 +869,13 @@ automation dump_load:
                 - action: timer.cancel
                   target:
                     entity_id: "timer.h5082_{{ sock }}_min_on"
+                - *socket_label
                 - action: logbook.log
                   data:
                     name: Dump control
                     entity_id: "{{ target }}"
                     message: >-
-                      turned back OFF: charger left float or solar went away during the
+                      {{ label }}: turned back OFF: charger left float or solar went away during the
                       confirm wait. Cooldown 10 min. Staging stopped.
                 - stop: left float or solar gone
             - if:
@@ -872,12 +888,13 @@ automation dump_load:
                 - action: timer.start
                   target:
                     entity_id: "timer.h5082_{{ sock }}_cooldown"
+                - *socket_label
                 - action: logbook.log
                   data:
                     name: Dump control
                     entity_id: "{{ target }}"
                     message: >-
-                      turned back OFF: not confirmed. {{ 'Plug reported on' if switched
+                      {{ label }}: turned back OFF: not confirmed. {{ 'Plug reported on' if switched
                       else 'Plug never reported on (2 min)' }}; {{ bus }} load rose
                       {{ rise }} W, needs {{ delta_min }} W. Cooldown 10 min.
                 - delay: 1
@@ -885,12 +902,13 @@ automation dump_load:
                 - action: timer.start
                   target:
                     entity_id: "timer.h5082_{{ sock }}_min_on"
+                - *socket_label
                 - action: logbook.log
                   data:
                     name: Dump control
                     entity_id: "{{ target }}"
                     message: >-
-                      kept ON: {{ bus }} load rose {{ rise }} W (needs {{ delta_min }} W).
+                      {{ label }}: kept ON: {{ bus }} load rose {{ rise }} W (needs {{ delta_min }} W).
                 - delay: 1
 
   - id: dump_turn_off_solar_gone
@@ -936,12 +954,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF all: solar gone for 1 minute": T2 PV {{ states('sensor.solar_controller_solar') }} W below Dump min solar {{ states('input_number.dump_min_solar_w') }} W for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF all: solar gone for 1 minute": T2 PV {{ states('sensor.solar_controller_solar') }} W below Dump min solar {{ states('input_number.dump_min_solar_w') }} W for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_bulk
     alias: "Dump SHED one per minute: T2 charger left absorption/float"
@@ -983,12 +1004,13 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ sock }}_cooldown"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "{{ target }}"
                 message: >-
-                  turned OFF by "Dump SHED one per minute: T2 charger left absorption/float": T2 charger is {{ states('sensor.solar_controller_charge_state') }} (not float). Next shed in 1 min if still true.
+                  {{ label }}: turned OFF by "Dump SHED one per minute: T2 charger left absorption/float": T2 charger is {{ states('sensor.solar_controller_charge_state') }} (not float). Next shed in 1 min if still true.
             - delay: "00:01:00"
 
   - id: dump_shed_load_exceeds_solar
@@ -996,8 +1018,7 @@ automation dump_load:
     description: >
       Sungold AC-out (Load now, includes dump) above T2 MPPT PV + Sungold PV for 1 min.
       Sheds one dump socket per minute (last in the stage order first) so dump tracks
-      solar. Never touches a socket whose Use is normal (trailer A/C and other standing
-      loads).
+      solar. Never touches a socket whose Use is normal (anything that must stay on).
     mode: single
     triggers:
       - trigger: state
@@ -1031,12 +1052,13 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ sock }}_cooldown"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "{{ target }}"
                 message: >-
-                  turned OFF by "Dump SHED one per minute: Sungold load above solar": Sungold load {{ states('sensor.sungold_sph302480a_load_power') }} W is above T2 PV {{ states('sensor.solar_controller_solar') }} W + Sungold PV {{ states('sensor.sungold_sph302480a_pv_power') }} W. Next shed in 1 min if still true.
+                  {{ label }}: turned OFF by "Dump SHED one per minute: Sungold load above solar": Sungold load {{ states('sensor.sungold_sph302480a_load_power') }} W is above T2 PV {{ states('sensor.solar_controller_solar') }} W + Sungold PV {{ states('sensor.sungold_sph302480a_pv_power') }} W. Next shed in 1 min if still true.
             - delay: "00:01:00"
 
   - id: dump_notify_load_exceeds_solar
@@ -1115,12 +1137,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF T2 sockets: T2 bus at stop volts (re-bulk)": T2 bus {{ states('sensor.battery_1_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_t2_v') }} V for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF T2 sockets: T2 bus at stop volts (re-bulk)": T2 bus {{ states('sensor.battery_1_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_t2_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_rebulk_ku
     alias: "Dump OFF KU sockets: KU bus at stop volts (re-bulk)"
@@ -1166,12 +1191,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF KU sockets: KU bus at stop volts (re-bulk)": KU bus {{ states('sensor.battery_2_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_ku_v') }} V for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF KU sockets: KU bus at stop volts (re-bulk)": KU bus {{ states('sensor.battery_2_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_ku_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_rebulk_sph
     alias: "Dump OFF Sungold sockets: Sungold bus at stop volts (re-bulk)"
@@ -1217,12 +1245,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF Sungold sockets: Sungold bus at stop volts (re-bulk)": Sungold bus {{ states('sensor.sungold_sph302480a_battery_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_sph_v') }} V for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF Sungold sockets: Sungold bus at stop volts (re-bulk)": Sungold bus {{ states('sensor.sungold_sph302480a_battery_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_sph_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_t2
     alias: "Dump OFF T2 sockets: T2 battery discharging past limit"
@@ -1268,12 +1299,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF T2 sockets: T2 battery discharging past limit": T2 battery power {{ states('sensor.battery_1_power') }} W is past the -{{ states('input_number.dump_max_discharge_t2_w') }} W limit for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF T2 sockets: T2 battery discharging past limit": T2 battery power {{ states('sensor.battery_1_power') }} W is past the -{{ states('input_number.dump_max_discharge_t2_w') }} W limit for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_ku
     alias: "Dump OFF KU sockets: KU battery discharging past limit"
@@ -1319,12 +1353,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF KU sockets: KU battery discharging past limit": KU battery power {{ states('sensor.battery_2_power') }} W is past the -{{ states('input_number.dump_max_discharge_ku_w') }} W limit for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF KU sockets: KU battery discharging past limit": KU battery power {{ states('sensor.battery_2_power') }} W is past the -{{ states('input_number.dump_max_discharge_ku_w') }} W limit for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_sph
     alias: "Dump OFF Sungold sockets: Sungold battery discharging past limit"
@@ -1371,12 +1408,15 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
             - action: logbook.log
               data:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  turned OFF by "Dump OFF Sungold sockets: Sungold battery discharging past limit": Sungold battery power {{ states('sensor.sungold_sph302480a_charging_power') }} W is past the -{{ states('input_number.dump_max_discharge_sph_w') }} W limit for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF Sungold sockets: Sungold battery discharging past limit": Sungold battery power {{ states('sensor.sungold_sph302480a_charging_power') }} W is past the -{{ states('input_number.dump_max_discharge_sph_w') }} W limit for 1 min. Cooldown 10 min.
 
 # Manual only. Nothing in this repo calls it: no automation, no startup hook, no timer.
 # The Site solar button asks for confirmation first. It writes the recommended starting
