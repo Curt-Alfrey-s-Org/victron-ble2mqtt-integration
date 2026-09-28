@@ -4,6 +4,7 @@ from __future__ import annotations
 
 _CHARGE_POWER_W = 15.0
 _MIN_VOLTAGE_V = 20.0
+_ZERO_CURRENT_A = 0.05
 
 
 def reconcile_battery_current(
@@ -22,7 +23,7 @@ def reconcile_battery_current(
         return current_s
     if watts > _CHARGE_POWER_W and volts > _MIN_VOLTAGE_V:
         mag = abs(amps)
-        if mag < 0.05:
+        if mag < _ZERO_CURRENT_A:
             mag = watts / volts
         return f"{mag:.1f}"
     return current_s
