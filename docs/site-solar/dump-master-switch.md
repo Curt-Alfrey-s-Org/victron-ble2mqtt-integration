@@ -14,7 +14,7 @@ plus a button that puts the dump numbers back to safe starting values.
 | Row | Entity | What it does |
 |---|---|---|
 | Dump load HA control (master switch) | `input_boolean.dump_control_enabled` | **On:** the dump rules run (add sockets in float, turn off on solar gone, stop volts, battery limit, shed). **Off:** no rule switches any socket. |
-| Load recommended starting values | button, runs `script.dump_load_recommended_defaults` (asks for confirmation) | Writes: start volts 27.0 V and stop volts 26.8 V on every bus, AC limits 2000 W, battery discharge limits T2 0 / KU 0 / Sungold 50 W, min solar 50 W, min SoC 95 %, confirm wait 5 s, min load rise 25 W, and turns **Ignore SoC** on. It does **not** touch the master switch, the alert service, any socket Use / Inverter / label, or any plug. |
+| Load recommended starting values | button, runs `script.dump_load_recommended_defaults` (asks for confirmation) | Writes: start volts 27.0 V and stop volts 26.8 V on every bus, AC limits 2000 W, battery discharge limits T2 0 / KU 0 / Sungold 50 W, min solar 50 W, min SoC 95 %, confirm wait 5 s, min load rise 25 W, manual hold 60 min, and turns **Ignore SoC** and **Hold also blocks turn-offs** on. It does **not** touch the master switch, the alert service, any socket Use / Inverter / label, or any plug. |
 
 ## How it works in the package
 
