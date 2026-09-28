@@ -89,7 +89,8 @@ Tracked source: `config/packages/dump_control.yaml` (replaced the retired
 Depends on:
 
 - The H5082 MQTT switches `switch.ihoment_h5082_<id>_<side>` from `govee_h5082`
-  (`h5082-mqtt.service` on the Pi 4, `hci1`) -- see [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md).
+  (`h5082-mqtt.service` on the Pi 4, `hci1`, and on the Pi 5 for the plugs it owns) -- see
+  [H5082_INSTALL_PLAN.md](H5082_INSTALL_PLAN.md) and [H5082_MULTI_BRIDGE.md](H5082_MULTI_BRIDGE.md).
 - The per-socket helpers `input_select.h5082_<id>_<side>_use` (normal / dump) from
   `scripts/create_h5082_socket_labels.py`. Missing or unknown = normal.
 

@@ -64,6 +64,10 @@ Downloaded [Govee Cloud Integration](https://github.com/lasswellt/govee-homeassi
 
 `[x]` Home Assistant on `.105` has **two MQTT switches per plug** (16), discovered from `h5082-mqtt.service` on the Pi (`hci1` only). States were set from each plug's advertisement, not by turning sockets. Until 2026-09-28 `C38D` had no pairing key, so a command for that plug was ignored (`NO_KEY`); since it was paired, both sockets switch from HA.
 
+Update 2026-09-28: a second bridge can run on the Pi 5 for plugs the Pi 4 cannot reach
+(first `82FB`). Each Pi owns the plugs in its `H5082_PLUGS` allowlist; HA keeps the same
+16 entities. See [H5082_MULTI_BRIDGE.md](H5082_MULTI_BRIDGE.md).
+
 `[x]` Site solar (`/site-solar`, Now view, heading **Plugs**) shows those 16 tiles. The sim plug package and the **Sim dump plugs** history card are removed. `switch.sim_ac_plug_*` is gone.
 
 | Plug | Left | Right |

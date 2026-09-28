@@ -10,6 +10,9 @@ Group=n4s1
 EnvironmentFile=/home/n4s1/victron-ble2mqtt-integration/.env
 Environment=H5082_LISTENER=pi4
 Environment=H5082_ADAPTER=hci1
+# Optional per-host settings outside git (H5082_PLUGS allowlist). Without the file
+# (or with H5082_PLUGS unset) this bridge owns every plug, as before.
+EnvironmentFile=-/home/n4s1/.config/h5082-bridge.env
 WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
 ExecStart=/home/n4s1/govee-ble-venv/bin/python -u -m govee_h5082
 Restart=on-failure

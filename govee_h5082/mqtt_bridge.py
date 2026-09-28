@@ -3,17 +3,27 @@
 Command bytes and the advertisement state bits are the virtuald/govee-ble-plugs
 H5082 procedure (Left/Right on and off, manufacturer-data last byte). The bridge
 does not invent a second protocol. Keys stay in the Pi key file and are never
-logged. hci0 is the Victron adapter and is never opened.
+logged. On the Pi 4, hci0 is the Victron adapter and is never opened.
+
+Several bridges (one per Pi) may share the broker. Each one owns only the plugs in
+its allowlist (H5082_PLUGS, from a host file outside git); HA keeps one entity per
+socket because every owner uses the same command / state / discovery topics. Only
+the availability topic is per host, so a Pi going down greys out only its plugs.
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Iterable
+import re
+import stat
+from collections.abc import Iterable
 
 ADAPTER = "hci1"
 KEY_PATH = "/home/n4s1/.govee-h5082-keys"
+# One bridge owning every plug (the Pi 4 before per-host ownership). Kept when no
+# allowlist is set so an unchanged Pi 4 publishes exactly what it did before.
+AVAIL_LEGACY = "govee/h5082/bridge/status"
 SEND_UUID = "00010203-0405-0607-0809-0a0b0c0d2b11"
 RECV_UUID = "00010203-0405-0607-0809-0a0b0c0d2b10"
 
@@ -89,7 +99,19 @@ def payload_for(on: bool) -> str:
     return "ON" if on else "OFF"
 
 
-def discovery_payload(address: str, name: str, side: str, side_name: str) -> dict:
+def avail_topic(host: str | None) -> str:
+    """Bridge availability: legacy single topic, or one per owning host."""
+    return f"govee/h5082/bridge/{host}/status" if host else AVAIL_LEGACY
+
+
+def owner_topic(address: str) -> str:
+    """Retained claim: which host's bridge owns this plug (payload = host id)."""
+    return f"govee/h5082/{mac_id(address)}/owner"
+
+
+def discovery_payload(
+    address: str, name: str, side: str, side_name: str, availability_topic: str = AVAIL_LEGACY
+) -> dict:
     ident = f"h5082_{mac_id(address)}"
     return {
         "name": side_name,
@@ -97,7 +119,7 @@ def discovery_payload(address: str, name: str, side: str, side_name: str) -> dic
         "unique_id": f"{ident}_{side}",
         "command_topic": command_topic(address, side),
         "state_topic": state_topic(address, side),
-        "availability_topic": "govee/h5082/bridge/status",
+        "availability_topic": availability_topic,
         "payload_available": "online",
         "payload_not_available": "offline",
         "payload_on": "ON",
@@ -122,7 +144,51 @@ def iter_switches(plugs: Iterable[tuple[str, str]] = PLUGS):
             yield address, name, side, side_name
 
 
-def load_keys(path: str = KEY_PATH) -> dict[str, str]:
+def key_path() -> str:
+    """Key file: H5082_KEY_PATH, else the Pi default. Never inside the repo."""
+    return os.environ.get("H5082_KEY_PATH") or KEY_PATH
+
+
+def key_file_problem(path: str) -> str | None:
+    """Why the key file is unsafe (readable by group/others), or None."""
+    try:
+        mode = os.stat(path).st_mode
+    except FileNotFoundError:
+        return "missing"
+    if mode & (stat.S_IRWXG | stat.S_IRWXO):
+        return f"mode {stat.S_IMODE(mode):o}, want 600"
+    return None
+
+
+def parse_owned(value: str | None, plugs: Iterable[tuple[str, str]] = PLUGS) -> set[str] | None:
+    """H5082_PLUGS -> owned plug addresses.
+
+    Unset / blank -> None (legacy: this bridge owns every plug). "all" -> every plug.
+    Otherwise plug ids (last 4 hex of the MAC, e.g. "82FB") or full MACs, separated by
+    commas or spaces; "none" owns nothing (RSSI only). An unknown id is an error, so a
+    typo cannot silently drop a plug.
+    """
+    if value is None or not value.strip():
+        return None
+    plugs = tuple(plugs)
+    words = [w for w in re.split(r"[\s,]+", value.strip()) if w]
+    if [w.lower() for w in words] == ["all"]:
+        return {address for address, _name in plugs}
+    if [w.lower() for w in words] == ["none"]:
+        return set()
+    by_id = {address.replace(":", "")[-4:].upper(): address for address, _name in plugs}
+    by_mac = {address.upper(): address for address, _name in plugs}
+    owned: set[str] = set()
+    for word in words:
+        address = by_id.get(word.upper()) or by_mac.get(word.upper())
+        if address is None:
+            raise ValueError(f"unknown H5082 plug {word!r} (known: {', '.join(sorted(by_id))})")
+        owned.add(address)
+    return owned
+
+
+def load_keys(path: str | None = None) -> dict[str, str]:
+    path = path or key_path()
     found: dict[str, str] = {}
     if not os.path.exists(path):
         return found

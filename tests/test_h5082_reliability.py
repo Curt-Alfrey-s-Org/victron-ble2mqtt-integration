@@ -113,7 +113,8 @@ def bridge(monkeypatch):
     monkeypatch.setenv("MQTT_HOST", "broker.invalid")
     monkeypatch.setenv("MQTT_USER", "u")
     monkeypatch.setenv("MQTT_PASSWORD", "p")
-    monkeypatch.delenv("H5082_RSSI_ONLY", raising=False)
+    for name in ("H5082_RSSI_ONLY", "H5082_PLUGS", "H5082_LISTENER", "H5082_ADAPTER"):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(govee_main, "load_keys", lambda: {A: TOKEN, B: TOKEN})
     br = govee_main.Bridge()
     br._client = Mock()
