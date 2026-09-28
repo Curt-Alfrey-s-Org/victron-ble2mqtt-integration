@@ -95,7 +95,10 @@ def test_helpers_per_socket() -> None:
     assert not any(k.endswith("_use") for k in data["input_select"])
     assert "dump_control_enabled" in data["input_boolean"]
     assert "initial" not in data["input_boolean"]["dump_control_enabled"]
-    assert data["input_number"]["dump_site_confirm_s"]["initial"] == 5
+    # 2026-09-28: no `initial:` anywhere, so tuned values survive HA restarts
+    # (tests/test_site_solar_persist_and_help.py covers every helper).
+    assert "initial" not in data["input_number"]["dump_site_confirm_s"]
+    assert data["input_number"]["dump_site_confirm_s"]["min"] == 5
 
 
 def test_switch_actions_are_never_hardcoded() -> None:

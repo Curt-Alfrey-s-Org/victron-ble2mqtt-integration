@@ -8,6 +8,12 @@ WebSocket frames: RFC 6455 https://www.rfc-editor.org/rfc/rfc6455.html#section-5
 
 Does not add grid, carbon/Electricity Maps, gas, water, or KU equal-share solar.
 Token is never printed.
+
+Non-destructive by default (2026-09-28): the live Energy prefs are backed up first
+(<repo>/.backups/site-solar/<stamp>-energy-prefs/energy-prefs.json, git-ignored).
+If Energy already has sources or devices that differ from this repo's list (you
+edited Settings > Dashboards > Energy), the script refuses and exits 3 unless you
+pass --force.
 """
 
 from __future__ import annotations
@@ -20,10 +26,12 @@ import os
 import socket
 import struct
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+ROOT = Path(__file__).resolve().parents[1]
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 OP_TEXT = 0x1
 OP_CLOSE = 0x8
@@ -209,6 +217,45 @@ def load_token(token_file: Path | None) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def _rows_match(live_rows: list[Any], want_rows: list[Any]) -> bool:
+    """HA adds default keys (stat_cost, ...) when it stores prefs; compare only ours."""
+    if len(live_rows) != len(want_rows):
+        return False
+    for got, want in zip(live_rows, want_rows):
+        if not isinstance(got, dict):
+            return False
+        for key, value in want.items():
+            if isinstance(value, dict):
+                if not _rows_match([got.get(key) or {}], [value]):
+                    return False
+            elif got.get(key) != value:
+                return False
+    return True
+
+
+def energy_decide(live: dict[str, Any] | None, force: bool) -> str:
+    """'save' when Energy is empty or --force, 'same' when it already matches, else 'refuse'."""
+    want = energy_save_payload()
+    live = live or {}
+    keys = ("energy_sources", "device_consumption", "device_consumption_water")
+    if not any(live.get(k) for k in keys):
+        return "save"
+    if all(_rows_match(live.get(k) or [], want[k]) for k in keys):
+        return "same"
+    return "save" if force else "refuse"
+
+
+def _backup_prefs(live: dict[str, Any]) -> Path:
+    root = Path(
+        os.environ.get("SITE_SOLAR_BACKUP_DIR", "").strip() or ROOT / ".backups" / "site-solar"
+    )
+    folder = root.expanduser() / (datetime.now().strftime("%Y%m%d-%H%M%S") + "-energy-prefs")
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / "energy-prefs.json"
+    path.write_text(json.dumps(live, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 def summarize(prefs: dict[str, Any]) -> None:
     print("energy_sources:")
     for src in prefs.get("energy_sources") or []:
@@ -222,6 +269,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Save Solar plant Energy prefs over HA websocket")
     parser.add_argument("--url", default=os.environ.get("HA_URL", "http://192.168.0.105:8123"))
     parser.add_argument("--token-file", type=Path, default=None)
+    parser.add_argument(
+        "--force", action="store_true", help="overwrite Energy prefs you edited in the UI"
+    )
     args = parser.parse_args(argv)
     token = load_token(args.token_file)
     ws = ws_connect(args.url)
@@ -237,9 +287,28 @@ def main(argv: list[str] | None = None) -> int:
         auth = recv_text(ws)
         if auth.get("type") != "auth_ok":
             raise RuntimeError("HA websocket auth failed")
-        saved = ws_call(ws, 1, {"type": "energy/save_prefs", **energy_save_payload()})
+        try:
+            live = ws_call(ws, 1, {"type": "energy/get_prefs"})
+        except RuntimeError as exc:
+            if "not_found" not in str(exc):
+                raise
+            live = {}
+        if live:
+            print(f"[energy] backed up live Energy prefs -> {_backup_prefs(live)}")
+        action = energy_decide(live, args.force)
+        if action == "same":
+            print("[energy] Energy prefs already match the repo; nothing to do")
+            return 0
+        if action == "refuse":
+            print(
+                "[energy] REFUSED: Energy already has sources/devices that differ from the "
+                "repo list (your UI edits). Nothing changed. Rerun with --force to replace.",
+                file=sys.stderr,
+            )
+            return 3
+        saved = ws_call(ws, 2, {"type": "energy/save_prefs", **energy_save_payload()})
         summarize(saved)
-        ws_call(ws, 2, {"type": "energy/validate"})
+        ws_call(ws, 3, {"type": "energy/validate"})
         print("energy/validate ok")
     finally:
         try:

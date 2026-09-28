@@ -233,89 +233,275 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Dump
+            heading: Dump master switch
+            icon: mdi:transmission-tower-export
           - type: markdown
-            content: >
-              H5082 sockets. Dump helpers stay in the sections below.
-              [DUMP_LOAD_HA_CONTROL.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md).
+            content: |
+              Lets Home Assistant switch dump sockets by itself: **on** = the dump rules run, **off** = HA never switches a dump socket (ones already on stay on until you turn them off).
+              Start with it **off**, set Use and Inverter on one test socket, check the numbers below, then turn it on.
+              The LOAD button (it asks first) puts every dump number back to the recommended starting values.
+              [Help: Dump master switch](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-master-switch.md)
             grid_options:
               columns: full
-          - type: tile
-            entity: input_boolean.dump_control_enabled
-            name: Automations
-            features:
-              - type: toggle
-
-      - type: grid
-        cards:
-          - type: heading
-            heading: Dump voltages
           - type: entities
-            title: Dump voltages
+            title: Dump master switch
             show_header_toggle: false
+            state_color: true
             entities:
-              - entity: input_boolean.dump_soc_unsynced
-                name: SoC unsynced
-              - entity: input_text.dump_notify_service
-                name: Notify service
-              - entity: input_number.dump_site_confirm_s
-                name: Site confirm s
-              - entity: input_number.dump_site_delta_min_w
-                name: Site delta min W
-              - entity: input_number.dump_min_solar_w
-                name: Min solar W
-              - entity: input_number.dump_min_soc_percent
-                name: Min SoC %
-              - entity: input_number.dump_float_t2_v
-                name: T2 float V
-              - entity: input_number.dump_rebulk_t2_v
-                name: T2 re-bulk V
-              - entity: input_number.dump_float_ku_v
-                name: KU float V
-              - entity: input_number.dump_rebulk_ku_v
-                name: KU re-bulk V
-              - entity: input_number.dump_float_sph_v
-                name: Sungold float V
-              - entity: input_number.dump_rebulk_sph_v
-                name: Sungold re-bulk V
-              - type: weblink
-                name: DUMP_LOAD_HA_CONTROL.md (what this does)
-                url: https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DUMP_LOAD_HA_CONTROL.md
-                icon: mdi:file-document-outline
-              - type: weblink
-                name: Helpers
-                url: /config/helpers
-                icon: mdi:tune
+              - entity: input_boolean.dump_control_enabled
+                name: Dump load HA control (master switch)
+              - type: button
+                name: Load recommended starting values
+                icon: mdi:backup-restore
+                action_name: LOAD
+                tap_action:
+                  action: perform-action
+                  perform_action: script.dump_load_recommended_defaults
+                  confirmation:
+                    text: >-
+                      Replace ALL dump volt, watt, SoC and confirm numbers with the
+                      recommended starting values? Your tuned values will be lost.
 
       - type: grid
         cards:
           - type: heading
-            heading: Dump limits
+            heading: Dump status (why / why not)
+            icon: mdi:list-status
+          - type: markdown
+            content: |
+              Read-only list of every condition the dump rules check, so you can see why HA is or is not adding a dump socket.
+              HA adds a socket only when everything under **Whole site** is on, nothing under **Blockers** is on, and that socket's bus shows start volts on, stop volts off and battery ok.
+              Nothing to set here.
+              [Help: Dump status (why / why not)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-status.md)
+            grid_options:
+              columns: full
           - type: entities
-            title: Dump limits
+            title: Dump status
             show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.dump_sockets
+                name: Sockets set to dump
+              - entity: sensor.dump_next_plug
+                name: Next socket HA would add
+              - entity: sensor.dump_shed_plug
+                name: Next socket HA would shed
+              - type: section
+                label: Whole site (all must be on to add)
+              - entity: binary_sensor.dump_charge_float
+                name: T2 charger in float
+              - entity: binary_sensor.dump_solar_present
+                name: Solar present (T2 PV at/above min solar)
+              - entity: binary_sensor.dump_soc_ok
+                name: SoC ok (or ignored)
+              - entity: sensor.solar_controller_solar
+                name: T2 PV now
+              - type: section
+                label: Blockers (on = stops adding / sheds)
+              - entity: binary_sensor.dump_pv_falling
+                name: PV falling (blocks adding)
+              - entity: binary_sensor.dump_load_exceeds_solar
+                name: Sungold load above solar (sheds)
+              - entity: binary_sensor.dump_charge_ok
+                name: T2 absorption or float (off = sheds)
+              - type: section
+                label: T2 bus
+              - entity: binary_sensor.dump_v_float_t2
+                name: T2 at/above start volts
+              - entity: binary_sensor.dump_v_rebulk_t2
+                name: T2 at/below stop volts (turns off)
+              - entity: binary_sensor.dump_batt_t2_ok
+                name: T2 battery within discharge limit
+              - type: section
+                label: KU bus
+              - entity: binary_sensor.dump_v_float_ku
+                name: KU at/above start volts
+              - entity: binary_sensor.dump_v_rebulk_ku
+                name: KU at/below stop volts (turns off)
+              - entity: binary_sensor.dump_batt_ku_ok
+                name: KU battery within discharge limit
+              - type: section
+                label: Sungold bus
+              - entity: binary_sensor.dump_v_float_sph
+                name: Sungold at/above start volts
+              - entity: binary_sensor.dump_v_rebulk_sph
+                name: Sungold at/below stop volts (turns off)
+              - entity: binary_sensor.dump_batt_sph_ok
+                name: Sungold battery within discharge limit
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump voltage (start / stop)
+            icon: mdi:battery-arrow-up
+          - type: markdown
+            content: |
+              **Start** volts (float) is the voltage a bus must reach before it gets dump sockets; **stop** volts (re-bulk) turns all of that bus's dump sockets off after 1 minute.
+              Raise start = dumping starts later and less often, lower = sooner; raise stop = dumps shut off sooner (safer for the pack), lower = they run longer; keep stop at least 0.2 V below start.
+              Safe start: 27.0 V start / 26.8 V stop on every bus, or start = the float voltage set in VictronConnect.
+              [Help: Dump voltage (start / stop)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-voltage.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump voltage
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - type: section
+                label: T2 (Battery 1 shunt)
+              - entity: input_number.dump_float_t2_v
+                name: T2 start volts (float)
+              - entity: input_number.dump_rebulk_t2_v
+                name: T2 stop volts (re-bulk)
+              - type: section
+                label: KU (Battery 2 shunt)
+              - entity: input_number.dump_float_ku_v
+                name: KU start volts (float)
+              - entity: input_number.dump_rebulk_ku_v
+                name: KU stop volts (re-bulk)
+              - type: section
+                label: Sungold cart
+              - entity: input_number.dump_float_sph_v
+                name: Sungold start volts (float)
+              - entity: input_number.dump_rebulk_sph_v
+                name: Sungold stop volts (re-bulk)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump start conditions
+            icon: mdi:solar-power
+          - type: markdown
+            content: |
+              **Min solar** is the T2 PV watts that mean "sun is up" (below it for 1 minute every dump socket turns off); **Min SoC** blocks adding sockets while T2 SoC is lower, unless **Ignore SoC** is on.
+              Raise min solar = dumps stop earlier at dusk or in clouds, lower = they run later (never 0, or night never counts as solar gone); raise min SoC = fewer dump starts.
+              Safe start: 50 W, 95 %, Ignore SoC on until the SmartShunt has synced to 100 %.
+              [Help: Dump start conditions](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-start-conditions.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump start conditions
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_number.dump_min_solar_w
+                name: Min solar (below = solar gone)
+              - entity: input_number.dump_min_soc_percent
+                name: Min T2 SoC to add sockets
+              - entity: input_boolean.dump_soc_unsynced
+                name: Ignore SoC (shunt not synced)
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump confirm (wait / load rise)
+            icon: mdi:timer-sand
+          - type: markdown
+            content: |
+              After turning a dump socket on, HA waits **Confirm wait** seconds and keeps it only if that bus's load rose by **Min load rise** watts; otherwise it turns it off for a 10 minute cooldown.
+              Raise the wait = slower but surer, lower = faster; raise the rise = small loads get rejected, lower = meter noise can "confirm" a dead plug.
+              Safe start: 5 s and 25 W (or half the watts of your smallest dump load).
+              [Help: Dump confirm (wait / load rise)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-confirm.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump confirm
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_number.dump_site_confirm_s
+                name: Confirm wait
+              - entity: input_number.dump_site_delta_min_w
+                name: Confirm min load rise
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Inverter AC limits
+            icon: mdi:current-ac
+          - type: markdown
+            content: |
+              HA adds a dump socket to a bus only while that inverter's present load is under this many watts (T2/KU load is read from battery discharge, Sungold from its AC-out meter); it never turns sockets off.
+              Raise = more sockets may go onto a busy inverter, lower = HA stops adding sooner.
+              Safe start: 2000 W, or the inverter's continuous rating minus your biggest dump load.
+              [Help: Inverter AC limits](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-inverter-limits.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Inverter AC limits
+            show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_number.dump_ac_limit_t2_w
-                name: T2 AC limit
+                name: T2 inverter AC limit
               - entity: input_number.dump_ac_limit_ku_w
-                name: KU AC limit
+                name: KU inverter AC limit
               - entity: input_number.dump_ac_limit_sph_w
-                name: Sungold AC limit
-              - entity: input_number.dump_max_discharge_t2_w
-                name: T2 max batt discharge
-              - entity: input_number.dump_max_discharge_ku_w
-                name: KU max batt discharge
-              - entity: input_number.dump_max_discharge_sph_w
-                name: Sungold max batt discharge
+                name: Sungold inverter AC limit
 
       - type: grid
         cards:
           - type: heading
-            heading: Dump dwell
+            heading: Battery discharge limits
+            icon: mdi:battery-minus
+          - type: markdown
+            content: |
+              How many watts a battery may discharge before HA stops adding dump sockets on that bus and, after 1 minute, turns that bus's dump sockets off.
+              Raise = tolerate more battery drain, lower = shut off at the first sign of discharge (0 can trip on meter noise).
+              Safe start: T2 0 W, KU 0 W, Sungold 50 W; go to 20-50 W only if dumps keep dropping out on noise.
+              [Help: Battery discharge limits](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-battery-limits.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Battery discharge limits
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_number.dump_max_discharge_t2_w
+                name: T2 max battery discharge
+              - entity: input_number.dump_max_discharge_ku_w
+                name: KU max battery discharge
+              - entity: input_number.dump_max_discharge_sph_w
+                name: Sungold max battery discharge
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump alerts
+            icon: mdi:message-alert
+          - type: markdown
+            content: |
+              When Sungold load stays above solar for 10 minutes HA posts a notification in HA, and also texts a phone if this box holds its action name (for example `mobile_app_my_phone`).
+              Blank or `persistent_notification` = HA notification only; a wrong name only breaks the phone text.
+              Safe start: blank, then add your phone's name from Developer tools > Actions (search `notify.mobile_app`).
+              [Help: Dump alerts](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-alerts.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump alerts
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_text.dump_notify_service
+                name: Alert notify service
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump timers (min-on / cooldown)
+            icon: mdi:timer-outline
+          - type: markdown
+            content: |
+              Per socket: **cooldown** (10 min) starts every time HA turns a dump socket off, and HA will not turn that socket on again until it is idle; **min-on** (15 min) starts when a socket is confirmed and is display only (no rule waits for it).
+              The lengths are fixed in dump_control.yaml, not editable here.
+              Watch this box to see why a socket is being skipped.
+              [Help: Dump timers (min-on / cooldown)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-timers.md)
+            grid_options:
+              columns: full
           - type: custom:auto-entities
             card:
               type: entities
-              title: Dump dwell
+              title: Dump timers
               show_header_toggle: false
             filter:
               include:
@@ -330,16 +516,13 @@ views:
         cards:
           - type: heading
             heading: Plugs
+            icon: mdi:power-socket-us
           - type: markdown
-            content: >
-              The id (2F9D, 82FB, …) is the plug. It stays with that plug when you move it.
-              **Heard by** is the closest live radio (strongest RSSI). **Where** is the room you type.
-              Type the load name in **Load** and change it when you plug something else in.
-              Set **Use** to dump only for a socket Home Assistant may turn on by itself,
-              and set its **Inverter** (T2, KU, or Sungold) so re-bulk, battery, and AC-cap rules watch the right bus.
-              C38D feeds the Pi 4 and is never a dump socket.
-              Home Assistant cannot see the appliance.
-              The buttons use the names you type in the cards under them.
+            content: |
+              One button per socket: tap to switch it by hand, hold for details; a gold border means its Use is dump, and the label shows Where · normal/dump · the radio that hears it.
+              A dump socket you switch by hand can still be switched by the dump rules later.
+              C38D feeds the Pi 4: do not turn it off.
+              [Help: Plugs](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-buttons.md)
             grid_options:
               columns: full
           - type: custom:auto-entities
@@ -358,9 +541,24 @@ views:
               method: entity_id
             grid_options:
               columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Plug names (Where / Load)
+            icon: mdi:tag-text
+          - type: markdown
+            content: |
+              Labels only: **Where** is the room of the plug (the id such as 2F9D stays with the plug when you move it) and **Load** is what is plugged into each side.
+              They name the buttons above, Node-RED and Grafana, and never change what HA switches.
+              Up to 64 characters; they now survive HA restarts.
+              [Help: Plug names (Where / Load)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-names.md)
+            grid_options:
+              columns: full
           - type: entities
             title: 2F9D
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_2f9d_location
                 name: Where
@@ -369,22 +567,15 @@ views:
               - entity: switch.ihoment_h5082_2f9d_left
                 name: Left
               - entity: input_text.h5082_2f9d_left_load
-                name: Load
-              - entity: input_select.h5082_2f9d_left_use
-                name: Use
-              - entity: input_select.h5082_2f9d_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_2f9d_right
                 name: Right
               - entity: input_text.h5082_2f9d_right_load
-                name: Load
-              - entity: input_select.h5082_2f9d_right_use
-                name: Use
-              - entity: input_select.h5082_2f9d_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: 3013
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_3013_location
                 name: Where
@@ -393,22 +584,15 @@ views:
               - entity: switch.ihoment_h5082_3013_left
                 name: Left
               - entity: input_text.h5082_3013_left_load
-                name: Load
-              - entity: input_select.h5082_3013_left_use
-                name: Use
-              - entity: input_select.h5082_3013_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_3013_right
                 name: Right
               - entity: input_text.h5082_3013_right_load
-                name: Load
-              - entity: input_select.h5082_3013_right_use
-                name: Use
-              - entity: input_select.h5082_3013_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: 3EC9
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_3ec9_location
                 name: Where
@@ -417,22 +601,15 @@ views:
               - entity: switch.ihoment_h5082_3ec9_left
                 name: Left
               - entity: input_text.h5082_3ec9_left_load
-                name: Load
-              - entity: input_select.h5082_3ec9_left_use
-                name: Use
-              - entity: input_select.h5082_3ec9_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_3ec9_right
                 name: Right
               - entity: input_text.h5082_3ec9_right_load
-                name: Load
-              - entity: input_select.h5082_3ec9_right_use
-                name: Use
-              - entity: input_select.h5082_3ec9_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: 82FB
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_82fb_location
                 name: Where
@@ -441,22 +618,15 @@ views:
               - entity: switch.ihoment_h5082_82fb_left
                 name: Left
               - entity: input_text.h5082_82fb_left_load
-                name: Load
-              - entity: input_select.h5082_82fb_left_use
-                name: Use
-              - entity: input_select.h5082_82fb_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_82fb_right
                 name: Right
               - entity: input_text.h5082_82fb_right_load
-                name: Load
-              - entity: input_select.h5082_82fb_right_use
-                name: Use
-              - entity: input_select.h5082_82fb_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: 9607
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_9607_location
                 name: Where
@@ -465,22 +635,15 @@ views:
               - entity: switch.ihoment_h5082_9607_left
                 name: Left
               - entity: input_text.h5082_9607_left_load
-                name: Load
-              - entity: input_select.h5082_9607_left_use
-                name: Use
-              - entity: input_select.h5082_9607_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_9607_right
                 name: Right
               - entity: input_text.h5082_9607_right_load
-                name: Load
-              - entity: input_select.h5082_9607_right_use
-                name: Use
-              - entity: input_select.h5082_9607_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: C061
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_c061_location
                 name: Where
@@ -489,22 +652,15 @@ views:
               - entity: switch.ihoment_h5082_c061_left
                 name: Left
               - entity: input_text.h5082_c061_left_load
-                name: Load
-              - entity: input_select.h5082_c061_left_use
-                name: Use
-              - entity: input_select.h5082_c061_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_c061_right
                 name: Right
               - entity: input_text.h5082_c061_right_load
-                name: Load
-              - entity: input_select.h5082_c061_right_use
-                name: Use
-              - entity: input_select.h5082_c061_right_inverter
-                name: Inverter
+                name: Right load
           - type: entities
             title: C38D (Pi supply)
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_c38d_location
                 name: Where
@@ -513,18 +669,15 @@ views:
               - entity: switch.ihoment_h5082_c38d_left
                 name: Left
               - entity: input_text.h5082_c38d_left_load
-                name: Load
-              - entity: input_select.h5082_c38d_left_use
-                name: Use
+                name: Left load
               - entity: switch.ihoment_h5082_c38d_right
                 name: Right
               - entity: input_text.h5082_c38d_right_load
-                name: Load
-              - entity: input_select.h5082_c38d_right_use
-                name: Use
+                name: Right load
           - type: entities
             title: CF79
             show_header_toggle: false
+            state_color: true
             entities:
               - entity: input_text.h5082_cf79_location
                 name: Where
@@ -533,19 +686,168 @@ views:
               - entity: switch.ihoment_h5082_cf79_left
                 name: Left
               - entity: input_text.h5082_cf79_left_load
-                name: Load
-              - entity: input_select.h5082_cf79_left_use
-                name: Use
-              - entity: input_select.h5082_cf79_left_inverter
-                name: Inverter
+                name: Left load
               - entity: switch.ihoment_h5082_cf79_right
                 name: Right
               - entity: input_text.h5082_cf79_right_load
-                name: Load
+                name: Right load
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Socket Use (normal / dump)
+            icon: mdi:toggle-switch
+          - type: markdown
+            content: |
+              Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can).
+              Only choose dump for a load that may go off at any time (heater, water heater), and never for C38D (it is ignored anyway).
+              Safe start: everything normal, then one dump socket with a lamp to test.
+              [Help: Socket Use (normal / dump)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Socket Use
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_select.h5082_2f9d_left_use
+                name: 2F9D left
+              - entity: input_select.h5082_2f9d_right_use
+                name: 2F9D right
+              - entity: input_select.h5082_3013_left_use
+                name: 3013 left
+              - entity: input_select.h5082_3013_right_use
+                name: 3013 right
+              - entity: input_select.h5082_3ec9_left_use
+                name: 3EC9 left
+              - entity: input_select.h5082_3ec9_right_use
+                name: 3EC9 right
+              - entity: input_select.h5082_82fb_left_use
+                name: 82FB left
+              - entity: input_select.h5082_82fb_right_use
+                name: 82FB right
+              - entity: input_select.h5082_9607_left_use
+                name: 9607 left
+              - entity: input_select.h5082_9607_right_use
+                name: 9607 right
+              - entity: input_select.h5082_c061_left_use
+                name: C061 left
+              - entity: input_select.h5082_c061_right_use
+                name: C061 right
+              - entity: input_select.h5082_c38d_left_use
+                name: C38D left (Pi supply, never dumped)
+              - entity: input_select.h5082_c38d_right_use
+                name: C38D right (Pi supply, never dumped)
+              - entity: input_select.h5082_cf79_left_use
+                name: CF79 left
               - entity: input_select.h5082_cf79_right_use
-                name: Use
+                name: CF79 right
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Socket inverter (bus)
+            icon: mdi:car-battery
+          - type: markdown
+            content: |
+              Which inverter / battery bus feeds each socket (T2, KU or Sungold): HA uses that bus's volts, battery and AC limit to decide on/off, and its meter to confirm the load.
+              A wrong choice makes HA watch the wrong battery, so set it to where the socket is really wired.
+              It only matters for sockets whose Use is dump; a brand-new socket starts on Sungold.
+              [Help: Socket inverter (bus)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-inverter.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Socket inverter
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: input_select.h5082_2f9d_left_inverter
+                name: 2F9D left
+              - entity: input_select.h5082_2f9d_right_inverter
+                name: 2F9D right
+              - entity: input_select.h5082_3013_left_inverter
+                name: 3013 left
+              - entity: input_select.h5082_3013_right_inverter
+                name: 3013 right
+              - entity: input_select.h5082_3ec9_left_inverter
+                name: 3EC9 left
+              - entity: input_select.h5082_3ec9_right_inverter
+                name: 3EC9 right
+              - entity: input_select.h5082_82fb_left_inverter
+                name: 82FB left
+              - entity: input_select.h5082_82fb_right_inverter
+                name: 82FB right
+              - entity: input_select.h5082_9607_left_inverter
+                name: 9607 left
+              - entity: input_select.h5082_9607_right_inverter
+                name: 9607 right
+              - entity: input_select.h5082_c061_left_inverter
+                name: C061 left
+              - entity: input_select.h5082_c061_right_inverter
+                name: C061 right
+              - entity: input_select.h5082_cf79_left_inverter
+                name: CF79 left
               - entity: input_select.h5082_cf79_right_inverter
-                name: Inverter
+                name: CF79 right
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump activity log
+            icon: mdi:history
+          - type: markdown
+            content: |
+              When and why a plug was switched and when the dump rules ran; lines starting **Dump control** give the reason in plain words (volts, watts, rule name).
+              "Triggered by ... automation Dump ..." means HA did it; a person's name means it was done by hand.
+              Nothing to set.
+              [Help: Dump activity log](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-activity-log.md)
+            grid_options:
+              columns: full
+          - type: custom:auto-entities
+            card:
+              type: logbook
+              title: Dump activity (48 h)
+              hours_to_show: 48
+            filter:
+              include:
+                - entity_id: switch.ihoment_h5082_*
+                - entity_id: automation.dump_*
+                - entity_id: script.dump_*
+                - entity_id: input_boolean.dump_control_enabled
+            sort:
+              method: entity_id
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump settings change log
+            icon: mdi:clipboard-text-clock
+          - type: markdown
+            content: |
+              Every change to a dump number, socket Use / Inverter or plug label in the last 7 days, with who or what changed it.
+              If a value is different after a restart and there is no line for it here, it was reset at start-up: note the time and see the help page.
+              Nothing to set.
+              [Help: Dump settings change log](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-settings-log.md)
+            grid_options:
+              columns: full
+          - type: custom:auto-entities
+            card:
+              type: logbook
+              title: Dump settings changes (7 days)
+              hours_to_show: 168
+            filter:
+              include:
+                - entity_id: input_number.dump_*
+                - entity_id: input_boolean.dump_*
+                - entity_id: input_text.dump_*
+                - entity_id: input_select.h5082_*
+                - entity_id: input_text.h5082_*
+            sort:
+              method: entity_id
+            grid_options:
+              columns: full
 
       - type: grid
         cards:
@@ -611,6 +913,37 @@ views:
             content: >
               History graph needs [Recorder](https://www.home-assistant.io/integrations/recorder/)
               and [History](https://www.home-assistant.io/integrations/history/).
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump sockets timeline
+            icon: mdi:chart-timeline
+          - type: markdown
+            content: |
+              On/off bars for every plug next to the master switch and the main dump conditions for the last 48 hours, so you can line up "socket went off" with "solar gone" or "stop volts".
+              For the reason in words use **Dump activity log** on the Now view.
+              Nothing to set.
+              [Help: Dump sockets timeline](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-history.md)
+            grid_options:
+              columns: full
+          - type: custom:auto-entities
+            card:
+              type: history-graph
+              title: Dump sockets timeline (48 h)
+              hours_to_show: 48
+            filter:
+              include:
+                - entity_id: input_boolean.dump_control_enabled
+                - entity_id: binary_sensor.dump_charge_float
+                - entity_id: binary_sensor.dump_solar_present
+                - entity_id: binary_sensor.dump_load_exceeds_solar
+                - entity_id: binary_sensor.dump_v_rebulk_*
+                - entity_id: switch.ihoment_h5082_*
+            sort:
+              method: entity_id
             grid_options:
               columns: full
 

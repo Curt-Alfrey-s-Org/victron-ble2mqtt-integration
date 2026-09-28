@@ -10,6 +10,8 @@
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
 # Notify when that overdraw lasts 10 minutes (Companion or persistent).
 # Surplus watts (dump_surplus_w) are briefing only -- not the ON trigger.
+# Every switch action also writes a plain reason to the logbook ("Dump control ..."),
+# shown on Site solar > Dump activity log. Helpers have no `initial:` (see below).
 # Official:
 #   https://www.home-assistant.io/docs/configuration/packages/
 #   https://www.home-assistant.io/docs/automation/yaml/
@@ -33,382 +35,380 @@
 # SmartShunt +charge / -discharge:
 #   https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
 
+# Settings persistence (2026-09-28): NO helper in this package has `initial:`.
+# With `initial:` Home Assistant puts the YAML value back at every restart and throws
+# away the value you set in the UI (input_* async_added_to_hass only restores the last
+# state when initial is unset; https://www.home-assistant.io/integrations/input_number/).
+# Without it HA restores the last value from .storage/core.restore_state.
+# Recommended starting values live in docs/site-solar/*.md and in
+# script.dump_load_recommended_defaults (manual button, never automatic).
+# A brand-new install starts numbers at their minimum and the kill switch OFF:
+# press the defaults button once, check the values, then enable dump control.
+
+# Load the logbook integration: every dump rule writes its reason with logbook.log and
+# Site solar shows it in the Dump activity log. This HA has no default_config, and a
+# missing logbook.log action would stop a rule mid-way. An empty key merges with any
+# logbook: already in configuration.yaml. https://www.home-assistant.io/integrations/logbook/
+logbook:
+
 input_boolean:
   dump_control_enabled:
-    name: Dump load HA control
+    name: Dump load HA control (master switch)
     icon: mdi:transmission-tower-export
   dump_soc_unsynced:
-    name: Dump SoC unsynced
+    name: Dump ignore SoC (shunt not synced)
     icon: mdi:battery-unknown
-    initial: true
 
 input_text:
   dump_notify_service:
-    name: Dump notify service
+    name: Dump alert notify service
     icon: mdi:message-alert
-    initial: persistent_notification
     max: 64
     mode: text
 
 input_number:
   dump_ac_limit_t2_w:
-    name: T2 Renogy AC limit
+    name: Dump T2 inverter AC limit
     min: 500
     max: 4000
     step: 50
-    initial: 2000
     unit_of_measurement: W
     mode: box
     icon: mdi:current-ac
   dump_ac_limit_ku_w:
-    name: KU Renogy AC limit
+    name: Dump KU inverter AC limit
     min: 500
     max: 4000
     step: 50
-    initial: 2000
     unit_of_measurement: W
     mode: box
     icon: mdi:current-ac
   dump_ac_limit_sph_w:
-    name: Sungold AC limit
+    name: Dump Sungold inverter AC limit
     min: 500
     max: 4000
     step: 50
-    initial: 2000
     unit_of_measurement: W
     mode: box
     icon: mdi:current-ac
   dump_max_discharge_t2_w:
-    name: T2 max battery discharge
+    name: Dump T2 max battery discharge
     min: 0
     max: 500
     step: 10
-    initial: 0
     unit_of_measurement: W
     mode: box
     icon: mdi:battery-minus
   dump_max_discharge_ku_w:
-    name: KU max battery discharge
+    name: Dump KU max battery discharge
     min: 0
     max: 500
     step: 10
-    initial: 0
     unit_of_measurement: W
     mode: box
     icon: mdi:battery-minus
   dump_max_discharge_sph_w:
-    name: Sungold max battery discharge
+    name: Dump Sungold max battery discharge
     min: 0
     max: 500
     step: 10
-    initial: 50
     unit_of_measurement: W
     mode: box
     icon: mdi:battery-minus
   dump_float_t2_v:
-    name: T2 float volts
+    name: Dump T2 start volts (float)
     min: 26.0
     max: 29.5
     step: 0.05
-    initial: 27.0
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-up
   dump_rebulk_t2_v:
-    name: T2 re-bulk volts
+    name: Dump T2 stop volts (re-bulk)
     min: 25.5
     max: 29.0
     step: 0.05
-    initial: 26.8
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-down
   dump_float_ku_v:
-    name: KU float volts
+    name: Dump KU start volts (float)
     min: 26.0
     max: 29.5
     step: 0.05
-    initial: 27.0
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-up
   dump_rebulk_ku_v:
-    name: KU re-bulk volts
+    name: Dump KU stop volts (re-bulk)
     min: 25.5
     max: 29.0
     step: 0.05
-    initial: 26.8
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-down
   dump_float_sph_v:
-    name: Sungold float volts
+    name: Dump Sungold start volts (float)
     min: 26.0
     max: 29.5
     step: 0.05
-    initial: 27.0
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-up
   dump_rebulk_sph_v:
-    name: Sungold re-bulk volts
+    name: Dump Sungold stop volts (re-bulk)
     min: 25.5
     max: 29.0
     step: 0.05
-    initial: 26.8
     unit_of_measurement: V
     mode: box
-    icon: mdi:sine-wave
+    icon: mdi:battery-arrow-down
   dump_min_solar_w:
-    name: Dump min solar
+    name: Dump min solar (below = solar gone)
     min: 0
     max: 500
     step: 10
-    initial: 50
     unit_of_measurement: W
     mode: box
     icon: mdi:solar-power
   dump_min_soc_percent:
-    name: Dump min SoC
+    name: Dump min T2 SoC to add sockets
     min: 80
     max: 100
     step: 1
-    initial: 95
     unit_of_measurement: "%"
     mode: box
     icon: mdi:battery-90
   dump_site_confirm_s:
-    name: Dump site confirm seconds
+    name: Dump confirm wait
     min: 5
     max: 30
     step: 1
-    initial: 5
     unit_of_measurement: s
     mode: box
     icon: mdi:timer-sand
   dump_site_delta_min_w:
-    name: Dump site delta min watts
+    name: Dump confirm min load rise
     min: 5
     max: 500
     step: 5
-    initial: 25
     unit_of_measurement: W
     mode: box
-    icon: mdi:transmission-tower
+    icon: mdi:chart-line-variant
 
 input_select:
   h5082_2f9d_left_inverter:
-    name: H5082 2F9D left inverter
+    name: 2F9D left socket inverter (bus)
     # No initial: the operator's bus choice survives HA restarts.
     # First option (Sungold) is the first-install default, as before.
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_2f9d_right_inverter:
-    name: H5082 2F9D right inverter
+    name: 2F9D right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_3013_left_inverter:
-    name: H5082 3013 left inverter
+    name: 3013 left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_3013_right_inverter:
-    name: H5082 3013 right inverter
+    name: 3013 right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_3ec9_left_inverter:
-    name: H5082 3EC9 left inverter
+    name: 3EC9 left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_3ec9_right_inverter:
-    name: H5082 3EC9 right inverter
+    name: 3EC9 right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_82fb_left_inverter:
-    name: H5082 82FB left inverter
+    name: 82FB left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_82fb_right_inverter:
-    name: H5082 82FB right inverter
+    name: 82FB right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_9607_left_inverter:
-    name: H5082 9607 left inverter
+    name: 9607 left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_9607_right_inverter:
-    name: H5082 9607 right inverter
+    name: 9607 right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_c061_left_inverter:
-    name: H5082 C061 left inverter
+    name: C061 left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_c061_right_inverter:
-    name: H5082 C061 right inverter
+    name: C061 right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_cf79_left_inverter:
-    name: H5082 CF79 left inverter
+    name: CF79 left socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
   h5082_cf79_right_inverter:
-    name: H5082 CF79 right inverter
+    name: CF79 right socket inverter (bus)
     options:
       - Sungold
       - T2
       - KU
-    icon: mdi:transmission-tower
+    icon: mdi:car-battery
 
 timer:
   h5082_2f9d_left_min_on:
-    name: H5082 2F9D left min on
+    name: 2F9D left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_2f9d_left_cooldown:
-    name: H5082 2F9D left cooldown
+    name: 2F9D left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_2f9d_right_min_on:
-    name: H5082 2F9D right min on
+    name: 2F9D right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_2f9d_right_cooldown:
-    name: H5082 2F9D right cooldown
+    name: 2F9D right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_3013_left_min_on:
-    name: H5082 3013 left min on
+    name: 3013 left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_3013_left_cooldown:
-    name: H5082 3013 left cooldown
+    name: 3013 left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_3013_right_min_on:
-    name: H5082 3013 right min on
+    name: 3013 right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_3013_right_cooldown:
-    name: H5082 3013 right cooldown
+    name: 3013 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_3ec9_left_min_on:
-    name: H5082 3EC9 left min on
+    name: 3EC9 left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_3ec9_left_cooldown:
-    name: H5082 3EC9 left cooldown
+    name: 3EC9 left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_3ec9_right_min_on:
-    name: H5082 3EC9 right min on
+    name: 3EC9 right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_3ec9_right_cooldown:
-    name: H5082 3EC9 right cooldown
+    name: 3EC9 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_82fb_left_min_on:
-    name: H5082 82FB left min on
+    name: 82FB left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_82fb_left_cooldown:
-    name: H5082 82FB left cooldown
+    name: 82FB left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_82fb_right_min_on:
-    name: H5082 82FB right min on
+    name: 82FB right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_82fb_right_cooldown:
-    name: H5082 82FB right cooldown
+    name: 82FB right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_9607_left_min_on:
-    name: H5082 9607 left min on
+    name: 9607 left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_9607_left_cooldown:
-    name: H5082 9607 left cooldown
+    name: 9607 left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_9607_right_min_on:
-    name: H5082 9607 right min on
+    name: 9607 right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_9607_right_cooldown:
-    name: H5082 9607 right cooldown
+    name: 9607 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_c061_left_min_on:
-    name: H5082 C061 left min on
+    name: C061 left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_c061_left_cooldown:
-    name: H5082 C061 left cooldown
+    name: C061 left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_c061_right_min_on:
-    name: H5082 C061 right min on
+    name: C061 right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_c061_right_cooldown:
-    name: H5082 C061 right cooldown
+    name: C061 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_cf79_left_min_on:
-    name: H5082 CF79 left min on
+    name: CF79 left dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_cf79_left_cooldown:
-    name: H5082 CF79 left cooldown
+    name: CF79 left dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
   h5082_cf79_right_min_on:
-    name: H5082 CF79 right min on
+    name: CF79 right dump min-on (15 min, display only)
     duration: "00:15:00"
     restore: true
   h5082_cf79_right_cooldown:
-    name: H5082 CF79 right cooldown
+    name: CF79 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
 
@@ -715,11 +715,17 @@ binary_sensor:
 
 automation dump_load:
   - id: dump_turn_on
-    alias: Dump load turn on
+    alias: "Dump ON: add dump sockets while the charger is in float"
     description: >
-      Victron float hold. Stage one dump socket, wait for the H5082 to report on,
-      site load delta confirm, then another while the bus stays above re-bulk.
-      Not while Sungold load is above site solar (the shed rule would undo it).
+      Adds one dump socket at a time. Starts when the T2 MPPT has been in float for
+      1 min and T2 PV has been at or above "Dump min solar" for 1 min, the master
+      switch is on, SoC is ok (or ignored), PV is not falling and Sungold load is not
+      above solar. sensor.dump_next_plug picks the first OFF dump socket whose
+      cooldown is idle, whose bus is at or above its start volts and above its stop
+      volts, whose battery is not discharging past its limit and whose inverter is
+      under its AC limit. After the plug reports on, waits "Dump confirm wait" and
+      keeps it only if that bus's load rose by "Dump confirm min load rise".
+      Each step writes the reason to the logbook ("Dump control").
     mode: single
     max_exceeded: silent
     triggers:
@@ -797,10 +803,21 @@ automation dump_load:
                 bus: "{{ states('input_select.h5082_' ~ sock ~ '_inverter') }}"
             - variables:
                 load_eid: "{{ 'sensor.dump_bus_load_t2' if bus == 'T2' else ('sensor.dump_bus_load_ku' if bus == 'KU' else 'sensor.dump_bus_load_sph') }}"
+                volts_eid: "{{ 'sensor.battery_1_voltage' if bus == 'T2' else ('sensor.battery_2_voltage' if bus == 'KU' else 'sensor.sungold_sph302480a_battery_voltage') }}"
+                start_v_eid: "{{ 'input_number.dump_float_t2_v' if bus == 'T2' else ('input_number.dump_float_ku_v' if bus == 'KU' else 'input_number.dump_float_sph_v') }}"
             - variables:
                 load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
               value_template: "{{ is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') }}"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "{{ target }}"
+                message: >-
+                  turning ON ({{ bus }} bus): charger in float, T2 PV
+                  {{ states('sensor.dump_surplus_w') }} W, bus {{ states(volts_eid) }} V
+                  >= start {{ states(start_v_eid) }} V, {{ bus }} load before
+                  {{ load_before }} W.
             - action: switch.turn_on
               target:
                 entity_id: "{{ target }}"
@@ -819,6 +836,9 @@ automation dump_load:
                 confirmed: >
                   {{ switched and is_number(load_before) and is_number(load_after)
                      and (load_after | float - load_before | float) >= (delta_min | float) }}
+                rise: >-
+                  {{ ((load_after | float - load_before | float) | round(0))
+                     if is_number(load_before) and is_number(load_after) else 'unknown' }}
             - if:
                 - condition: template
                   value_template: >
@@ -834,6 +854,13 @@ automation dump_load:
                 - action: timer.cancel
                   target:
                     entity_id: "timer.h5082_{{ sock }}_min_on"
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "{{ target }}"
+                    message: >-
+                      turned back OFF: charger left float or solar went away during the
+                      confirm wait. Cooldown 10 min. Staging stopped.
                 - stop: left float or solar gone
             - if:
                 - condition: template
@@ -845,16 +872,33 @@ automation dump_load:
                 - action: timer.start
                   target:
                     entity_id: "timer.h5082_{{ sock }}_cooldown"
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "{{ target }}"
+                    message: >-
+                      turned back OFF: not confirmed. {{ 'Plug reported on' if switched
+                      else 'Plug never reported on (2 min)' }}; {{ bus }} load rose
+                      {{ rise }} W, needs {{ delta_min }} W. Cooldown 10 min.
                 - delay: 1
               else:
                 - action: timer.start
                   target:
                     entity_id: "timer.h5082_{{ sock }}_min_on"
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "{{ target }}"
+                    message: >-
+                      kept ON: {{ bus }} load rose {{ rise }} W (needs {{ delta_min }} W).
                 - delay: 1
 
   - id: dump_turn_off_solar_gone
-    alias: Dump load turn off solar gone
-    description: PV below dump_min_solar_w for 1 minute (weather or end of day). Every dump socket off; cancel min-on so dumps are not night loads (95%+ leftover).
+    alias: "Dump OFF all: solar gone for 1 minute"
+    description: >
+      T2 MPPT PV below "Dump min solar" for 1 min (weather or end of day). Every dump
+      socket that is not already off is turned off, its min-on cancelled and its cooldown
+      started, so dump sockets never run as night loads (95%+ left in the packs).
     mode: single
     triggers:
       - trigger: state
@@ -892,14 +936,20 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF all: solar gone for 1 minute": T2 PV {{ states('sensor.solar_controller_solar') }} W below Dump min solar {{ states('input_number.dump_min_solar_w') }} W for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_bulk
-    alias: Dump load shed while not float
+    alias: "Dump SHED one per minute: T2 charger left absorption/float"
     description: >
-      T2 MPPT not absorption/float for 1 minute. Shed one dump socket per minute
-      (last in the stage order first) until float returns or no dump is on. Do not
-      dump-all-off (that would idle PV into float again the same day). Night/storm
-      all-off is solar-gone. Pack protection is re-bulk and dump_batt_*_ok.
+      T2 MPPT charge state not absorption or float for 1 min (clouds or a big load pulled
+      it back to bulk). Sheds one dump socket per minute, last in the stage order first,
+      until float returns or no dump socket is on. Not all at once, so the MPPT is not
+      forced into a same-day float-idle cycle. Night/storm all-off is the solar-gone rule.
     mode: single
     triggers:
       - trigger: state
@@ -933,14 +983,21 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ sock }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "{{ target }}"
+                message: >-
+                  turned OFF by "Dump SHED one per minute: T2 charger left absorption/float": T2 charger is {{ states('sensor.solar_controller_charge_state') }} (not float). Next shed in 1 min if still true.
             - delay: "00:01:00"
 
   - id: dump_shed_load_exceeds_solar
-    alias: Dump load shed Sungold load above site solar
+    alias: "Dump SHED one per minute: Sungold load above solar"
     description: >
-      Sungold AC-out (Load now, includes dump) greater than site solar for 1 minute.
-      Shed one dump socket per minute so dump tracks solar. Never touches a socket
-      whose Use is normal (trailer A/C and other standing loads).
+      Sungold AC-out (Load now, includes dump) above T2 MPPT PV + Sungold PV for 1 min.
+      Sheds one dump socket per minute (last in the stage order first) so dump tracks
+      solar. Never touches a socket whose Use is normal (trailer A/C and other standing
+      loads).
     mode: single
     triggers:
       - trigger: state
@@ -974,14 +1031,21 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ sock }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "{{ target }}"
+                message: >-
+                  turned OFF by "Dump SHED one per minute: Sungold load above solar": Sungold load {{ states('sensor.sungold_sph302480a_load_power') }} W is above T2 PV {{ states('sensor.solar_controller_solar') }} W + Sungold PV {{ states('sensor.sungold_sph302480a_pv_power') }} W. Next shed in 1 min if still true.
             - delay: "00:01:00"
 
   - id: dump_notify_load_exceeds_solar
-    alias: Dump notify Sungold load above site solar 10 min
+    alias: "Dump ALERT: Sungold load above solar for 10 minutes"
     description: >
-      Text when Load now (Sungold AC-out) stays above Solar now for 10 minutes.
-      Default notify.persistent_notification. Set helper dump_notify_service to
-      the Companion action name (mobile_app_<device>) for phone alerts.
+      Text when Load now (Sungold AC-out) stays above T2 MPPT PV + Sungold PV for 10
+      minutes. Always sends notify.persistent_notification; also sends
+      notify.<Dump alert notify service> when that helper holds a Companion action
+      name (mobile_app_<device>). Runs even when the master switch is off.
     mode: single
     triggers:
       - trigger: state
@@ -1008,8 +1072,11 @@ automation dump_load:
               message: "{{ msg }}"
 
   - id: dump_turn_off_rebulk_t2
-    alias: Dump load turn off T2 re-bulk
-    description: T2 bus voltage at or below dump_rebulk_t2_v for 1 minute (Victron LiFePO4 24 V offset). Turn off T2 dump sockets even during min-on.
+    alias: "Dump OFF T2 sockets: T2 bus at stop volts (re-bulk)"
+    description: >
+      T2 bus voltage at or below "Dump T2 stop volts (re-bulk)" for 1 min. Turns off every
+      dump socket assigned to T2 that is not already off, even during min-on, and starts
+      its cooldown. Other buses are not touched.
     mode: single
     triggers:
       - trigger: state
@@ -1048,10 +1115,19 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF T2 sockets: T2 bus at stop volts (re-bulk)": T2 bus {{ states('sensor.battery_1_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_t2_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_rebulk_ku
-    alias: Dump load turn off KU re-bulk
-    description: KU bus voltage at or below dump_rebulk_ku_v for 1 minute. Turn off KU dump sockets even during min-on.
+    alias: "Dump OFF KU sockets: KU bus at stop volts (re-bulk)"
+    description: >
+      KU bus voltage at or below "Dump KU stop volts (re-bulk)" for 1 min. Turns off every
+      dump socket assigned to KU that is not already off, even during min-on, and starts
+      its cooldown. Other buses are not touched.
     mode: single
     triggers:
       - trigger: state
@@ -1090,10 +1166,19 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF KU sockets: KU bus at stop volts (re-bulk)": KU bus {{ states('sensor.battery_2_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_ku_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_rebulk_sph
-    alias: Dump load turn off Sungold re-bulk
-    description: Sungold cart voltage at or below dump_rebulk_sph_v for 1 minute. Turn off Sungold dump sockets even during min-on.
+    alias: "Dump OFF Sungold sockets: Sungold bus at stop volts (re-bulk)"
+    description: >
+      Sungold bus voltage at or below "Dump Sungold stop volts (re-bulk)" for 1 min. Turns
+      off every dump socket assigned to Sungold that is not already off, even during min-
+      on, and starts its cooldown. Other buses are not touched.
     mode: single
     triggers:
       - trigger: state
@@ -1132,10 +1217,19 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF Sungold sockets: Sungold bus at stop volts (re-bulk)": Sungold bus {{ states('sensor.sungold_sph302480a_battery_voltage') }} V at or below stop volts {{ states('input_number.dump_rebulk_sph_v') }} V for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_t2
-    alias: Dump load turn off T2 battery
-    description: T2 battery discharging beyond helper. Turn off T2-assigned dump sockets even during min-on.
+    alias: "Dump OFF T2 sockets: T2 battery discharging past limit"
+    description: >
+      T2 battery discharging more than "Dump T2 max battery discharge" for 1 min (or its
+      meter unavailable). The inverter is pulling from the pack, so every dump socket
+      assigned to T2 that is not already off is turned off, even during min-on.
     mode: single
     triggers:
       - trigger: state
@@ -1174,10 +1268,19 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF T2 sockets: T2 battery discharging past limit": T2 battery power {{ states('sensor.battery_1_power') }} W is past the -{{ states('input_number.dump_max_discharge_t2_w') }} W limit for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_ku
-    alias: Dump load turn off KU battery
-    description: KU battery discharging beyond helper. Turn off KU-assigned dump sockets even during min-on.
+    alias: "Dump OFF KU sockets: KU battery discharging past limit"
+    description: >
+      KU battery discharging more than "Dump KU max battery discharge" for 1 min (or its
+      meter unavailable). The inverter is pulling from the pack, so every dump socket
+      assigned to KU that is not already off is turned off, even during min-on.
     mode: single
     triggers:
       - trigger: state
@@ -1216,10 +1319,20 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF KU sockets: KU battery discharging past limit": KU battery power {{ states('sensor.battery_2_power') }} W is past the -{{ states('input_number.dump_max_discharge_ku_w') }} W limit for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_batt_sph
-    alias: Dump load turn off Sungold battery
-    description: Sungold cart battery discharging beyond helper. Turn off Sungold-assigned dump sockets even during min-on.
+    alias: "Dump OFF Sungold sockets: Sungold battery discharging past limit"
+    description: >
+      Sungold battery discharging more than "Dump Sungold max battery discharge" for 1 min
+      (or its meter unavailable). The inverter is pulling from the pack, so every dump
+      socket assigned to Sungold that is not already off is turned off, even during min-
+      on.
     mode: single
     triggers:
       - trigger: state
@@ -1258,3 +1371,92 @@ automation dump_load:
             - action: timer.start
               target:
                 entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  turned OFF by "Dump OFF Sungold sockets: Sungold battery discharging past limit": Sungold battery power {{ states('sensor.sungold_sph302480a_charging_power') }} W is past the -{{ states('input_number.dump_max_discharge_sph_w') }} W limit for 1 min. Cooldown 10 min.
+
+# Manual only. Nothing in this repo calls it: no automation, no startup hook, no timer.
+# The Site solar button asks for confirmation first. It writes the recommended starting
+# values from docs/site-solar/*.md into the dump number helpers and turns
+# "Dump ignore SoC" on. It does NOT touch the master switch, the notify service, any
+# socket Use / Inverter / label, or any switch.
+script:
+  dump_load_recommended_defaults:
+    alias: "Dump settings: load recommended starting values"
+    description: >
+      Manual button. Replaces the dump volt, watt, SoC and confirm numbers with the
+      recommended starting values (27.0 V start / 26.8 V stop on every bus, 2000 W AC
+      limits, 0/0/50 W battery discharge, 50 W min solar, 95 % SoC, 5 s, 25 W) and
+      turns Dump ignore SoC on. Use once on a fresh install, or to undo bad tuning.
+    icon: mdi:backup-restore
+    mode: single
+    sequence:
+      - action: input_number.set_value
+        target:
+          entity_id:
+            - input_number.dump_float_t2_v
+            - input_number.dump_float_ku_v
+            - input_number.dump_float_sph_v
+        data:
+          value: 27.0
+      - action: input_number.set_value
+        target:
+          entity_id:
+            - input_number.dump_rebulk_t2_v
+            - input_number.dump_rebulk_ku_v
+            - input_number.dump_rebulk_sph_v
+        data:
+          value: 26.8
+      - action: input_number.set_value
+        target:
+          entity_id:
+            - input_number.dump_ac_limit_t2_w
+            - input_number.dump_ac_limit_ku_w
+            - input_number.dump_ac_limit_sph_w
+        data:
+          value: 2000
+      - action: input_number.set_value
+        target:
+          entity_id:
+            - input_number.dump_max_discharge_t2_w
+            - input_number.dump_max_discharge_ku_w
+        data:
+          value: 0
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_max_discharge_sph_w
+        data:
+          value: 50
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_min_solar_w
+        data:
+          value: 50
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_min_soc_percent
+        data:
+          value: 95
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_site_confirm_s
+        data:
+          value: 5
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_site_delta_min_w
+        data:
+          value: 25
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.dump_soc_unsynced
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: script.dump_load_recommended_defaults
+          message: >-
+            loaded the recommended starting values into the dump settings (someone
+            pressed the button).

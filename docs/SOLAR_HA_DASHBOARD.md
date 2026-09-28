@@ -143,15 +143,26 @@ refreshes `packages/dump_control.yaml` **if that file is already installed**
 runs `check_config`, then `docker restart homeassistant`.
 
 Open **Energy** (sidebar, or Settings > Dashboards > Energy). Configure sources
-once with `python scripts/save_solar_plant_energy_prefs.py` if they are empty.
+once with `python scripts/save_solar_plant_energy_prefs.py` if they are empty (it backs
+up the live prefs and refuses to change configured prefs without `--force`).
 
 Seed leftover tiles onto **Site solar** (storage, movable) from a host that can
 reach `.105:8123`, with the long-lived token in `HA_TOKEN` or `HA_TOKEN_FILE`
 (never commit the token):
 
 ```bash
-python scripts/save_solar_plant_storage_dashboard.py
+python scripts/save_solar_plant_storage_dashboard.py            # first time: creates it
+python scripts/save_solar_plant_storage_dashboard.py --dry-run  # compare only
+python scripts/save_solar_plant_storage_dashboard.py --force    # replace UI edits
 ```
+
+The script always backs up the live `/site-solar` config first
+(`.backups/site-solar/<stamp>-before-seed/`, git-ignored). If a dashboard already
+exists and differs from the seed it **refuses** (exit 3) unless you pass `--force`, so
+UI edits are no longer overwritten by accident. Undo a forced save with
+`python3 scripts/site_solar_settings.py restore --from <folder> --dashboard`.
+Export / restore helper values and the dashboard at any time with
+`python3 scripts/site_solar_settings.py export` / `restore --from LATEST --helpers`.
 
 Open:
 
@@ -200,10 +211,12 @@ From a host that can reach `.105:8123`, with a long-lived token in `HA_TOKEN`
 or `HA_TOKEN_FILE` (never commit the token):
 
 ```bash
-python scripts/save_solar_plant_energy_prefs.py
+python scripts/save_solar_plant_energy_prefs.py          # only when prefs are empty or already match
+python scripts/save_solar_plant_energy_prefs.py --force  # replace configured prefs
 ```
 
-That command writes the table below. It does **not** add grid, Electricity Maps,
+That command backs up the live prefs, then writes the table below (without `--force`
+it refuses when Energy is already configured differently, exit 3). It does **not** add grid, Electricity Maps,
 gas, water, A1 monthly kWh, or KU equal-share solar.
 
 Add **power** sensors (W) and the matching **integral kWh** sensors:
@@ -241,7 +254,7 @@ YAML first, then **wipe solar-related HA history** so bad template math does not
 taint Energy / statistics going forward.
 
 1. **`.105`:** `bash scripts/install_solar_plant_ha.sh` (reloads `solar_plant.yaml`).
-2. **Energy prefs:** `python scripts/save_solar_plant_energy_prefs.py` (drops
+2. **Energy prefs:** `python scripts/save_solar_plant_energy_prefs.py --force` (drops
    Sungold A/C-in as a house device and the retired Sim dump device).
 3. **Site solar Lovelace:** re-seed storage dashboard from repo YAML if Load now
    still points at the wrong entity (see install script / storage seed docs).
@@ -387,10 +400,14 @@ bash scripts/uninstall_solar_flow.sh
 
 Live **Site solar** tiles stay in HA. **Build/edit the topology diagram** in Node-RED (`http://192.168.0.105:1880/`, tab **Solar plant diagram**). NR reads HA REST only; see [SOLAR_NODERED_OPERATOR.md](SOLAR_NODERED_OPERATOR.md) and [SOLAR_DIAGRAM_POLICY.md](SOLAR_DIAGRAM_POLICY.md). Do not use Mermaid or SVG for this.
 
-After `install_solar_plant_ha.sh`, refresh **Site solar** (`/site-solar`) from repo seed:
+`install_solar_plant_ha.sh` no longer touches **Site solar** (`/site-solar`). It used to
+run `sync_site_solar_storage_from_seed.py`, which rewrote `.storage/lovelace.site_solar`
+while HA was running, so the repo seed replaced UI edits at the next restart. To load
+the seed on purpose (backs up first, see above):
 
 ```bash
-sudo python3 scripts/sync_site_solar_storage_from_seed.py
+HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py --force
 ```
 
-Or with a long-lived token: `HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py`
+`sync_site_solar_storage_from_seed.py` is an **offline** fallback only (HA stopped):
+`docker stop homeassistant && sudo python3 scripts/sync_site_solar_storage_from_seed.py --force && docker start homeassistant`.
