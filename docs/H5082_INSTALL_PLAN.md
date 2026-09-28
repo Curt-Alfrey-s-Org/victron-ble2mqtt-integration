@@ -95,6 +95,8 @@ Rules:
 
 `[x]` `/solar/metrics` publishes `solar_plant_socket` for each of the 16 sockets (on=1, off=0). Labels are the HA **Where**, **Load**, and **Use** text. There is no power sensor on these plugs, so there is no watt sample. `/solar/computed` lists the same rows. Redeploy with `scripts/deploy-nodered-solar.sh`.
 
+Where / Load / Use survive HA restarts only when their storage helpers have no `initial` (fixed 2026-09-28; `scripts/create_h5082_socket_labels.py` strips it). Per-box help: [site-solar/plug-names.md](site-solar/plug-names.md), [site-solar/socket-use.md](site-solar/socket-use.md), [site-solar/socket-inverter.md](site-solar/socket-inverter.md).
+
 ## Checkpoint 6 — Grafana, after the switches are real
 
 `[x]` Grafana **Solar plant one-line** keeps the plant canvas. Under it, **Dump sockets** and **Manual sockets** tables read `solar_plant_socket`. A socket moves between those tables when its **Use** select changes. The six sim plugs are not drawn.

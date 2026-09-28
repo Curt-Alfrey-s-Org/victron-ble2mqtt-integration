@@ -54,7 +54,8 @@ float **holds** Vfloat (Victron LiFePO4 default **27.0 V** on 24 V). Re-bulk whe
 -> **26.8 V** if float is 27.0 V) for **one minute**. Morningstar
 [Diversion §6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf):
 divert excess **after** the battery is served. Confirm float on the T2 MPPT in
-VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
+VictronConnect; recommended 27.0 / 26.8 (Recommended defaults button); the values
+survive restarts and Ask ALFa may tune them.
 
 | Job | Owner |
 |-----|--------|
@@ -64,11 +65,11 @@ VictronConnect; helpers default to 27.0 / 26.8 and Ask ALFa may tune them.
 | **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. C38D (feeds the Pi 4) is not in the list at all. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
 | **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
-| **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (default `persistent_notification`; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
-| Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (defaults 27.0 / 26.8). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
-| Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (default 50). Below that for 1 min = PV stopped. |
+| **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (recommended `persistent_notification`; empty = persistent notification only; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
+| Float / re-bulk volt helpers | HA `input_number.dump_float_*_v` / `dump_rebulk_*_v` (recommended 27.0 / 26.8; kept across restarts). Ask ALFa may `ha_set_number` immediately to match VictronConnect. |
+| Min solar W (day vs night) | HA `input_number.dump_min_solar_w` (recommended 50). Below that for 1 min = PV stopped. |
 | SoC 95% floor | HA `input_number.dump_min_soc_percent` (95) **only when** `input_boolean.dump_soc_unsynced` is **off**. While unsynced, float voltage **is** the full-enough gate (do not invent a voltage-to-% map). |
-| Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, default 5) and `input_number.dump_site_delta_min_w` (5-500 W, default 25) |
+| Site confirm / delta | HA `input_number.dump_site_confirm_s` (5-30 s, recommended 5) and `input_number.dump_site_delta_min_w` (5-500 W, recommended 25) |
 | Per-socket min-on / cooldown | HA `timer.h5082_<id>_<side>_min_on` (15 min, `restore: true`) and `timer.h5082_<id>_<side>_cooldown` (10 min, `restore: true`) |
 | Inverter caps, socket->bus | HA `dump_ac_limit_t2_w` / `_ku_w` / `_sph_w`; `input_select.h5082_<id>_<side>_inverter` (Sungold / T2 / KU; no `initial`, so the choice survives restarts). H5082 sends no watts. |
 | Watt-ledger, AI Actions, `ha_dump_tick` | alfa-ai **observe / audit** |
@@ -238,9 +239,54 @@ It does not invent plug watts and does not own dump on/off.
   battery rules could watch the wrong bus.
 - `sensor.dump_surplus_w` is PV watts (no plug watts to subtract); the derivative
   behind `dump_pv_falling` no longer drops when a dump turns on.
-- Unchanged, owner's call: the `input_number` helpers keep `initial:` (tuned volts /
-  caps revert to the defaults at each HA restart), and `dump_soc_unsynced` starts
-  **on** at every restart (float voltage stays the gate).
+- No dump helper has `initial:` any more (16 `input_number`, `dump_soc_unsynced`,
+  `dump_notify_service`). Before, tuned volts / caps / confirm / min solar / SoC floor,
+  the alert service and Ignore SoC all snapped back to the package values at **every**
+  HA restart (watchdog, autoheal, installs). Now HA restores the last value. The old
+  values are the **recommended starting values**: Site solar > **Dump master switch** >
+  **Recommended defaults** (`script.dump_load_recommended_defaults`, manual only, asks
+  for confirmation) sets them once. A brand-new helper starts at its `min` (numbers),
+  off (Ignore SoC) or unknown (alert service: persistent notification only) until you
+  set it or press the button.
+- `scripts/create_h5082_socket_labels.py` used to create the Where / Load / Use storage
+  helpers with `initial` "" / "normal". For storage `input_text` / `input_select`, HA
+  skips restore when `initial` is set, so labels blanked and every socket fell back to
+  **normal** (no dump) at each restart. The script now creates them without `initial`
+  and strips it from existing ones (`--dry-run` to preview). See
+  [Site solar help: Plug names](site-solar/plug-names.md).
+- Every automation switch action writes a plain reason to the logbook ("Dump control:
+  ..."), shown on Site solar > **Dump activity log**; helper changes (who / what) show on
+  **Dump settings change log**. Automations were renamed ("Dump ON: ...", "Dump OFF ...",
+  "Dump SHED ...", "Dump ALERT ...") with the same ids. `logbook:` is enabled by the
+  package (no `default_config` on .105).
+
+---
+
+## Site solar help (one page per dashboard box)
+
+Each dump box on Site solar > Now has a short help card and a **Help** link:
+
+| Box | Help page |
+| --- | --- |
+| Dump master switch | [dump-master-switch.md](site-solar/dump-master-switch.md) |
+| Dump status (why / why not) | [dump-status.md](site-solar/dump-status.md) |
+| Dump voltage (start / stop) | [dump-voltage.md](site-solar/dump-voltage.md) |
+| Dump start conditions | [dump-start-conditions.md](site-solar/dump-start-conditions.md) |
+| Dump confirm (wait / load rise) | [dump-confirm.md](site-solar/dump-confirm.md) |
+| Inverter AC limits | [dump-inverter-limits.md](site-solar/dump-inverter-limits.md) |
+| Battery discharge limits | [dump-battery-limits.md](site-solar/dump-battery-limits.md) |
+| Dump alerts | [dump-alerts.md](site-solar/dump-alerts.md) |
+| Dump timers (min-on / cooldown) | [dump-timers.md](site-solar/dump-timers.md) |
+| Plugs | [plug-buttons.md](site-solar/plug-buttons.md) |
+| Plug names (Where / Load) | [plug-names.md](site-solar/plug-names.md) |
+| Socket Use (normal / dump) | [socket-use.md](site-solar/socket-use.md) |
+| Socket inverter (bus) | [socket-inverter.md](site-solar/socket-inverter.md) |
+| Dump activity log | [dump-activity-log.md](site-solar/dump-activity-log.md) |
+| Dump settings change log | [dump-settings-log.md](site-solar/dump-settings-log.md) |
+| History > Dump sockets timeline | [dump-history.md](site-solar/dump-history.md) |
+
+Back up / restore every Site solar setting (helpers + dashboard):
+`python3 scripts/site_solar_settings.py export` / `restore --from LATEST --helpers`.
 
 ---
 

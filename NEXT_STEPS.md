@@ -1,5 +1,44 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for Site solar settings persistence + per-box help (2026-09-28)
+
+From branch `fix/site-solar-persist-and-help`. Fixes Site solar settings (dump volts / limits / confirm, Ignore SoC, alert service, and each plug's Where / Load / Use) that reset to the old defaults or blanks, and the dashboard edits that the repo seed overwrote. Adds a help card and a Help page for every dump box. Only `.105` changes. **Pi 4 `.223` / Pi 5 `.240`: nothing to do** (the H5082 bridge is untouched). No new env vars, no `requirements*.txt` change, Node-RED unchanged.
+
+Token: every script below reads `HA_TOKEN` or `HA_TOKEN_FILE` (never commit it). Use `HA_URL=http://127.0.0.1:8123` on `.105`.
+
+**`.105`, in this order**
+
+- [ ] **a. Before pulling anything**, back up the raw HA files:
+  `sudo cp -a /opt/homeassistant/.storage ~/ha-storage-backup-$(date +%Y%m%d-%H%M%S)` and
+  `sudo cp -a /opt/homeassistant/packages ~/ha-packages-backup-$(date +%Y%m%d-%H%M%S)`.
+  Optional extra copy of the dashboard: `sudo cp -a /opt/homeassistant/.storage/lovelace.site_solar ~/lovelace.site_solar.$(date +%Y%m%d-%H%M%S)`.
+- [ ] **b.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`.
+- [ ] **c.** Export the live values (new script, so after the pull):
+  `HA_TOKEN_FILE=... HA_URL=http://127.0.0.1:8123 python3 scripts/site_solar_settings.py export`
+  → `.backups/site-solar/<stamp>/` (git-ignored): `helpers.json`, `helper-definitions.json`, `dashboards.json`, `dashboard-site-solar.json`.
+- [ ] **d.** Strip `initial` from the H5082 storage helpers **before any HA restart**:
+  `HA_TOKEN_FILE=... HA_URL=http://127.0.0.1:8123 python3 scripts/create_h5082_socket_labels.py --dry-run` (expect `WOULD STRIP initial` for the `_location`, `_load` and `_use` helpers), then the same command without `--dry-run`. Values are not changed and no restart is needed.
+- [ ] **e.** Re-enter any Where / Load / Use that was lost (Site solar > **Plug names** and **Socket Use**). Old text is still in each helper's History. To put back an earlier export instead: `python3 scripts/site_solar_settings.py restore --from LATEST --helpers --dry-run`, then without `--dry-run` (it exports the current values first).
+- [ ] **f.** `bash scripts/install_dump_control_ha.sh` (copies the package without `initial:`, runs check_config, restarts HA). After this restart HA keeps the values that were live just before it.
+- [ ] **g.** Check the values survived: `python3 scripts/site_solar_settings.py export` again and compare the `state` of each helper with step c (names change because the helpers were renamed; `last_changed` changes at every restart):
+  `python3 -c "import json,sys; a,b=(json.load(open(f)) for f in sys.argv[1:]); [print(k, a[k]['state'], '->', b.get(k,{}).get('state')) for k in a if a[k]['state']!=b.get(k,{}).get('state')]" .backups/site-solar/<c>/helpers.json .backups/site-solar/<g>/helpers.json`
+  (no output = every value survived). Set any dump number you had tuned before (they had been snapping back to 27.0 / 26.8 / 2000 / 50 / 95 / 5 / 25), or press **Dump master switch > Recommended defaults** once.
+- [ ] **h.** Site solar dashboard (pick one):
+  - keep the live dashboard and add the new help / log cards by hand, **or**
+  - `HA_TOKEN_FILE=... HA_URL=http://127.0.0.1:8123 python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `--force` to load the repo seed. It backs the live config up to `.backups/site-solar/<stamp>-before-seed/` first; undo with `python3 scripts/site_solar_settings.py restore --from <that folder> --dashboard`.
+  Without `--force` the script now refuses to overwrite an existing, different dashboard (exit 3). `install_solar_plant_ha.sh` no longer rewrites `.storage/lovelace.site_solar`; `sync_site_solar_storage_from_seed.py` is offline-only (`--force`, HA stopped).
+- [ ] **i.** Energy: `save_solar_plant_energy_prefs.py` now backs up and refuses to replace configured prefs without `--force`. Nothing to run unless you want the repo prefs.
+- [ ] **j.** Checks:
+  - `grep -n 'initial:' /opt/homeassistant/packages/dump_control.yaml` → comment lines only.
+  - `sudo grep -c '"initial"' /opt/homeassistant/.storage/input_text /opt/homeassistant/.storage/input_select` → 0 for the `h5082_*` helpers.
+  - Settings → Automations: the dump automations now read "Dump ON: ...", "Dump OFF ...", "Dump SHED ...", "Dump ALERT ..." (same ids, no `_2`), all enabled.
+  - Settings → System → Logs: no `logbook` / `ServiceNotFound` errors (the package enables `logbook:`).
+  - Site solar > **Dump settings change log** shows no value steps at the restart time; **Dump activity log** shows "Dump control" reasons when a socket switches.
+- [ ] Optional: review how often `ha-watchdog.timer` / autoheal restart HA (each restart used to re-apply the defaults), and whether the alfa-ai brain / Ask ALFa writes dump helpers (`ha_set_number` / `ha_select_option`); its writes show in the settings change log.
+- Note: HA saves restore state every 15 minutes and at a clean stop. A value changed just before an unclean kill (power loss, `docker kill`) can come back as the previous value.
+
+**Tests:** `pytest tests/` → 164 passed, 2 skipped, 2 failed (the same 2 pre-existing failures: `test_solar_ku_estimates::test_now_view_has_ku_est_tile`, `test_solar_plant_ha::test_device_policy_doc`). New: `tests/test_site_solar_persist_and_help.py` (25).
+
 ## Next step: host steps from the 2026-09-28 H5082 reliability + sim removal
 
 From the 2026-09-28 PR (branch `fix/h5082-reliability-remove-sim`, after #4). The H5082 bridge keeps one BLE link per plug, retries failed commands, and handles plugs independently. The simulated dump plugs are gone, and dump control now drives the real H5082 sockets whose **Use** is `dump` (`config/packages/dump_control.yaml`). No new env vars and no `requirements*.txt` change. Node-RED flows did not change.
@@ -22,10 +61,10 @@ Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); 
 - [ ] `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`.
 - [ ] If `/opt/homeassistant/packages/sim_dump_control.yaml` or `sim_dump_plugs.yaml` exists: `sudo rm -f /opt/homeassistant/packages/sim_dump_*.yaml`, then HA check config (`docker exec homeassistant python -m homeassistant --script check_config -c /config`) and `docker restart homeassistant`.
 - [ ] In Settings → Entities (search `sim_` / `dump_plug_`, status "not provided"), delete the orphaned entities: `switch.sim_ac_plug_*`, `sensor.sim_ac_plug_*_power`, `sensor.sim_dump_load_power`, `input_boolean.sim_ac_plug_*_internal`, `input_text.dump_plug_*_power_entity`, `input_select.dump_plug_*_inverter`, `timer.dump_plug_*`, `sensor.dump_plug_*_last_w`, and the old `automation.dump_load_*` entries (their unique IDs start with `sim_dump_`). If `sensor.sim_dump_energy_kwh` exists as a UI helper, delete it too. Doing this before the next step keeps the new automations from getting `_2` ids.
-- [ ] If the per-socket selects are missing: `python3 scripts/create_h5082_socket_labels.py` (HA token; skips the ones that exist).
+- [ ] If the per-socket selects are missing: `python3 scripts/create_h5082_socket_labels.py` (HA token; skips the ones that exist and, since the persistence fix, strips `initial`).
 - [ ] Install dump control: `bash scripts/install_dump_control_ha.sh` (removes any sim package, copies `dump_control.yaml`, runs check config, restarts HA).
-- [ ] Site solar dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py` (HA token) to load the repo seed. **This overwrites UI edits to `/site-solar`.** If you edited it in the UI, replace the **Dump dwell** card (now auto-entities over `timer.h5082_*`) and delete **Dump plug wiring** by hand instead. Then confirm there are no red "entity not available" cards and each Plugs card has an **Inverter** row (not C38D).
-- [ ] Energy: `python3 scripts/save_solar_plant_energy_prefs.py` (or remove the **Sim dump** device in Settings → Energy).
+- [ ] Site solar dashboard: `python3 scripts/save_solar_plant_storage_dashboard.py` (HA token) to load the repo seed. **Superseded by step h above: the script now needs `--force` and backs up first.** If you edited it in the UI, replace the **Dump dwell** card (now auto-entities over `timer.h5082_*`) and delete **Dump plug wiring** by hand instead. Then confirm there are no red "entity not available" cards and each Plugs card has an **Inverter** row (not C38D).
+- [ ] Energy: `python3 scripts/save_solar_plant_energy_prefs.py --force` (backs up first; or remove the **Sim dump** device in Settings → Energy).
 - [ ] Dump automations: Settings → Automations shows `Dump load turn on`, `... turn off solar gone`, `... shed while not float`, `... shed Sungold load above site solar`, the six re-bulk/battery turn-offs and the notify, all **enabled** and with no `_2` suffix. `sensor.dump_next_plug` / `sensor.dump_shed_plug` show `none` or a `switch.ihoment_h5082_*` id.
 - [ ] Set **Use = dump** on the dump sockets (plan: 4 sockets = 2 plugs), set each one's **Inverter**, and check `sensor.dump_sockets` counts them. Leave `input_boolean.dump_control_enabled` off until one dump socket has been switched by hand and by the automation (H5082_INSTALL_PLAN.md Checkpoint 7).
 - [ ] Node-RED: flows unchanged, no redeploy.

@@ -39,7 +39,8 @@ From `.105` after `git pull`:
 ```bash
 cd /home/ansible/victron-ble2mqtt-integration
 bash scripts/install_solar_plant_ha.sh
-HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py
+HA_TOKEN_FILE=... python3 scripts/save_solar_plant_storage_dashboard.py --dry-run
+# add --force to replace UI edits (live config is backed up first)
 ```
 
 Old computed entities may remain in **History** until purged; remove stale entities
