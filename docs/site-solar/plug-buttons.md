@@ -2,8 +2,10 @@
 
 **Where:** Site solar > Now view > **Plugs**.
 **Logic:** dashboard seed `config/dashboards/solar-plant.yaml` (button-card template
-`h5082_socket`, needs HACS `button-card` and `auto-entities`); switches from the Pi 4
-bridge `govee_h5082` (`h5082-mqtt.service`).
+`h5082_socket`, needs HACS `button-card` and `auto-entities`); switches from the
+bridge `govee_h5082` (`h5082-mqtt.service` on the Pi 4, and on the Pi 5 for the plugs
+it owns; see `docs/H5082_MULTI_BRIDGE.md`). A socket greys out when the Pi that owns it
+is down.
 
 ## What this box is for
 

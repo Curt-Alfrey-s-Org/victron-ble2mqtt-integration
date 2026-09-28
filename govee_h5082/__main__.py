@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 
 import paho.mqtt.client as mqtt
@@ -11,16 +12,22 @@ from dbus_fast import BusType, Variant
 from dbus_fast.aio import MessageBus
 
 from govee_h5082.mqtt_bridge import (
+    AVAIL_LEGACY,
     PLUGS,
     RECV_UUID,
     SEND_UUID,
     auth_packet,
+    avail_topic,
     command_bytes,
     discovery_payload,
     discovery_topic,
     dumps,
     iter_switches,
+    key_file_problem,
+    key_path,
     load_keys,
+    owner_topic,
+    parse_owned,
     payload_for,
     rssi_discovery_payload,
     rssi_discovery_topic,
@@ -29,7 +36,9 @@ from govee_h5082.mqtt_bridge import (
     state_topic,
 )
 
-AVAIL = "govee/h5082/bridge/status"
+MAC_HEX_LEN = 12
+OWNER_TOPIC_PARTS = 4  # govee/h5082/<mac>/owner
+AVAIL = AVAIL_LEGACY  # kept for callers; a per-host bridge uses Bridge._avail
 HOLD_S = 20
 # Poll every 10 s; re-read the BlueZ object tree every RESCAN_EVERY polls (~60 s).
 RESCAN_EVERY = 6
@@ -207,10 +216,26 @@ class Bridge:
         self._adapter = os.environ.get("H5082_ADAPTER", "hci1")
         self._listener = os.environ.get("H5082_LISTENER", "pi4")
         self._rssi_only = os.environ.get("H5082_RSSI_ONLY", "") == "1"
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", self._listener):
+            raise SystemExit(f"H5082_LISTENER {self._listener!r}: use a short host id such as pi4 or pi5")
         if self._listener == "pi4" and self._adapter != "hci1":
-            raise SystemExit("pi4 listener uses hci1 only")
-        if self._listener == "pi5" and self._adapter != "hci0":
-            raise SystemExit("pi5 listener uses hci0 only")
+            raise SystemExit("pi4 listener uses hci1 only (hci0 is Victron)")
+        if not re.fullmatch(r"hci[0-9]+", self._adapter):
+            raise SystemExit(f"H5082_ADAPTER {self._adapter!r}: expected hciN")
+        # Plug ownership. Unset = legacy single bridge (every plug, legacy availability
+        # topic), allowed only on the Pi 4 so a second Pi can never grab every plug.
+        try:
+            owned = parse_owned(os.environ.get("H5082_PLUGS"))
+        except ValueError as exc:
+            raise SystemExit(f"H5082_PLUGS: {exc}") from None
+        self._per_host = owned is not None
+        if not self._per_host and not self._rssi_only and self._listener != "pi4":
+            raise SystemExit(
+                f"H5082_PLUGS is required on {self._listener} (for example H5082_PLUGS=82FB "
+                "in /home/n4s1/.config/h5082-bridge.env); see docs/H5082_MULTI_BRIDGE.md"
+            )
+        self._owned: set[str] = {address for address, _name in PLUGS} if owned is None else owned
+        self._avail = avail_topic(self._listener if self._per_host else None)
         host = os.environ.get("MQTT_HOST", "")
         user = os.environ.get("MQTT_USER") or os.environ.get("MQTT_USERNAME", "")
         password = os.environ.get("MQTT_PASSWORD", "")
@@ -218,6 +243,7 @@ class Bridge:
         if not host or not user or not password:
             raise SystemExit("MQTT_HOST, MQTT_USER, and MQTT_PASSWORD are required")
         self._keys = load_keys()
+        self._key_problem = key_file_problem(key_path()) if not self._rssi_only else None
         self._state: dict[tuple[str, str], bool] = {}
         self._hold: dict[tuple[str, str], float] = {}
         self._paths: dict[str, str] = {}
@@ -231,7 +257,7 @@ class Bridge:
         self._client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
         self._client.username_pw_set(user, password)
         if not self._rssi_only:
-            self._client.will_set(AVAIL, "offline", qos=1, retain=True)
+            self._client.will_set(self._avail, "offline", qos=1, retain=True)
         self._client.on_connect = self._on_connect
         self._client.on_message = self._on_message
         self._host = host
@@ -248,9 +274,21 @@ class Bridge:
             return
         self._client.publish(rssi_topic(address, self._listener), str(rssi), retain=False)
 
+    def owns(self, address: str) -> bool:
+        # Legacy (no allowlist): everything, exactly as before (unknown -> NO_KEY).
+        return not self._per_host or address.upper() in self._owned
+
+    def owned_plugs(self) -> list[tuple[str, str]]:
+        return [(address, name) for address, name in PLUGS if address in self._owned]
+
+    def describe(self) -> str:
+        ids = " ".join(_short(address) for address, _name in self.owned_plugs()) or "none"
+        mode = "per-host" if self._per_host else "all (no H5082_PLUGS)"
+        return f"OWNS {ids} listener={self._listener} adapter={self._adapter} mode={mode}"
+
     def publish_config(self) -> None:
         if not self._rssi_only:
-            self._client.publish(AVAIL, "online", qos=1, retain=True)
+            self._client.publish(self._avail, "online", qos=1, retain=True)
         count = 0
         for address, name in PLUGS:
             self._client.publish(
@@ -260,13 +298,19 @@ class Bridge:
             )
             count += 1
         if not self._rssi_only:
-            for address, name, side, side_name in iter_switches():
-                payload = discovery_payload(address, name, side, side_name)
+            # Only the owner publishes a plug's switch config, so each socket keeps one
+            # HA entity whose availability follows the Pi that actually drives it.
+            for address, name, side, side_name in iter_switches(self.owned_plugs()):
+                payload = discovery_payload(address, name, side, side_name, self._avail)
                 self._client.publish(discovery_topic(address, side), dumps(payload), qos=1, retain=True)
                 cached = self._state.get((address, side))
                 if cached is not None:
                     self.publish_state(address, side, cached)
             self._client.subscribe("govee/h5082/+/+/set", qos=1)
+            if self._per_host:
+                for address, _name in self.owned_plugs():
+                    self._client.publish(owner_topic(address), self._listener, qos=1, retain=True)
+                self._client.subscribe("govee/h5082/+/owner", qos=1)
         print(f"DISCOVERY {count} listener={self._listener}", flush=True)
 
     def _on_connect(self, client, _userdata, _flags, reason_code, _properties) -> None:
@@ -276,8 +320,27 @@ class Bridge:
         print("MQTT_OK", flush=True)
         self.publish_config()
 
+    def note_owner_claim(self, mac: str, host: str) -> None:
+        """Another bridge's retained claim: warn on a clash, drop our own stale claim."""
+        if len(mac) != MAC_HEX_LEN or not host:
+            return
+        address = ":".join(mac[i : i + 2] for i in range(0, MAC_HEX_LEN, 2)).upper()
+        if self.owns(address) and host != self._listener:
+            print(
+                f"OWNER_CONFLICT {_short(address)} also claimed by {host}; remove it from "
+                f"H5082_PLUGS on one Pi",
+                flush=True,
+            )
+        elif not self.owns(address) and host == self._listener:
+            # We owned it before a restart with a new allowlist: release the claim.
+            self._client.publish(owner_topic(address), "", qos=1, retain=True)
+            print(f"OWNER_RELEASE {_short(address)}", flush=True)
+
     def _on_message(self, _client, _userdata, message) -> None:
         parts = message.topic.split("/")
+        if len(parts) == OWNER_TOPIC_PARTS and parts[3] == "owner":
+            self.note_owner_claim(parts[2], message.payload.decode("utf-8", "replace").strip())
+            return
         if len(parts) != 5 or parts[4] != "set":
             return
         mac = parts[2]
@@ -285,6 +348,10 @@ class Bridge:
         if side not in ("left", "right"):
             return
         address = ":".join(mac[i : i + 2] for i in range(0, 12, 2)).upper()
+        if not self.owns(address):
+            # Another Pi's bridge owns this plug; never touch it from here.
+            print(f"NOT_OWNER {_short(address)} {side}", flush=True)
+            return
         text = message.payload.decode("utf-8", "replace").strip().upper()
         if text not in ("ON", "OFF"):
             print(f"BAD_PAYLOAD {_short(address)} {side} {text[:16]!r}", flush=True)
@@ -297,6 +364,9 @@ class Bridge:
         future.add_done_callback(_log_task_error(f"command {_short(address)} {side}"))
 
     async def command(self, address: str, side: str, turn_on: bool) -> None:
+        if not self.owns(address):
+            print(f"NOT_OWNER {_short(address)} {side}", flush=True)
+            return
         token = self._keys.get(address)
         if not token:
             print(f"NO_KEY {_short(address)} {side}", flush=True)
@@ -388,6 +458,8 @@ class Bridge:
 
     def note_advertisement(self, address: str, last: int) -> None:
         address = address.upper()
+        if not self.owns(address):
+            return  # the owning Pi publishes this plug's state
         now = time.monotonic()
         for side, on in socket_on(last).items():
             if self._hold.get((address, side), 0) > now:
@@ -459,7 +531,18 @@ class Bridge:
                     self.note_advertisement(address, last)
             await asyncio.sleep(10)
 
+    def startup_report(self) -> None:
+        print(self.describe(), flush=True)
+        if self._rssi_only:
+            return
+        if self._key_problem:
+            print(f"KEY_FILE {key_path()} {self._key_problem}", flush=True)
+        for address, _name in self.owned_plugs():
+            if address not in self._keys:
+                print(f"NO_KEY_OWNED {_short(address)} (copy its line into {key_path()})", flush=True)
+
     async def run(self) -> None:
+        self.startup_report()
         self._loop = asyncio.get_running_loop()
         self._client.connect(self._host, self._port)
         self._client.loop_start()
@@ -471,7 +554,7 @@ class Bridge:
             for link in list(self._links.values()):
                 await link.close()
             if not self._rssi_only:
-                self._client.publish(AVAIL, "offline", qos=1, retain=True)
+                self._client.publish(self._avail, "offline", qos=1, retain=True)
             self._client.loop_stop()
             self._client.disconnect()
 

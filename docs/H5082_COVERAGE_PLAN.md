@@ -68,6 +68,13 @@ Live sample 2026-09-26 (24 s, no extra scan):
 
 `82FB` is the one Pi 5 hears better. Pi 4 is no longer closer to it.
 
+2026-09-28: `82FB` switching from the Pi 4 times out (`GATT 82FB ... TimeoutError`,
+`SET_FAIL`). The Pi 5 now runs the full bridge for the plugs listed in its
+`H5082_PLUGS` (first `82FB`). It replaces the RSSI-only `h5082-rssi-pi5` and still
+publishes pi5 RSSI. The bridge's short `find` scan on Pi 5 `hci0` is a BlueZ discovery
+next to Theengs, not a second scanner process. **Heard by** is only advice; the
+allowlist decides which Pi drives a plug. See [H5082_MULTI_BRIDGE.md](H5082_MULTI_BRIDGE.md).
+
 ## Checkpoint 4 — dump UI `[ ]`
 
 | Now | Change to |

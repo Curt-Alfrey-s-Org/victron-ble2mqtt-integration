@@ -58,6 +58,15 @@ generate it on the Pi 4 and copy it over:
 sudo bash scripts/write_pi5_mqtt_env.sh /tmp/pi5-theengs-mqtt.env
 ```
 
+## Govee H5082 bridge (plugs the Pi 4 cannot reach)
+
+The Pi 5 can run the same `govee_h5082` bridge as the Pi 4, for the plugs listed
+in `/home/n4s1/.config/h5082-bridge.env` (`H5082_PLUGS=82FB`, adapter `hci0`).
+It keeps its own `/home/n4s1/.govee-h5082-keys` (mode 600) with only those plugs'
+lines. Install it with `sudo bash scripts/install_h5082_bridge.sh --host pi5`: the
+unit is installed as `h5082-mqtt` and replaces `h5082-rssi-pi5`. Steps and how to
+move a plug: [docs/H5082_MULTI_BRIDGE.md](../../docs/H5082_MULTI_BRIDGE.md).
+
 ## Prometheus
 
 Scrape jobs stay in the **monitoring** repo (`prometheus.yml` on `.107`):
