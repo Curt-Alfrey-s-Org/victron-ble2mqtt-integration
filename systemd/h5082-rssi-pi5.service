@@ -1,5 +1,5 @@
 [Unit]
-Description=Govee H5082 MQTT switches for Home Assistant
+Description=H5082 RSSI listener on Pi 5 hci0 (Theengs already scans)
 After=network-online.target bluetooth.service
 Wants=network-online.target
 
@@ -7,9 +7,10 @@ Wants=network-online.target
 Type=simple
 User=n4s1
 Group=n4s1
-EnvironmentFile=/home/n4s1/victron-ble2mqtt-integration/.env
-Environment=H5082_LISTENER=pi4
-Environment=H5082_ADAPTER=hci1
+EnvironmentFile=/home/n4s1/victron-ble2mqtt-integration/hosts/pi5/mqtt.env
+Environment=H5082_LISTENER=pi5
+Environment=H5082_ADAPTER=hci0
+Environment=H5082_RSSI_ONLY=1
 WorkingDirectory=/home/n4s1/victron-ble2mqtt-integration
 ExecStart=/home/n4s1/govee-ble-venv/bin/python -u -m govee_h5082
 Restart=on-failure

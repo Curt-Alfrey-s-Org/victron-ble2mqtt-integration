@@ -135,3 +135,39 @@ def load_keys(path: str = KEY_PATH) -> dict[str, str]:
 
 def dumps(payload: dict) -> str:
     return json.dumps(payload, separators=(",", ":"))
+
+
+def rssi_topic(address: str, listener: str) -> str:
+    return f"govee/h5082/{mac_id(address)}/rssi/{listener}"
+
+
+def rssi_discovery_topic(address: str, listener: str) -> str:
+    return f"homeassistant/sensor/h5082_{suffix(address)}_rssi_{listener}/config"
+
+
+def rssi_discovery_payload(address: str, name: str, listener: str) -> dict:
+    ident = f"h5082_{mac_id(address)}"
+    return {
+        "name": f"RSSI {listener}",
+        "object_id": f"h5082_{suffix(address)}_rssi_{listener}",
+        "unique_id": f"{ident}_rssi_{listener}",
+        "state_topic": rssi_topic(address, listener),
+        "device_class": "signal_strength",
+        "unit_of_measurement": "dBm",
+        "expire_after": 90,
+        "device": {
+            "identifiers": [ident],
+            "name": name,
+            "manufacturer": "Govee",
+            "model": "H5082",
+            "connections": [["mac", address]],
+        },
+    }
+
+
+def pick_owner(samples: dict[str, int]) -> str | None:
+    """Closest radio wins (highest RSSI). On a tie, pi5 then ha-105 then pi4."""
+    if not samples:
+        return None
+    rank = {"pi5": 0, "ha-105": 1, "pi4": 2}
+    return max(samples, key=lambda name: (samples[name], -rank.get(name, 9)))

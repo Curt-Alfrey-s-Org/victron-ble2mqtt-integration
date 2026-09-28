@@ -61,6 +61,8 @@ def test_h5082_discover_picks_up_plugs_that_appear_later(monkeypatch):
 
     bridge = object.__new__(govee_main.Bridge)  # no MQTT / key file needed
     bridge._paths = {}
+    bridge._adapter = "hci1"
+    bridge._rssi_only = False
     first, second = PLUGS[0][0], PLUGS[1][0]
     path = lambda a: f"/org/bluez/hci1/dev_{a.replace(':', '_')}"  # noqa: E731
     bus = _FakeBus({path(first): _dev(first)})

@@ -38,6 +38,16 @@ def test_discovery_has_command_and_state_and_no_key():
     assert len(list(iter_switches(PLUGS[:1]))) == 2
 
 
+def test_closest_listener_owns_the_plug():
+    from govee_h5082.mqtt_bridge import pick_owner
+
+    assert pick_owner({"pi4": -88, "pi5": -59}) == "pi5"
+    assert pick_owner({"pi4": -52, "pi5": -91}) == "pi4"
+    assert pick_owner({"pi4": -82, "pi5": -82}) == "pi5"
+    assert pick_owner({"pi4": -100}) == "pi4"
+    assert pick_owner({}) is None
+
+
 def test_command_bytes_are_the_h5082_messages():
     assert command_bytes("left", True) == LEFT_ON
     packet = auth_packet("00112233445566778899aabbccddeeff")
