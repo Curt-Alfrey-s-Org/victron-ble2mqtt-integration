@@ -8,7 +8,10 @@ read them.
 
 ## What this box is for
 
-Your own labels, so a socket shows "Water heater" instead of "82FB left".
+Your own labels for what is plugged into each socket and where each plug is, so a
+socket shows the name you typed instead of just its plug id and side (`<ID> left`).
+The repo never hard-codes loads or locations: plugs move and loads change, so you set
+and change them here in HA.
 
 ## The entities (per plug)
 
@@ -20,6 +23,11 @@ Your own labels, so a socket shows "Water heater" instead of "82FB left".
 | Left load / Right load | `input_text.h5082_<id>_left_load` / `input_text.h5082_<id>_right_load` | text, 0-64 characters | What is plugged into that side. Change it when you plug something else in. |
 
 No raise / lower: type text. Blank is fine (the button then shows the id).
+
+**Current names (live)** at the top of the box is a read-only table of every plug's
+Where, Left load and Right load as they are right now (`_not set_` when blank). The
+same live names are used by the Plugs buttons, the Socket Use and Socket inverter rows,
+**Dump status > Dump sockets by name** and the **Dump control** logbook lines.
 
 ## Why they used to reset, and why they stay now
 
@@ -39,9 +47,12 @@ any time with `python3 scripts/site_solar_settings.py export`.
 
 ## Example
 
-82FB lives in the bathroom with a water heater on the left and nothing on the right:
-Where `Bathroom`, Left load `Water heater`, Right load blank. The Plugs button now
-reads `Water heater` / `Bathroom · dump · pi5`.
+Plug `<ID>` sits in the bathroom with a water heater on the left and nothing on the
+right: type Where `Bathroom`, Left load `Water heater`, Right load blank. The Plugs
+button now reads `Water heater` / `Bathroom · dump · pi5`, the Use / Inverter rows read
+`Water heater (<ID> left) at Bathroom` and `<ID> right at Bathroom`, and the next
+Dump control logbook line for that socket starts with the same name. Move the plug to
+the shop later: change Where to `Shop` and everything follows.
 
 ## Recommended first test
 

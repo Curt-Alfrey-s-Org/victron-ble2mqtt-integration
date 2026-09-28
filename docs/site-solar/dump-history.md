@@ -36,9 +36,10 @@ by that rule; the exact reason text is in [Dump activity log](dump-activity-log.
 
 ## Example
 
-The 3EC9 left bar goes off at 16:31 and `Dump KU re-bulk` turned on at 16:30: the KU
-bus sagged to its stop volts. If that happens daily, raise KU stop volts a little or
-move the heater to another bus.
+A dump socket's bar (say `<ID> left`, set to the KU bus) goes off at 16:31 and
+`Dump KU re-bulk` turned on at 16:30: the KU bus sagged to its stop volts. If that
+happens daily, raise KU stop volts a little or move that load to another bus (then
+update its Inverter, Where and Load).
 
 ## Recommended first test
 

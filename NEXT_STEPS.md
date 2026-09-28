@@ -1,5 +1,29 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "no hard-coded plug loads" (2026-09-28)
+
+From branch `fix/no-hardcoded-plug-loads` (after #6). The Pi 4 is **not** plugged into a Govee plug, and loads and locations will change, so the repo no longer says what is plugged into any H5082 socket or where any plug is. The dashboard and the Dump control logbook lines read the live **Where** / **Load** helpers (`input_text.h5082_<id>_location`, `input_text.h5082_<id>_<side>_load`) and show the plug id and side when one is blank. Entity ids, helper values and dump logic are unchanged, and no `initial:` was added. **Your current Where / Load / Use / Inverter values are kept**: nothing in this change writes to them. Only `.105` changes. **Pi 4 `.223` / Pi 5 `.240`: nothing to do** (the bridge is untouched).
+
+Token: every script reads `HA_TOKEN` or `HA_TOKEN_FILE` (never commit it). Use `HA_URL=http://127.0.0.1:8123` on `.105`.
+
+**`.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Export first (keeps a copy of every Where / Load / Use / Inverter value and the live dashboard):
+  `HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123 python3 scripts/site_solar_settings.py export`
+- [ ] **c.** `bash scripts/install_dump_control_ha.sh`: copies `dump_control.yaml` (the logbook lines now start with the socket's live name; one description no longer names a load), runs check_config, and restarts HA.
+- [ ] **d.** Dashboard: `HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123 python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then run the same command with `--force`. The live `/site-solar` config is backed up to `.backups/site-solar/<stamp>-before-seed/` first. Any UI edits made since the last forced save are replaced; undo with `python3 scripts/site_solar_settings.py restore --from <that folder> --dashboard`. Needs HACS `auto-entities` (already used).
+- [ ] **e.** Check:
+  - **Plug names > Current names (live)** lists your current Where / Left load / Right load (`_not set_` when blank).
+  - **Socket Use** / **Socket inverter** rows read `<Load> (<ID> <side>) at <Where>`, or `<ID> <side>` when Load is blank.
+  - The C38D card title is just `C38D`, and no button carries the old Pi label any more.
+  - **Dump status > Dump sockets by name (live)** names the next socket to add or shed.
+  - The next **Dump control** logbook line starts with the socket's name.
+  - To confirm no value changed, export again and compare `state` with step b: `python3 -c "import json,sys; a,b=(json.load(open(f)) for f in sys.argv[1:]); [print(k, a[k]['state'], '->', b.get(k,{}).get('state')) for k in a if a[k]['state']!=b.get(k,{}).get('state')]" .backups/site-solar/<b>/helpers.json .backups/site-solar/<e>/helpers.json` (no output means nothing changed).
+- [ ] **f.** If any Where / Load you typed earlier still says the Pi 4 is on a plug (for example C38D's Load), change it in **Plug names**. From now on, when you move a plug or plug in something else, change Where / Load there; no repo change is needed.
+
+**Tests:** `pytest tests/` gives 189 passed, 2 skipped, 2 failed. The 2 failures are the same pre-existing ones (`test_solar_ku_estimates::test_now_view_has_ku_est_tile`, `test_solar_plant_ha::test_device_policy_doc`). New: `tests/test_no_hardcoded_plug_loads.py` (25).
+
 ## Next step: host steps for Site solar settings persistence + per-box help (2026-09-28)
 
 From branch `fix/site-solar-persist-and-help`. Fixes Site solar settings (dump volts / limits / confirm, Ignore SoC, alert service, and each plug's Where / Load / Use) that reset to the old defaults or blanks, and the dashboard edits that the repo seed overwrote. Adds a help card and a Help page for every dump box. Only `.105` changes. **Pi 4 `.223` / Pi 5 `.240`: nothing to do** (the H5082 bridge is untouched). No new env vars, no `requirements*.txt` change, Node-RED unchanged.

@@ -23,14 +23,14 @@ Checked 2026-09-26, Theengs still owns `hci0`. Live RSSI (more negative = farthe
 
 | Plug | RSSI | Notes |
 |---|---|---|
-| `82FB` | −56 | Closest to the water heater |
+| `82FB` | −56 | Strongest |
 | `3EC9` | −82 | In range |
 | `C061` | −88 | In range |
 | `2F9D` | −89 | Weak, still live |
 | `CF79` | −90 | Weak, still live |
 | `3013` `9607` `C38D` | — | Not on Pi 5. Solar-site / Pi 4. |
 
-Five house plugs are updating live on Pi 5. That covers four bedrooms plus one extra. Do not add a second Pi 5 scanner.
+Five plugs are updating live on Pi 5. Where each plug is kept is the HA **Where** text, not this table. Do not add a second Pi 5 scanner.
 
 ## Checkpoint 2 — `.229` dongle into HA `.105`
 
@@ -59,7 +59,7 @@ Live sample 2026-09-26 (24 s, no extra scan):
 |---|---|---|---|
 | `2F9D` | −52 | −91 | pi4 |
 | `C061` | −54 | −93 | pi4 |
-| `82FB` | −88 | −59 | **pi5** (house, closer than Pi 4) |
+| `82FB` | −88 | −59 | **pi5** (closer to Pi 5 than to Pi 4) |
 | `3EC9` | −82 | −82 | pi5 (tie) |
 | `CF79` | −86 | −89 | pi4 |
 | `3013` | −98 | — | pi4 |

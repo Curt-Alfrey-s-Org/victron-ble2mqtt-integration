@@ -33,9 +33,10 @@ There is nothing to raise or lower in the dashboard: the lengths are in the pack
 
 ## Example
 
-HA tries 3013 right, the confirm fails (nothing plugged in). `3013 right dump
-cooldown` shows active 9:58. HA moves on to C061 left. For the next 10 minutes 3013
-right is never offered; after that it may be tried again.
+HA tries socket `<ID> right`, the confirm fails (nothing is drawing power there).
+`<ID> right dump cooldown` shows active 9:58. HA moves on to the next dump socket in the
+stage order. For the next 10 minutes `<ID> right` is never offered; after that it may be
+tried again.
 
 ## Recommended first test
 

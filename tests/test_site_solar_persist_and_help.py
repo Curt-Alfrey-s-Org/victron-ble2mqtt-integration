@@ -102,7 +102,7 @@ def test_strip_initial_keeps_everything_else() -> None:
     mod = _load("create_h5082_socket_labels")
     item = {
         "id": "h5082_82fb_left_use",
-        "name": "Bath heater use",
+        "name": "My renamed use",
         "options": ["normal", "dump"],
         "initial": "normal",
         "icon": "mdi:toggle-switch",
@@ -111,7 +111,7 @@ def test_strip_initial_keeps_everything_else() -> None:
     assert body == {
         "type": "input_select/update",
         "input_select_id": "h5082_82fb_left_use",
-        "name": "Bath heater use",
+        "name": "My renamed use",
         "options": ["normal", "dump"],
         "icon": "mdi:toggle-switch",
     }

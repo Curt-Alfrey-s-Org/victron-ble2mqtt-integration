@@ -14,7 +14,7 @@ the right battery.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| `<ID> left` / `<ID> right` (14 rows, not C38D) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. |
+| live name (14 rows, not C38D) | `input_select.h5082_<id>_<side>_inverter` | `Sungold`, `T2`, `KU` | Picks the bus whose start/stop volts, battery discharge limit and AC limit gate this socket, and whose meter confirms its load. |
 
 What each choice watches:
 
@@ -23,6 +23,11 @@ What each choice watches:
 | T2 | `sensor.battery_1_voltage` | `sensor.battery_1_power` | T2 limit - T2 battery discharge | minus `sensor.battery_1_power` |
 | KU | `sensor.battery_2_voltage` | `sensor.battery_2_power` | KU limit - KU battery discharge | minus `sensor.battery_2_power` |
 | Sungold | `sensor.sungold_sph302480a_battery_voltage` | Sungold charging power (or current x voltage) | Sungold limit - Sungold AC-out | `sensor.sungold_sph302480a_load_power` |
+
+Each row's name is live: the socket's **Load** and its plug's **Where** from
+[Plug names](plug-names.md), with the plug id and side in brackets (`Heater (<ID> left)
+at Bedroom`), or just `<ID> left` when Load is blank. No inverter or load is fixed in
+the repo: a new select starts on the first option and you pick the real one.
 
 No raise / lower: pick where the socket is really wired.
 
@@ -42,9 +47,10 @@ switch on. A brand-new select starts on **Sungold** (the first option).
 
 ## Example
 
-82FB left is plugged into an outlet fed by the KU inverter: set it to **KU**. When
-the KU battery starts discharging for a minute, 82FB left turns off even though T2
-and Sungold are fine.
+Socket `<ID> left` is plugged into an outlet fed by the KU inverter: set it to **KU**.
+When the KU battery starts discharging for a minute, that socket turns off even though
+T2 and Sungold are fine. If you later move the plug to a Sungold outlet, change this
+row (and its Where) to match.
 
 ## Recommended first test
 

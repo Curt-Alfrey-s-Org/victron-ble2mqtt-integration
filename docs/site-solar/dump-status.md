@@ -27,6 +27,12 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 | <bus> at/below stop volts | `binary_sensor.dump_v_rebulk_t2` / `_ku` / `_sph` | Bus voltage <= stop volts; on for 1 min turns that bus's dump sockets off | [Dump voltage](dump-voltage.md) |
 | <bus> battery within discharge limit | `binary_sensor.dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` | Battery not discharging more than its limit; off for 1 min turns that bus's dump sockets off | [Battery discharge limits](dump-battery-limits.md) |
 
+Below the list, **Dump sockets by name (live)** repeats the next socket to add, the
+next to shed and every socket set to dump (with on/off and its bus) by **name**: the
+socket's Load and its plug's Where from [Plug names](plug-names.md), with the plug id
+and side in brackets, or just `<ID> left` when Load is blank. The sensors themselves
+still hold switch entity ids.
+
 ## How it works in the package
 
 HA **adds** a socket (`dump_turn_on`) only when all of these hold:

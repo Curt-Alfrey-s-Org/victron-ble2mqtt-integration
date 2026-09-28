@@ -13,16 +13,23 @@ Decides which sockets Home Assistant may switch **by itself**.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| `<ID> left` / `<ID> right` (14 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed). **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
-| `C38D left (Pi supply, never dumped)` / `C38D right (...)` | `input_select.h5082_c38d_<side>_use` | `normal`, `dump` | C38D is not in any list in the package: it is never switched by the dump rules, even set to dump. Leave it normal. |
+| live name (14 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed). **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
+| live name + ` - not in the dump list (no key yet)` (2 rows) | `input_select.h5082_c38d_<side>_use` | `normal`, `dump` | C38D has no pairing key on the bridge yet, and it is not in any list in the package: it is never switched by the dump rules, even set to dump. Leave it normal. |
+
+Each row's name is live: the socket's **Load** and its plug's **Where** from
+[Plug names](plug-names.md), with the plug id and side in brackets, for example
+`Heater (<ID> left) at Bedroom`. A blank Load shows just `<ID> left`. Nothing about
+what is plugged in is fixed in the repo (auto-entities template in
+`config/dashboards/solar-plant.yaml`).
 
 Moving a socket from normal to dump "raises" HA's control (it may now switch it);
 dump to normal removes it. Any value other than `dump` counts as normal.
 
 **Safe start:** everything **normal**. Then one socket with a lamp set to **dump** for
 the first test, then the real dump loads (the plan: 4 sockets on 2 plugs).
-Only choose dump for loads that can go off at any moment without harm (resistive
-heaters, water heater). Never for a fridge, freezer, pump, trailer A/C or computer.
+Only choose dump for a load that can lose power at any moment without harm (for
+example a resistive heater). Never for something that must stay on (for example a
+fridge, freezer, pump or computer). Check the socket's Load first.
 
 ## How it works in the package
 
@@ -42,9 +49,10 @@ heaters, water heater). Never for a fridge, freezer, pump, trailer A/C or comput
 
 ## Example
 
-3EC9 left has a 750 W space heater and 3EC9 right a fridge. Set 3EC9 left = dump,
-3EC9 right = normal. HA may run the heater on spare solar; it never touches the
-fridge.
+Plug `<ID>`: you typed Left load = `Space heater` and Right load = `Fridge`. The rows
+read `Space heater (<ID> left)` and `Fridge (<ID> right)`. Set the left one to dump and
+the right one to normal. HA may run the heater on spare solar; it never touches the
+fridge. When you later swap what is plugged in, change the Load text and review Use.
 
 ## Recommended first test
 
