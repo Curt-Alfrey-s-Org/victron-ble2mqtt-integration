@@ -54,7 +54,7 @@ def test_dump_package_keeps_every_helper_id() -> None:
     assert len(data["input_number"]) == 16  # + 2 booleans + 1 text = 19 helpers
     assert set(data["input_boolean"]) == {"dump_control_enabled", "dump_soc_unsynced"}
     assert set(data["input_text"]) == {"dump_notify_service"}
-    assert len(data["input_select"]) == 14
+    assert len(data["input_select"]) == 16
 
 
 def test_package_loads_logbook_for_reason_lines() -> None:

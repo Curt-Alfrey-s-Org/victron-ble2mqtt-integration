@@ -113,7 +113,7 @@ def test_socket_rows_are_named_from_live_where_and_load() -> None:
         for card in section["cards"]:
             if card.get("type") == "custom:auto-entities" and "template" in card.get("filter", {}):
                 cards[card["card"]["title"]] = card
-    for title, kind, count in (("Socket Use", "use", 16), ("Socket inverter", "inverter", 14)):
+    for title, kind, count in (("Socket Use", "use", 16), ("Socket inverter", "inverter", 16)):
         card = cards[title]
         tpl = card["filter"]["template"]
         assert "'input_text.h5082_' ~ s ~ '_load'" in tpl, title

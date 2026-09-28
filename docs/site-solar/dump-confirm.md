@@ -39,7 +39,7 @@ For each socket `sensor.dump_next_plug` offers, `dump_turn_on`:
 6. **Confirmed** = the plug reported on **and** both readings are numbers **and**
    after - before >= **Confirm min load rise**. Confirmed: its 15 minute min-on timer
    starts and the log says `kept ON: <bus> load rose N W`. HA then tries the next
-   socket (at most 14 per run).
+   socket (at most 16 per run).
 7. **Not confirmed:** socket off, 10 minute cooldown, log says
    `turned back OFF: not confirmed ... load rose N W, needs M W`. HA moves on to the
    next socket.
