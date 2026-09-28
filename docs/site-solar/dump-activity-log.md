@@ -23,6 +23,10 @@ Watch **when** and **why** a plug was switched, and whether HA or a person did i
 | `Dump control <name>: turned OFF by "Dump OFF KU sockets: KU bus at stop volts (re-bulk)": KU bus 26.78 V ...` | That bus sagged to stop volts. |
 | `Dump control <name>: turned OFF by "Dump OFF T2 sockets: T2 battery discharging past limit": ...` | The pack was supplying the load. |
 | `Dump control <name>: turned OFF by "Dump SHED one per minute: ...": ...` | Shedding one socket per minute (charger left float, or Sungold load above solar). |
+| `Dump control <name>: switched ON by hand (Plugs button, the plug's own button or another app), not by dump control. Hold 60 min: the dump rules leave it alone until 16:45.` | A dump socket was switched without a dump rule asking; its [manual hold](dump-hold.md) started. |
+| `Dump control <name>: hold ended (time up); the dump rules may switch it again.` / `(cleared)` | The hold ran out, or was cancelled (row Cancel or Clear all holds). |
+| `Dump control <name>: turned OFF by "Dump HOLD end: automatic control resumes": the hold ended while solar gone. Cooldown 10 min.` | The hold ended while dump control wanted the socket off. |
+| `Dump control cleared every manual hold (someone pressed Clear all holds).` | The Clear all holds button. |
 | `Dump load HA control (master switch) turned off triggered by action input_boolean.turn_off` + your name | Someone turned the master switch off. |
 | `<switch name> turned off` + a person's name | Switched by hand. |
 

@@ -12,6 +12,13 @@
 # each plug sits are NOT written here: they are the input_text Where / Load helpers
 # you set in HA (Site solar > Plug names), and the logbook lines read them live.
 # Stage/shed order is the list order below (stage first, shed last-first).
+# Manual hold (2026-09-28): a dump socket switched by hand (Plugs button, the plug's own
+# button, any change dump control did not request) starts timer.h5082_<id>_<side>_hold
+# for input_number.dump_manual_hold_min (0 = off). While a hold is active dump control
+# never turns that socket ON, and turns it OFF only if input_boolean.
+# dump_hold_blocks_turn_off is off. Dump rules announce each switch with the event
+# dump_control_switching (sensor.dump_control_switching) so hand switches can be told
+# apart. See docs/site-solar/dump-hold.md.
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
 # Notify when that overdraw lasts 10 minutes (Companion or persistent).
@@ -64,6 +71,12 @@ input_boolean:
   dump_soc_unsynced:
     name: Dump ignore SoC (shunt not synced)
     icon: mdi:battery-unknown
+  # Manual hold: on = a held socket is also skipped by every dump turn-off rule
+  # (solar gone, stop volts, battery limit, sheds); off = those rules still turn a held
+  # socket off. Only turn-ON always respects a hold. See docs/site-solar/dump-hold.md.
+  dump_hold_blocks_turn_off:
+    name: Dump hold also blocks turn-offs
+    icon: mdi:hand-back-right-off-outline
 
 input_text:
   dump_notify_service:
@@ -201,6 +214,17 @@ input_number:
     unit_of_measurement: W
     mode: box
     icon: mdi:chart-line-variant
+  # Manual hold length. A dump socket switched by hand (Plugs button, the plug's own
+  # button, any change dump control did not ask for) is left alone for this long.
+  # 0 = hold off. No initial: a brand-new helper starts at 0 (off) until you set it.
+  dump_manual_hold_min:
+    name: Dump manual hold
+    min: 0
+    max: 720
+    step: 5
+    unit_of_measurement: min
+    mode: box
+    icon: mdi:hand-back-right-outline
 
 input_select:
   h5082_2f9d_left_inverter:
@@ -465,8 +489,78 @@ timer:
     name: CF79 right dump cooldown (10 min)
     duration: "00:10:00"
     restore: true
+  # Manual hold (one per socket). Started by "Dump HOLD start" for "Dump manual hold"
+  # minutes; while active the dump rules skip the socket (see the hold guards below).
+  h5082_2f9d_left_hold:
+    name: 2F9D left dump manual hold
+    restore: true
+  h5082_2f9d_right_hold:
+    name: 2F9D right dump manual hold
+    restore: true
+  h5082_3013_left_hold:
+    name: 3013 left dump manual hold
+    restore: true
+  h5082_3013_right_hold:
+    name: 3013 right dump manual hold
+    restore: true
+  h5082_3ec9_left_hold:
+    name: 3EC9 left dump manual hold
+    restore: true
+  h5082_3ec9_right_hold:
+    name: 3EC9 right dump manual hold
+    restore: true
+  h5082_82fb_left_hold:
+    name: 82FB left dump manual hold
+    restore: true
+  h5082_82fb_right_hold:
+    name: 82FB right dump manual hold
+    restore: true
+  h5082_9607_left_hold:
+    name: 9607 left dump manual hold
+    restore: true
+  h5082_9607_right_hold:
+    name: 9607 right dump manual hold
+    restore: true
+  h5082_c061_left_hold:
+    name: C061 left dump manual hold
+    restore: true
+  h5082_c061_right_hold:
+    name: C061 right dump manual hold
+    restore: true
+  h5082_c38d_left_hold:
+    name: C38D left dump manual hold
+    restore: true
+  h5082_c38d_right_hold:
+    name: C38D right dump manual hold
+    restore: true
+  h5082_cf79_left_hold:
+    name: CF79 left dump manual hold
+    restore: true
+  h5082_cf79_right_hold:
+    name: CF79 right dump manual hold
+    restore: true
 
 template:
+  # Dump control's own switch requests. Every dump rule fires the event
+  # dump_control_switching (sock, state) right before switch.turn_on / turn_off.
+  # The H5082 switches are MQTT switches with a state topic: their state changes carry
+  # a fresh context (no user, no parent automation), so context cannot tell a dump rule
+  # from a hand switch. `intents` keeps one [state, unix time] per socket; "Dump HOLD
+  # start" treats a change that matches a request from the last 3 min as dump control.
+  - triggers:
+      - trigger: event
+        event_type: dump_control_switching
+    sensor:
+      - name: Dump control switching
+        unique_id: dump_control_switching
+        default_entity_id: sensor.dump_control_switching
+        icon: mdi:robot-outline
+        state: "{{ trigger.event.data.sock }} {{ trigger.event.data.state }}"
+        attributes:
+          intents: >-
+            {%- set old = this.attributes.get('intents') if this is defined and this.attributes is defined else none -%}
+            {%- set old = old if old is mapping else {} -%}
+            {{ dict(old.items() | list + [(trigger.event.data.sock, [trigger.event.data.state, as_timestamp(now()) | round(0)])]) }}
   - sensor:
       - name: Dump sockets
         unique_id: dump_sockets
@@ -491,6 +585,18 @@ template:
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) %}
+                {% set ns.out = ns.out + ['switch.ihoment_h5082_' ~ s] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out }}
+          held: >
+            {% set ns = namespace(out=[]) %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% if states('timer.h5082_' ~ s ~ '_hold') in ['active', 'paused'] %}
                 {% set ns.out = ns.out + ['switch.ihoment_h5082_' ~ s] %}
               {% endif %}
             {% endfor %}
@@ -590,7 +696,7 @@ template:
               {% set eid = 'switch.ihoment_h5082_' ~ s %}
               {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
               {% if pick.eid == 'none'
-                 and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+                 and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
                  and is_state(eid, 'off')
                  and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
                  and batt.get(bus, False)
@@ -620,7 +726,7 @@ template:
             'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
           ] | reverse %}
             {% set eid = 'switch.ihoment_h5082_' ~ s %}
-            {% if pick.eid == 'none' and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+            {% if pick.eid == 'none' and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                and is_state(eid, 'on') %}
               {% set pick.eid = eid %}
             {% endif %}
@@ -863,7 +969,7 @@ automation dump_load:
             - variables:
                 load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
-              value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) }}"
+              value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) and states('timer.h5082_' ~ sock ~ '_hold') not in ['active', 'paused'] }}"
             # Live name for the logbook line: the socket's Load text and its plug's
             # Where text (input_text helpers you set in HA), else the plug id + side.
             # Nothing about what is plugged in is hard-coded here. Reused below.
@@ -885,6 +991,10 @@ automation dump_load:
                   {{ states('sensor.dump_surplus_w') }} W, bus {{ states(volts_eid) }} V
                   >= start {{ states(start_v_eid) }} V, {{ bus }} load before
                   {{ load_before }} W.
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ sock }}"
+                state: "on"
             - action: switch.turn_on
               target:
                 entity_id: "{{ target }}"
@@ -912,6 +1022,10 @@ automation dump_load:
                     {{ not is_state('binary_sensor.dump_charge_float', 'on')
                        or not is_state('binary_sensor.dump_solar_present', 'on') }}
               then:
+                - event: dump_control_switching
+                  event_data:
+                    sock: "{{ sock }}"
+                    state: "off"
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ target }}"
@@ -934,6 +1048,10 @@ automation dump_load:
                 - condition: template
                   value_template: "{{ not confirmed }}"
               then:
+                - event: dump_control_switching
+                  event_data:
+                    sock: "{{ sock }}"
+                    state: "off"
                 - action: switch.turn_off
                   target:
                     entity_id: "{{ target }}"
@@ -988,7 +1106,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
               {% endif %}
@@ -997,6 +1115,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1047,6 +1169,10 @@ automation dump_load:
             - variables:
                 target: "{{ states('sensor.dump_shed_plug') }}"
                 sock: "{{ states('sensor.dump_shed_plug') | replace('switch.ihoment_h5082_', '') }}"
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ sock }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "{{ target }}"
@@ -1095,6 +1221,10 @@ automation dump_load:
             - variables:
                 target: "{{ states('sensor.dump_shed_plug') }}"
                 sock: "{{ states('sensor.dump_shed_plug') | replace('switch.ihoment_h5082_', '') }}"
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ sock }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "{{ target }}"
@@ -1170,7 +1300,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1180,6 +1310,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1224,7 +1358,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1234,6 +1368,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1278,7 +1416,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1288,6 +1426,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1332,7 +1474,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'T2')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1342,6 +1484,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1386,7 +1532,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'KU')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1396,6 +1542,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1441,7 +1591,7 @@ automation dump_load:
               '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
-              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House'))
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
                  and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
                  and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
                 {% set ns.out = ns.out + [s] %}
@@ -1451,6 +1601,10 @@ automation dump_load:
       - repeat:
           for_each: "{{ targets }}"
           sequence:
+            - event: dump_control_switching
+              event_data:
+                sock: "{{ repeat.item }}"
+                state: "off"
             - action: switch.turn_off
               target:
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
@@ -1470,10 +1624,165 @@ automation dump_load:
                 message: >-
                   {{ label }}: turned OFF by "Dump OFF Sungold sockets: Sungold battery discharging past limit": Sungold battery power {{ states('sensor.sungold_sph302480a_charging_power') }} W is past the -{{ states('input_number.dump_max_discharge_sph_w') }} W limit for 1 min. Cooldown 10 min.
 
+  - id: dump_hold_start
+    alias: "Dump HOLD start: dump socket switched by hand"
+    description: >
+      A dump socket (Use dump, Inverter not House) turned on or off and dump control did
+      not ask for it: a Plugs button tap, the plug's own button, another automation or an
+      app. Starts that socket's hold timer for "Dump manual hold" minutes (0 = off) so the
+      dump rules leave it alone, and logs it. A change that matches a dump control request
+      from the last 3 minutes (sensor.dump_control_switching) is not a hand switch. Runs
+      even while the master switch is off, so turning it on later does not undo you.
+    mode: queued
+    max: 32
+    triggers:
+      - trigger: state
+        entity_id:
+          - switch.ihoment_h5082_2f9d_left
+          - switch.ihoment_h5082_2f9d_right
+          - switch.ihoment_h5082_3013_left
+          - switch.ihoment_h5082_3013_right
+          - switch.ihoment_h5082_3ec9_left
+          - switch.ihoment_h5082_3ec9_right
+          - switch.ihoment_h5082_82fb_left
+          - switch.ihoment_h5082_82fb_right
+          - switch.ihoment_h5082_9607_left
+          - switch.ihoment_h5082_9607_right
+          - switch.ihoment_h5082_c061_left
+          - switch.ihoment_h5082_c061_right
+          - switch.ihoment_h5082_c38d_left
+          - switch.ihoment_h5082_c38d_right
+          - switch.ihoment_h5082_cf79_left
+          - switch.ihoment_h5082_cf79_right
+        from:
+          - "on"
+          - "off"
+        to:
+          - "on"
+          - "off"
+    variables:
+      sock: "{{ trigger.entity_id | replace('switch.ihoment_h5082_', '') }}"
+      hold_min: "{{ states('input_number.dump_manual_hold_min') | int(0) }}"
+      by_dump: >-
+        {%- set reqs = state_attr('sensor.dump_control_switching', 'intents') -%}
+        {%- set i = reqs.get(sock) if reqs is mapping else none -%}
+        {{ i is not none and i[0] == trigger.to_state.state
+           and (as_timestamp(now()) - (i[1] | float(0))) < 180 }}
+    actions:
+      - if:
+          - condition: template
+            value_template: "{{ by_dump }}"
+        then:
+          # Dump control's own change: use the request up so a later hand switch to
+          # the same state inside the 3 minutes still counts as a hand switch.
+          - event: dump_control_switching
+            event_data:
+              sock: "{{ sock }}"
+              state: "done"
+          - stop: dump control asked for this change
+      - condition: template
+        value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) and hold_min > 0 }}"
+      - action: timer.start
+        target:
+          entity_id: "timer.h5082_{{ sock }}_hold"
+        data:
+          duration: "{{ '%02d:%02d:00' % (hold_min // 60, hold_min % 60) }}"
+      - *socket_label
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: "{{ trigger.entity_id }}"
+          message: >-
+            {{ label }}: switched {{ trigger.to_state.state | upper }} by hand (Plugs button, the
+            plug's own button or another app), not by dump control. Hold {{ hold_min }} min: the
+            dump rules leave it alone until {{ (now() + timedelta(minutes=hold_min)).strftime('%H:%M') }}.
+
+  - id: dump_hold_end
+    alias: "Dump HOLD end: automatic control resumes"
+    description: >
+      A socket's manual hold timer went back to idle (time up, or cleared with Clear all
+      holds or the timer's Cancel). Logs it. The dump turn-off rules only fire when their
+      condition starts, so if the master switch is on and this dump socket is still on
+      while dump control would want it off right now (solar gone, T2 charger left
+      absorption/float, Sungold load above solar, its bus at stop volts or its battery past
+      the limit), it is turned off with a cooldown. Turning on resumes by itself through
+      sensor.dump_next_plug.
+    mode: queued
+    max: 32
+    triggers:
+      - trigger: state
+        entity_id:
+          - timer.h5082_2f9d_left_hold
+          - timer.h5082_2f9d_right_hold
+          - timer.h5082_3013_left_hold
+          - timer.h5082_3013_right_hold
+          - timer.h5082_3ec9_left_hold
+          - timer.h5082_3ec9_right_hold
+          - timer.h5082_82fb_left_hold
+          - timer.h5082_82fb_right_hold
+          - timer.h5082_9607_left_hold
+          - timer.h5082_9607_right_hold
+          - timer.h5082_c061_left_hold
+          - timer.h5082_c061_right_hold
+          - timer.h5082_c38d_left_hold
+          - timer.h5082_c38d_right_hold
+          - timer.h5082_cf79_left_hold
+          - timer.h5082_cf79_right_hold
+        from: "active"
+        to: "idle"
+    variables:
+      sock: "{{ trigger.entity_id | replace('timer.h5082_', '') | replace('_hold', '') }}"
+      target: "{{ 'switch.ihoment_h5082_' ~ sock }}"
+      bus: "{{ states('input_select.h5082_' ~ sock ~ '_inverter') }}"
+      time_up: >-
+        {{ as_timestamp(trigger.from_state.attributes.get('finishes_at'), 0) <= as_timestamp(now()) + 5 }}
+      why_off: >-
+        {%- set b = {'T2': 't2', 'KU': 'ku', 'Sungold': 'sph'}.get(bus, '') -%}
+        {%- if not is_state('binary_sensor.dump_solar_present', 'on') -%}solar gone
+        {%- elif not is_state('binary_sensor.dump_charge_ok', 'on') -%}T2 charger left absorption/float
+        {%- elif is_state('binary_sensor.dump_load_exceeds_solar', 'on') -%}Sungold load above solar
+        {%- elif b and is_state('binary_sensor.dump_v_rebulk_' ~ b, 'on') -%}{{ bus }} bus at stop volts
+        {%- elif b and not is_state('binary_sensor.dump_batt_' ~ b ~ '_ok', 'on') -%}{{ bus }} battery past its discharge limit
+        {%- endif -%}
+    actions:
+      - *socket_label
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: "{{ target }}"
+          message: >-
+            {{ label }}: hold ended ({{ 'time up' if time_up else 'cleared' }}); the dump rules may
+            switch it again.
+      - condition: state
+        entity_id: input_boolean.dump_control_enabled
+        state: "on"
+      - condition: template
+        value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) and is_state(target, 'on') and why_off != '' }}"
+      - event: dump_control_switching
+        event_data:
+          sock: "{{ sock }}"
+          state: "off"
+      - action: switch.turn_off
+        target:
+          entity_id: "{{ target }}"
+      - action: timer.cancel
+        target:
+          entity_id: "timer.h5082_{{ sock }}_min_on"
+      - action: timer.start
+        target:
+          entity_id: "timer.h5082_{{ sock }}_cooldown"
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: "{{ target }}"
+          message: >-
+            {{ label }}: turned OFF by "Dump HOLD end: automatic control resumes": the hold ended
+            while {{ why_off }}. Cooldown 10 min.
+
 # Manual only. Nothing in this repo calls it: no automation, no startup hook, no timer.
 # The Site solar button asks for confirmation first. It writes the recommended starting
 # values from docs/site-solar/*.md into the dump number helpers and turns
-# "Dump ignore SoC" on. It does NOT touch the master switch, the notify service, any
+# "Dump ignore SoC" and "Dump hold also blocks turn-offs" on. It does NOT touch the master switch, the notify service, any
 # socket Use / Inverter / label, or any switch.
 script:
   dump_load_recommended_defaults:
@@ -1481,8 +1790,9 @@ script:
     description: >
       Manual button. Replaces the dump volt, watt, SoC and confirm numbers with the
       recommended starting values (27.0 V start / 26.8 V stop on every bus, 2000 W AC
-      limits, 0/0/50 W battery discharge, 50 W min solar, 95 % SoC, 5 s, 25 W) and
-      turns Dump ignore SoC on. Use once on a fresh install, or to undo bad tuning.
+      limits, 0/0/50 W battery discharge, 50 W min solar, 95 % SoC, 5 s, 25 W, 60 min
+      manual hold) and turns Dump ignore SoC and Dump hold also blocks turn-offs on. Use
+      once on a fresh install, or to undo bad tuning.
     icon: mdi:backup-restore
     mode: single
     sequence:
@@ -1542,9 +1852,16 @@ script:
           entity_id: input_number.dump_site_delta_min_w
         data:
           value: 25
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_manual_hold_min
+        data:
+          value: 60
       - action: input_boolean.turn_on
         target:
-          entity_id: input_boolean.dump_soc_unsynced
+          entity_id:
+            - input_boolean.dump_soc_unsynced
+            - input_boolean.dump_hold_blocks_turn_off
       - action: logbook.log
         data:
           name: Dump control
@@ -1552,3 +1869,37 @@ script:
           message: >-
             loaded the recommended starting values into the dump settings (someone
             pressed the button).
+
+  dump_clear_holds:
+    alias: "Dump hold: clear all manual holds"
+    description: >
+      Manual button. Cancels every socket's manual hold timer, so the dump rules may
+      switch those sockets again right away ("Dump HOLD end" logs each one).
+    icon: mdi:hand-back-right-off
+    mode: single
+    sequence:
+      - action: timer.cancel
+        target:
+          entity_id:
+            - timer.h5082_2f9d_left_hold
+            - timer.h5082_2f9d_right_hold
+            - timer.h5082_3013_left_hold
+            - timer.h5082_3013_right_hold
+            - timer.h5082_3ec9_left_hold
+            - timer.h5082_3ec9_right_hold
+            - timer.h5082_82fb_left_hold
+            - timer.h5082_82fb_right_hold
+            - timer.h5082_9607_left_hold
+            - timer.h5082_9607_right_hold
+            - timer.h5082_c061_left_hold
+            - timer.h5082_c061_right_hold
+            - timer.h5082_c38d_left_hold
+            - timer.h5082_c38d_right_hold
+            - timer.h5082_cf79_left_hold
+            - timer.h5082_cf79_right_hold
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: script.dump_clear_holds
+          message: >-
+            cleared every manual hold (someone pressed Clear all holds).

@@ -13,7 +13,7 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 
 | Row | Entity | On / value means | Set by |
 |---|---|---|---|
-| Sockets set to dump | `sensor.dump_sockets` | How many of the 16 sockets have Use = dump and Inverter not House (attribute `entities` lists them) | [Socket Use](socket-use.md) |
+| Sockets set to dump | `sensor.dump_sockets` | How many of the 16 sockets have Use = dump and Inverter not House (attribute `entities` lists them; attribute `held` lists the ones on [manual hold](dump-hold.md)) | [Socket Use](socket-use.md) |
 | Next socket HA would add | `sensor.dump_next_plug` | The socket the add rule would switch on next, or `none` | all gates below |
 | Next socket HA would shed | `sensor.dump_shed_plug` | The dump socket that goes first when shedding (last in stage order that is on), or `none` | Socket Use + plug state |
 | T2 charger in float | `binary_sensor.dump_charge_float` | T2 MPPT charge state is `float` | charger |
@@ -41,7 +41,7 @@ HA **adds** a socket (`dump_turn_on`) only when all of these hold:
 - master switch on; T2 charger in float for 1 min; solar present for 1 min; SoC ok;
 - PV falling **off**; Sungold load above solar **off**;
 - `sensor.dump_next_plug` names a socket. It picks, in the order 2F9D left, 2F9D
-  right, 3013 left ... CF79 right, the first socket that has Use = dump (and Inverter not House), is **off**,
+  right, 3013 left ... CF79 right, the first socket that has Use = dump (and Inverter not House), is **off**, is not on manual hold,
   has an idle cooldown, and whose Inverter bus is at/above start volts, not at/below
   stop volts, battery ok, and under its AC limit.
 

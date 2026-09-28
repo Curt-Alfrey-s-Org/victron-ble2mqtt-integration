@@ -62,7 +62,7 @@ survive restarts and Ask ALFa may tune them.
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
 | **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
-| **Which** sockets | Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. A socket whose `input_select.h5082_<id>_<side>_inverter` is **House** (plug on house grid power) is never switched either, even if its Use is dump. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
+| **Which** sockets | A socket on [manual hold](site-solar/dump-hold.md) (switched by hand) is never turned on by these automations and is turned off only if **Hold also blocks turn-offs** is off. Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. A socket whose `input_select.h5082_<id>_<side>_inverter` is **House** (plug on house grid power) is never switched either, even if its Use is dump. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
 | **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
 | **Loads > solar 10 min** | HA `binary_sensor.dump_load_exceeds_solar` (Sungold AC-out vs T2 MPPT PV + Sungold PV) `for: 00:10:00` then [notify](https://www.home-assistant.io/integrations/notify/). Helper `input_text.dump_notify_service` (recommended `persistent_notification`; empty = persistent notification only; set to Companion `mobile_app_<device>` for phone text). alfa-ai does **not** send this SMS. |
@@ -241,6 +241,44 @@ It does not invent plug watts and does not own dump on/off.
 
 ---
 
+### Manual hold (2026-09-28)
+
+When a dump socket is switched by hand (Plugs button, the plug's own button, any change
+dump control did not ask for), dump control leaves it alone for a while, then resumes.
+Full page: [Site solar help: Dump manual hold](site-solar/dump-hold.md).
+
+- Settings: `input_number.dump_manual_hold_min` (0-720 min, **0 = hold off**, recommended
+  60) and `input_boolean.dump_hold_blocks_turn_off` (recommended on). No `initial:`; a
+  brand-new install starts at 0 min / off, so nothing changes until you set them (or
+  press Recommended defaults, which replaces **all** tuned dump numbers).
+- One hold timer per socket: `timer.h5082_<id>_<side>_hold` (16, `restore: true`).
+- **Detection.** The H5082 switches are MQTT switches with a state topic, so every state
+  change (tap, plug button, dump rule) arrives with a fresh context and no user: context
+  cannot tell them apart. Every dump rule therefore fires `dump_control_switching`
+  (`sock`, `on`/`off`) right before each `switch.turn_on` / `turn_off`; the trigger-based
+  `sensor.dump_control_switching` keeps the last request per socket. `Dump HOLD start`
+  (`dump_hold_start`) runs on every on/off change of the 16 switches: a change that
+  matches a request from the last 3 minutes is dump control; anything else on a dump
+  socket (Use dump, Inverter not House) with hold minutes > 0 starts that socket's hold.
+- **Hold guard.** Next to the House guard, the socket picks check the hold timer:
+  - turn-on (`sensor.dump_next_plug`, the recheck in `dump_turn_on`): a held socket is
+    **always** skipped;
+  - turn-off (`sensor.dump_shed_plug`, used by both shed rules, and the seven turn-off
+    lists: solar gone, stop volts T2/KU/Sungold, battery T2/KU/Sungold): a held socket
+    is skipped only while **Hold also blocks turn-offs** is on. With it off, those
+    rules still turn a held socket off (battery first).
+  - `sensor.dump_sockets` still counts held sockets (they are still set to dump) and
+    lists them in its `held` attribute.
+- **Hold end.** `Dump HOLD end` (`dump_hold_end`) logs the end (time up / cleared). The
+  turn-off rules only fire when their condition starts, so if the master switch is on
+  and the socket is still on while dump control would want it off now (solar gone, T2
+  charger left absorption/float, Sungold load above solar, its bus at stop volts, its
+  battery past the limit), it turns it off with a cooldown. Turn-on resumes through
+  `sensor.dump_next_plug`.
+- `script.dump_clear_holds` (Clear all holds button) cancels every hold; a single hold
+  ends from its timer row (Cancel).
+- Every hold start / end writes a `Dump control` line to the Dump activity log.
+
 ### Review 2026-09-28 (ported from the sim package)
 
 - Dump actions only ever target sockets whose **Use** is dump. The sim package used
@@ -295,6 +333,7 @@ Each dump box on Site solar > Now has a short help card and a **Help** link:
 | Battery discharge limits | [dump-battery-limits.md](site-solar/dump-battery-limits.md) |
 | Dump alerts | [dump-alerts.md](site-solar/dump-alerts.md) |
 | Dump timers (min-on / cooldown) | [dump-timers.md](site-solar/dump-timers.md) |
+| Dump manual hold | [dump-hold.md](site-solar/dump-hold.md) |
 | Plugs | [plug-buttons.md](site-solar/plug-buttons.md) |
 | Plug names (Where / Load) | [plug-names.md](site-solar/plug-names.md) |
 | Socket Use (normal / dump) | [socket-use.md](site-solar/socket-use.md) |

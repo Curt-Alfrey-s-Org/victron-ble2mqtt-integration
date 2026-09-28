@@ -2,7 +2,7 @@
 
 ## Next step: host steps for "Pi 5 H5082 bridge" (2026-09-28)
 
-From branch `pi5-h5082-bridge` (from main `90c762e`, independent of #10). Plug `82FB` (the fan) fails from the Pi 4 (`GATT 82FB left ON try 1..3/3 TimeoutError`, then `SET_FAIL`). The Pi 5 hears it best. Now each Pi runs the bridge only for the plugs in its own allowlist, `H5082_PLUGS` in `/home/n4s1/.config/h5082-bridge.env` (outside git). A bridge ignores commands for plugs it does not own (`NOT_OWNER`) and publishes availability per host (`govee/h5082/bridge/<host>/status`). HA's command, state and discovery topics are unchanged. With no allowlist the Pi 4 behaves exactly as before. Plug timings did not change. Details: `docs/H5082_MULTI_BRIDGE.md`.
+From branch `pi5-h5082-bridge` (from main `90c762e`, merged with main after #10; independent of the dump manual hold). Plug `82FB` (the fan) fails from the Pi 4 (`GATT 82FB left ON try 1..3/3 TimeoutError`, then `SET_FAIL`). The Pi 5 hears it best. Now each Pi runs the bridge only for the plugs in its own allowlist, `H5082_PLUGS` in `/home/n4s1/.config/h5082-bridge.env` (outside git). A bridge ignores commands for plugs it does not own (`NOT_OWNER`) and publishes availability per host (`govee/h5082/bridge/<host>/status`). HA's command, state and discovery topics are unchanged. With no allowlist the Pi 4 behaves exactly as before. Plug timings did not change. Details: `docs/H5082_MULTI_BRIDGE.md`.
 
 Hosts: Pi 4 `.223` (`n4s1@pi4`) and Pi 5 `.240` (`n4s1@raspberrypi`), both at `/home/n4s1/victron-ble2mqtt-integration`. **`.105` / HA: nothing to do.** The 16 entities stay the same, and HA picks up the new availability topic from the retained discovery. Do the Pi 4 first so no plug ever has two owners. Between Pi 4 step 4 and Pi 5 step 6, `82FB` shows unavailable in HA. That is expected.
 
@@ -42,6 +42,23 @@ Hosts: Pi 4 `.223` (`n4s1@pi4`) and Pi 5 `.240` (`n4s1@raspberrypi`), both at `/
 - [ ] Check: `OWNS` on each Pi lists the plug once, there is no `OWNER_CONFLICT`, and a toggle in HA logs `SET <id> ...` on the new Pi.
 
 **Undo** (Pi 5 back to RSSI only): on the Pi 5, `sudo systemctl disable --now h5082-mqtt && sudo systemctl enable --now h5082-rssi-pi5`. On the Pi 4, `rm ~/.config/h5082-bridge.env && sudo systemctl restart h5082-mqtt` (it owns all 8 again on the old availability topic).
+
+## Next step: host steps for "dump manual hold" (2026-09-28)
+
+From branch `dump-manual-hold` (after #9). When a dump socket is switched by hand (Plugs button, the plug's own button, any change dump control did not ask for), dump control leaves it alone for **Dump manual hold** minutes, then resumes. New: `input_number.dump_manual_hold_min` (0-720 min, 0 = off), `input_boolean.dump_hold_blocks_turn_off`, 16 `timer.h5082_<id>_<side>_hold`, `sensor.dump_control_switching`, automations `Dump HOLD start` / `Dump HOLD end`, `script.dump_clear_holds`, a **Dump manual hold** box on Site solar. No `initial:`: the new number starts at **0 = hold off** and the new toggle **off**, so nothing changes until you set them. Your current values are kept. Only `.105` changes. **Pi 4 `.223`: nothing to do** (the bridge is untouched).
+
+**`.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Token file for the scripts (never commit it):
+  `install -m 600 /dev/null ~/.ha_token && nano ~/.ha_token` (paste a long-lived HA token), then
+  `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** Backup first: `python3 scripts/site_solar_settings.py export`
+- [ ] **d.** `bash scripts/install_dump_control_ha.sh` (copies the package, runs check_config, restarts HA).
+- [ ] **e.** The dashboard seed changed (new Dump manual hold box, hold on the Plugs button label, Dump timers box without the hold timers, help text), so: `python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `python3 scripts/save_solar_plant_storage_dashboard.py --force` (backs the live dashboard up first).
+- [ ] **f.** `rm ~/.ha_token && unset HA_TOKEN_FILE`
+- [ ] **g.** In HA, Site solar > **Dump manual hold**: set **Hold after a hand switch** (recommended 60 min) and choose **Hold also blocks turn-offs** (recommended on = a held socket is left alone even by solar gone / stop volts / battery limit / sheds; off = those still turn it off). Set these two by hand: **Dump master switch > Load recommended starting values** also sets them (60 / on) but replaces **every** tuned dump number.
+- [ ] **h.** Check: tap a dump socket's Plugs button. The Dump activity log shows `switched ... by hand ... Hold N min`, the button label shows `hold to HH:MM`, and its row under **Holds (per socket)** is active. **Clear all holds** logs `hold ended (cleared)`. A dump rule's own switching must **not** start a hold (no "by hand" line after a `turning ON` / `turned OFF by` line).
 
 ## Next step: host steps for "House inverter option" (2026-09-28)
 
