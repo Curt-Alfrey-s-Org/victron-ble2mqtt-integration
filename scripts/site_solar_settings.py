@@ -6,12 +6,17 @@
            <repo>/.backups/site-solar/<YYYYmmdd-HHMMSS>/, git-ignored)
   restore  put helper values and/or the dashboard back from such a folder
   list     show the saved folders
+  export-dashboard
+           read-only: save another dashboard's config (default the sidebar
+           "Solar" tab, url_path dashboard-solar) to a file you can commit, e.g.
+           config/dashboards/exports/solar-tab.json. Token-like strings are redacted.
 
 Examples (token from HA_TOKEN or HA_TOKEN_FILE, never printed):
   HA_TOKEN_FILE=~/.ha_token python3 scripts/site_solar_settings.py export
   HA_TOKEN_FILE=~/.ha_token python3 scripts/site_solar_settings.py restore --from LATEST --helpers --dry-run
   HA_TOKEN_FILE=~/.ha_token python3 scripts/site_solar_settings.py restore --from LATEST --helpers
   HA_TOKEN_FILE=~/.ha_token python3 scripts/site_solar_settings.py restore --from LATEST --dashboard
+  HA_TOKEN_FILE=~/.ha_token python3 scripts/site_solar_settings.py export-dashboard
 
 restore always takes a fresh export first, so a restore can itself be undone.
 Helper values are written with the normal HA actions (input_text.set_value,
@@ -45,6 +50,13 @@ HELPERS_FILE = "helpers.json"
 DEFINITIONS_FILE = "helper-definitions.json"
 DASHBOARD_FILE = "dashboard-site-solar.json"
 DASHBOARDS_LIST_FILE = "dashboards.json"
+SOLAR_TAB_URL_PATH = "dashboard-solar"
+EXPORTS_DIR = ROOT / "config" / "dashboards" / "exports"
+REDACTED = "<redacted>"
+SECRET_KEYS = re.compile(r"(token|password|passwd|secret|api_?key|access_key)", re.IGNORECASE)
+SECRET_IN_TEXT = re.compile(
+    r"((?:access_token|token|api_?key|apikey|password|secret|authSig|sig)=)[^&\s\"'<>]+", re.IGNORECASE
+)
 
 # Every helper a person sets for Site solar / dump control.
 HELPER_PATTERNS = (
@@ -224,6 +236,70 @@ def export(session: Session, root: Path, label: str = "") -> Path:
     return out
 
 
+def redact(node: Any, path: str = "") -> tuple[Any, list[str]]:
+    """Copy of a Lovelace config with token-like values replaced, plus where."""
+    hits: list[str] = []
+    if isinstance(node, dict):
+        out: dict[str, Any] = {}
+        for key, value in node.items():
+            here = f"{path}.{key}" if path else str(key)
+            if SECRET_KEYS.search(str(key)) and isinstance(value, str) and value:
+                out[key] = REDACTED
+                hits.append(here)
+                continue
+            out[key], sub = redact(value, here)
+            hits += sub
+        return out, hits
+    if isinstance(node, list):
+        items = []
+        for i, value in enumerate(node):
+            item, sub = redact(value, f"{path}[{i}]")
+            items.append(item)
+            hits += sub
+        return items, hits
+    if isinstance(node, str) and SECRET_IN_TEXT.search(node):
+        return SECRET_IN_TEXT.sub(lambda m: m.group(1) + REDACTED, node), [path]
+    return node, hits
+
+
+def export_dashboard(session: Session, url_path: str, out: Path | None) -> Path:
+    """Read-only: write one dashboard's live config to a JSON file."""
+    listing = session.call({"type": "lovelace/dashboards/list"})
+    rows = listing if isinstance(listing, list) else []
+    match = next((row for row in rows if row.get("url_path") == url_path), None)
+    if match is None:
+        print(f"[export-dashboard] no dashboard with url_path {url_path!r}. Dashboards on HA:")
+        for row in rows:
+            print(f"  --url-path {row.get('url_path')}   title={row.get('title')!r} mode={row.get('mode')}")
+        raise SystemExit(2)
+    config = fetch_dashboard(session, url_path)
+    if config is None:
+        raise SystemExit(
+            f"[export-dashboard] /{url_path} has no saved config (HA builds it automatically), "
+            "so there are no cards to export. Its content is the auto-generated default."
+        )
+    clean, hits = redact(config)
+    out = out or (EXPORTS_DIR / ("solar-tab.json" if url_path == SOLAR_TAB_URL_PATH else f"{url_path}.json"))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "url_path": url_path,
+        "title": match.get("title"),
+        "exported_at": datetime.now().isoformat(timespec="seconds"),
+        "note": "Read-only export by scripts/site_solar_settings.py export-dashboard; token-like values redacted.",
+        "config": clean,
+    }
+    write_json(out, payload)
+    views = clean.get("views") or []
+    cards = sum(len(s.get("cards") or []) for v in views for s in (v.get("sections") or []))
+    cards += sum(len(v.get("cards") or []) for v in views)
+    print(f"[export-dashboard] /{url_path} ({match.get('title')!r}): {len(views)} views, {cards} top cards -> {out}")
+    if clean.get("strategy"):
+        print("[export-dashboard] WARN: this dashboard uses a strategy (auto-generated cards)")
+    for where in hits:
+        print(f"[export-dashboard] redacted a token-like value at {where}")
+    return out
+
+
 def restore(  # noqa: PLR0913 - keyword-only switches
     session: Session,
     src: Path,
@@ -301,6 +377,9 @@ def main(argv: list[str] | None = None) -> int:
     res.add_argument("--dashboard", action="store_true", help="restore /site-solar dashboard")
     res.add_argument("--dry-run", action="store_true", help="show what would change")
     sub.add_parser("list", help="list saved folders")
+    exd = sub.add_parser("export-dashboard", help="read-only: save another dashboard's config to a file")
+    exd.add_argument("--url-path", default=SOLAR_TAB_URL_PATH, help="dashboard url_path (default: %(default)s)")
+    exd.add_argument("--out", type=Path, default=None, help=f"output file (default under {EXPORTS_DIR})")
     args = parser.parse_args(argv)
     root = backup_root(args.backup_dir)
 
@@ -316,6 +395,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "export":
             export(session, root, args.label)
+            return 0
+        if args.cmd == "export-dashboard":
+            export_dashboard(session, args.url_path, args.out)
             return 0
         src = resolve_backup_dir(root, args.src)
         return restore(

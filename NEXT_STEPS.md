@@ -1,5 +1,49 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "Solar tab -> Site solar" (plan, 2026-09-28)
+
+From branch `site-solar-merge-solar-tab` (from main `018d780`, after #12). You asked to add every card from the sidebar **Solar** tab to **Site solar**, but only the ones that are not already there. The Solar tab (`/dashboard-solar`) exists only in the live HA, not in git, so this PR is the plan plus the tools:
+- a read-only export (`site_solar_settings.py export-dashboard`);
+- a compare-by-entities tool that can append only the missing cards as a new **Solar tab** view (`compare_solar_tab.py`).
+
+The Site solar seed is unchanged, so merging changes nothing live. Plan and comparison table: `docs/SOLAR_TAB_MERGE_PLAN.md`.
+
+Only `.105` (Home Assistant) is involved: Pi 4 `.223` and Pi 5 `.240` have nothing to do. Merging this PR changes nothing live, because the Site solar seed is untouched. HA must be up for every step that uses the token, so each phase waits for it first.
+
+**Phase 1: export the Solar tab (after this PR is merged), on `.105`, in this order**
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main`
+- [ ] **b.** Token file for the scripts (never commit it):
+  `install -m 600 /dev/null ~/.ha_token && nano ~/.ha_token` (paste a long-lived HA token), then
+  `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** Wait for HA: `until curl -s -o /dev/null http://127.0.0.1:8123; do sleep 5; done`
+- [ ] **d.** Backup first: `python3 scripts/site_solar_settings.py export` (helper values + live Site solar, under `.backups/site-solar/`).
+- [ ] **e.** Export the Solar tab (read-only; writes only `config/dashboards/exports/solar-tab.json`): `python3 scripts/site_solar_settings.py export-dashboard`.
+  - If it prints `no dashboard with url_path 'dashboard-solar'`, it lists every dashboard. Rerun with the one titled Solar: `--url-path <that url_path>`.
+  - Check any `redacted a token-like value at ...` lines. Values like that are replaced with `<redacted>`.
+- [ ] **f.** Look at the comparison (read-only): `python3 scripts/compare_solar_tab.py config/dashboards/exports/solar-tab.json --markdown /tmp/solar-tab-table.md`
+- [ ] **g.** Bring the export to the next session. It holds only card config: entity ids and headings, with no secrets. Either:
+  - commit it on a branch from `.105`, if `.105` can push: `git checkout -b solar-tab-export && git add config/dashboards/exports/solar-tab.json && git commit -m "Solar tab export" && git push -u origin solar-tab-export && git checkout main`; or
+  - `cat config/dashboards/exports/solar-tab.json` and paste it into the session.
+  Then delete the local copy, so a later `git pull` that adds the same file does not stop on an untracked file: `rm config/dashboards/exports/solar-tab.json`.
+- [ ] **h.** `rm ~/.ha_token && unset HA_TOKEN_FILE`
+
+**Phase 2: add the missing cards (next session), then on `.105`**
+
+In the session: `python3 scripts/compare_solar_tab.py config/dashboards/exports/solar-tab.json --apply` appends one new view, **Solar tab** (`/site-solar/solar-tab`), with only the missing cards. Then review each `no-entities` / `needs-decision` row, update the table in `docs/SOLAR_TAB_MERGE_PLAN.md`, run the tests, and update the PR. After it is merged:
+
+- [ ] **a.** `cd /home/ansible/victron-ble2mqtt-integration && git pull --ff-only origin main` (if it stops on `config/dashboards/exports/solar-tab.json`, run `rm config/dashboards/exports/solar-tab.json` and pull again)
+- [ ] **b.** `install -m 600 /dev/null ~/.ha_token && nano ~/.ha_token`, then `export HA_TOKEN_FILE=~/.ha_token HA_URL=http://127.0.0.1:8123`
+- [ ] **c.** `until curl -s -o /dev/null http://127.0.0.1:8123; do sleep 5; done`
+- [ ] **d.** `python3 scripts/site_solar_settings.py export` (backup of helpers + live Site solar)
+- [ ] **e.** `python3 scripts/save_solar_plant_storage_dashboard.py --dry-run`, then `python3 scripts/save_solar_plant_storage_dashboard.py --force`. `--force` backs up the live dashboard first, then replaces it with the seed. Any Site solar UI edits made since the last seed are replaced too. Undo: `python3 scripts/site_solar_settings.py restore --from <folder> --dashboard`.
+- [ ] **f.** `rm ~/.ha_token && unset HA_TOKEN_FILE`
+- [ ] **g.** Check Site solar > **Solar tab**: every card from the old Solar tab is now either there or already elsewhere on Site solar (see the table). Now and History are unchanged.
+- [ ] **h.** Your decision, no rush: **keep, hide or remove the old Solar tab.**
+  - **Keep:** nothing to do.
+  - **Hide:** Settings > Dashboards > Solar, turn off **Show in sidebar**.
+  - **Remove:** Settings > Dashboards > Solar > Delete. Only do this after the Phase 1 export is committed. Also, `scripts/ha_label_sungold_solar.py` and `scripts/ha_label_victron_refoss.py` still write sections into that dashboard (`lovelace.dashboard_solar`) and fail if it is gone, so removing it needs a small follow-up change to those scripts first.
+
 ## Next step: host steps for "Pi 5 H5082 bridge" (2026-09-28)
 
 From branch `pi5-h5082-bridge` (from main `90c762e`, merged with main after #10; independent of the dump manual hold). Plug `82FB` (the fan) fails from the Pi 4 (`GATT 82FB left ON try 1..3/3 TimeoutError`, then `SET_FAIL`). The Pi 5 hears it best. Now each Pi runs the bridge only for the plugs in its own allowlist, `H5082_PLUGS` in `/home/n4s1/.config/h5082-bridge.env` (outside git). A bridge ignores commands for plugs it does not own (`NOT_OWNER`) and publishes availability per host (`govee/h5082/bridge/<host>/status`). HA's command, state and discovery topics are unchanged. With no allowlist the Pi 4 behaves exactly as before. Plug timings did not change. Details: `docs/H5082_MULTI_BRIDGE.md`.
