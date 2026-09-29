@@ -173,6 +173,40 @@ http://192.168.0.105:8123/site-solar
 
 Do **not** re-add `mode: yaml`.
 
+### One session on `.105` (`site_solar_session.sh`)
+
+The token / wait / backup / seed commands usually run together, so one wrapper does them
+in order, printing a `==> step` line for each:
+
+```bash
+cd ~/victron-ble2mqtt-integration
+bash scripts/site_solar_session.sh backup               # pull, token, wait for HA, backup
+bash scripts/site_solar_session.sh solar-compare        # + export the Solar tab, print the compare table
+bash scripts/site_solar_session.sh dashboard-dry-run    # + seed --dry-run (writes nothing to HA)
+bash scripts/site_solar_session.sh dashboard-apply      # + seed --force (replaces UI edits; backed up first)
+bash scripts/site_solar_session.sh restore --from LATEST --dashboard --dry-run   # passthrough
+```
+
+Every action first:
+
+1. goes to the repo root and runs `git pull --ff-only origin main` (default on; `--no-pull` skips it);
+2. uses `$HA_TOKEN_FILE`, else `~/.ha_token`; if neither exists it creates `~/.ha_token`
+   with `install -m 600 /dev/null` and opens `${EDITOR:-nano}` so you paste a long-lived
+   token there (the token is never read from the terminal or printed);
+3. exports `HA_TOKEN_FILE` and `HA_URL` (default `http://127.0.0.1:8123`; an `HA_URL`
+   already in the environment wins);
+4. waits for HA with `curl` (`--wait SECONDS`, default 300, then stops with a message);
+5. backs up with `python3 scripts/site_solar_settings.py export`.
+
+`dashboard-dry-run` runs `save_solar_plant_storage_dashboard.py --dry-run`; if that
+refuses (exit 3: live `/site-solar` has UI edits), it also shows what `--force` would do,
+still writing nothing. `dashboard-apply` runs `--force` and prints the restore command.
+
+On exit (success or failure) a trap removes `~/.ha_token` **only if this run created it**
+(`--keep-token` keeps it), removes `config/dashboards/exports/solar-tab.json` if this run
+created it (`--keep-export` keeps it), and unsets `HA_TOKEN_FILE`. Run it with `bash`, not
+`source`. `bash scripts/site_solar_session.sh --help` prints the full usage.
+
 ---
 
 ## Display precision (tenths)
