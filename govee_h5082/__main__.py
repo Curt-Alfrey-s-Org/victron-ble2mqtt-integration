@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib.metadata
 import os
 import re
 import time
@@ -37,6 +38,7 @@ from govee_h5082.mqtt_bridge import (
 )
 
 MAC_HEX_LEN = 12
+BLEAK_BLUEZ_ADAPTER_MAJOR = 3  # first bleak with bluez={"adapter": ...}
 OWNER_TOPIC_PARTS = 4  # govee/h5082/<mac>/owner
 AVAIL = AVAIL_LEGACY  # kept for callers; a per-host bridge uses Bridge._avail
 HOLD_S = 20
@@ -69,6 +71,28 @@ def _bleak_scanner_cls():
     from bleak import BleakScanner
 
     return BleakScanner
+
+
+def bleak_version() -> str:
+    try:
+        return importlib.metadata.version("bleak")
+    except importlib.metadata.PackageNotFoundError:
+        return "missing"
+
+
+def adapter_kwargs(adapter: str, version: str | None = None) -> dict:
+    """Pin BleakScanner / BleakClient to one adapter on any bleak version.
+
+    bleak >= 3.0 takes ``bluez={"adapter": ...}``; older bleak ignores that key and
+    silently falls back to the default adapter (hci0 = Victron on the Pi 4), so it
+    gets the old ``adapter=`` keyword instead.
+    """
+    version = bleak_version() if version is None else version
+    try:
+        major = int(version.split(".")[0])
+    except ValueError:
+        major = 3
+    return {"bluez": {"adapter": adapter}} if major >= BLEAK_BLUEZ_ADAPTER_MAJOR else {"adapter": adapter}
 
 
 def _short(address: str) -> str:
@@ -148,7 +172,7 @@ class PlugLink:
     async def _resolve(self):
         if self.device is None:
             device = await _bleak_scanner_cls().find_device_by_address(
-                self.address, timeout=FIND_TIMEOUT_S, bluez={"adapter": self.adapter}
+                self.address, timeout=FIND_TIMEOUT_S, **adapter_kwargs(self.adapter)
             )
             if device is None:
                 raise LookupError(f"{self.address} not seen on {self.adapter} in {FIND_TIMEOUT_S}s")
@@ -166,7 +190,7 @@ class PlugLink:
                 device,
                 disconnected_callback=self._on_disconnect,
                 timeout=CONNECT_TIMEOUT_S,
-                bluez={"adapter": self.adapter},
+                **adapter_kwargs(self.adapter),
             )
             try:
                 await client.connect()
@@ -532,7 +556,7 @@ class Bridge:
             await asyncio.sleep(10)
 
     def startup_report(self) -> None:
-        print(self.describe(), flush=True)
+        print(f"{self.describe()} bleak={bleak_version()}", flush=True)
         if self._rssi_only:
             return
         if self._key_problem:
