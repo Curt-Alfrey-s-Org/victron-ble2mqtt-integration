@@ -10,7 +10,7 @@ for device tiles. Site solar is **storage** mode so you can move cards.
 |---------|----------------|------------------|
 | [Energy](https://www.home-assistant.io/docs/energy/) | HA (built-in) | kWh + W sensors via [Energy settings](https://www.home-assistant.io/docs/energy/) / `energy/save_prefs` |
 | [Home](https://www.home-assistant.io/dashboards/dashboards/#home-dashboard) | HA (built-in) | Devices assigned to [areas](https://www.home-assistant.io/docs/organizing/areas/) (official sections view) |
-| Sidebar **Solar** | HA storage + MQTT discovery | Live Victron / Sungold / shunt tiles |
+| Sidebar **Solar** | HA storage + MQTT discovery | Live Victron / Sungold / shunt tiles. Live-only (not in git); its cards are being merged onto Site solar, see [SOLAR_TAB_MERGE_PLAN.md](SOLAR_TAB_MERGE_PLAN.md) |
 | **Site solar** | HA **storage** Lovelace | Leftover live tiles Energy cannot plot (jumper, KU est., dump, NWS, Ecobee). Cards are movable. |
 | [History](https://www.home-assistant.io/dashboards/dashboards/#history-dashboard) | HA (built-in) | Pick entities; no YAML cards |
 
