@@ -54,3 +54,5 @@ nodered.env
 nodered-runtime/
 nodered-data/
 
+# Live dashboard exports (may name Tailscale hosts); compare them, don't commit them
+config/dashboards/exports/*.json
