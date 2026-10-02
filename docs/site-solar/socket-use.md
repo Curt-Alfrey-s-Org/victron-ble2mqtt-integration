@@ -1,6 +1,6 @@
-# Site solar help: Socket Use (normal / dump)
+# Site solar help: Socket Use (normal / dump / charge)
 
-**Where:** Site solar > Now view > **Socket Use (normal / dump)**.
+**Where:** Site solar > Now view > **Socket Use (normal / dump / charge)**.
 **Logic:** storage helpers `input_select.h5082_<id>_<side>_use` (from
 `scripts/create_h5082_socket_labels.py`), read by every template and automation in
 `config/packages/dump_control.yaml`.
@@ -13,7 +13,7 @@ Decides which sockets Home Assistant may switch **by itself**.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed), unless its [Inverter](socket-inverter.md) is **House**. **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump`, `Sungold charge` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed), unless its [Inverter](socket-inverter.md) is **House**. **Sungold charge:** the [Sungold charge](sph-charge.md) rule may turn this socket on and off so the pack can charge from the bank named by Inverter (T2 or KU). It is not a dump. **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
 
 Each row's name is live: the socket's **Load** and its plug's **Where** from
 [Plug names](plug-names.md), with the plug id and side in brackets, for example
@@ -22,7 +22,9 @@ what is plugged in is fixed in the repo (auto-entities template in
 `config/dashboards/solar-plant.yaml`).
 
 Moving a socket from normal to dump "raises" HA's control (it may now switch it);
-dump to normal removes it. Any value other than `dump` counts as normal.
+dump to normal removes it. **Sungold charge** is a third choice, not a dump: dump
+add, shed, off, on-demand and the voltage-guard shed ignore it. Any other value
+still counts as normal.
 
 **Safe start:** everything **normal**. Then one socket with a lamp set to **dump** for
 the first test, then the real dump loads (the plan: 4 sockets on 2 plugs).
@@ -33,7 +35,10 @@ fridge, freezer, pump or computer). Check the socket's Load first.
 ## How it works in the package
 
 - A socket is a dump socket when Use = dump **and** its Inverter is not **House**
-  (House = grid-powered house plug). `sensor.dump_sockets` counts those;
+  (House = grid-powered house plug). Use = `Sungold charge` is never a dump socket.
+  The option is added on existing helpers by `scripts/create_h5082_socket_labels.py`
+  (it appends the option and does not change the value you already picked). A
+  brand-new select still starts on **normal** (the first option). `sensor.dump_sockets` counts those;
   `sensor.dump_next_plug` and `sensor.dump_shed_plug` only consider those; every
   turn-off rule builds its list from those. A House socket set to dump is still never
   switched (Dump sockets by name shows it as "House (grid power): never switched").

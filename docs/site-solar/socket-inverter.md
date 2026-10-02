@@ -36,6 +36,11 @@ No raise / lower: pick where the socket is really wired.
 **Safe start:** set every dump socket to its real inverter before turning the master
 switch on. A brand-new select starts on **Sungold** (the first option).
 
+For a [Sungold charge](sph-charge.md) inlet, Inverter is the bank that **feeds**
+the socket (T2 or KU), not the Sungold pack and not House. The charge rule reads
+that choice for the source minimum and the source stop. The voltage guard still
+only sheds sockets whose Use is dump and whose Inverter is Sungold.
+
 ## How it works in the package
 
 - `sensor.dump_next_plug` offers a socket only if **its** bus is at/above start volts,

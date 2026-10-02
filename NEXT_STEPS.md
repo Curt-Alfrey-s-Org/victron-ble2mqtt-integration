@@ -1,6 +1,58 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "Sungold charge inlet" (2026-10-02)
+
+From branch `cursor/sungold-charge-inlet-fe4a`. A socket Use option **Sungold charge** plus helpers in `config/packages/dump_control.yaml` (no `initial:`). You pick the inlet in HA. The repo does not name a plug.
+
+Dump add, shed, off, on-demand and the voltage-guard shed ignore that Use. With **Enable Sungold charge** on, those sockets turn on when the Sungold pack is low and the bank named by the socket's Inverter helper (T2 or KU) is healthy, and turn off when the pack recovers or that bank falls under the source stop helper. A hand tap still starts manual hold. If the socket is commanded on but Sungold grid voltage and charging power stay at 0, you get a notification. On the Sungold panel, charger source priority must allow mains charging.
+
+Only `.105` (Home Assistant container `homeassistant`, repo `~/victron-ble2mqtt-integration`). Pi 4 and Pi 5: nothing to do. Keep `~/.ha_token`. Do not delete it.
+
+Set the numbers by hand **before** you turn Enable Sungold charge on. A brand-new number starts at its minimum, not at the suggested start. **Load recommended starting values** does not write these numbers and does not turn the switch on.
+
+Suggested starting values, typed in Site solar:
+
+- Floor: 25.0 V (new helper starts at 20)
+- Margin below the lower of T2 and KU: 0.50 V (starts at 0; keep the target gap smaller than this)
+- Target gap: 0.20 V (starts at 0)
+- Full volts: 26.8 V (starts at 24)
+- Also charge when SoC is low: off (or on, with SoC below 50)
+- Source minimum volts: 26.6 V (starts at 24)
+- Source stop volts: 26.2 V (starts at 24; keep this below the source minimum)
+- Require source SoC: off (or on, with source minimum SoC 90)
+- Dwell: 60 s (starts at 15)
+- Minimum on time: 300 s (starts at 60)
+- Inlet confirm: 180 s (starts at 30)
+- Enable Sungold charge: off until the numbers above are what you want, then on
+- Inlet socket: Use = Sungold charge, Inverter = the feeding bank (T2 or KU)
+
+**`.105`, one command per line, in this order**
+
+- [ ] **1.** Merge the PR (operator). Do not start until `main` has it.
+- [ ] **2.** `cd ~/victron-ble2mqtt-integration`
+- [ ] **3.** `git pull --ff-only origin main`
+- [ ] **4.** `bash scripts/install_dump_control_ha.sh`
+- [ ] **5.** `bash scripts/site_solar_session.sh --no-pull dashboard-dry-run`
+- [ ] **6.** `HA_TOKEN_FILE="$HOME/.ha_token" python3 scripts/create_h5082_socket_labels.py`
+- [ ] **7.** `bash scripts/site_solar_session.sh --no-pull dashboard-apply`
+
+Do not run `rm ~/.ha_token`. That file stays on `.105` on purpose.
+
+Step 4 copies `dump_control.yaml` into Home Assistant, runs check_config, and restarts container `homeassistant`. Existing helper values stay. New charge numbers appear at their minimum. The enable switch appears off.
+
+Step 5 pulls nothing (`--no-pull`). It uses the existing `~/.ha_token` and leaves that file in place. It waits for HA, backs up helpers and the live dashboard, then dry-runs the Site solar seed. It writes nothing to the dashboard. If it says REFUSED (exit 3), live `/site-solar` has UI edits; the wrapper then shows what step 7 would replace, still writing nothing.
+
+Step 6 adds **Sungold charge** to each existing Use dropdown. It does not change the Use value you already set, and it does not write `initial`. Skip it only if step 6 prints `USE OK` for every Use helper (the option is already there). Without this step the dropdown still shows only normal and dump, and you cannot select Sungold charge.
+
+Step 7 re-seeds `/site-solar` after another backup under `.backups/site-solar/<stamp>-before-seed/`. UI edits on Site solar since the last seed are replaced. Undo with `bash scripts/site_solar_session.sh --no-pull restore --from <that folder> --dashboard`.
+
+**Then, in HA** (Site solar > Now)
+
+- [ ] **8.** On the inlet socket only, set Use to **Sungold charge** and Inverter to the bank that feeds it (T2 or KU). Set the numbers above. On the Sungold panel, allow mains charging. Then turn **Enable Sungold charge** on.
+
 ## Next step: host steps for "dump on demand and Sungold voltage guard" (2026-10-02)
+
+Done on `.105` with PR #15. Do not run the old step that deletes `~/.ha_token`. Keep that file.
 
 From branch `cursor/dump-ondemand-sph-vguard-fe4a`. Two Site solar controls, both in `config/packages/dump_control.yaml` (no `initial:` on any helper):
 
@@ -30,7 +82,7 @@ Suggested starting values, typed in Site solar (not written by the package on re
 - [ ] **4.** `bash scripts/install_dump_control_ha.sh`
 - [ ] **5.** `bash scripts/site_solar_session.sh --no-pull --keep-token dashboard-dry-run`
 - [ ] **6.** `bash scripts/site_solar_session.sh --no-pull --keep-token dashboard-apply`
-- [ ] **7.** `rm -f ~/.ha_token`
+- [x] **7.** Do not delete `~/.ha_token`. An earlier draft of this list said `rm -f ~/.ha_token`. Keep the file.
 
 Step 4 copies `dump_control.yaml` into Home Assistant, runs check_config, and restarts container `homeassistant`. Your existing helper values stay (nothing in the package uses `initial:`). New helpers appear at their minimum, switches off.
 

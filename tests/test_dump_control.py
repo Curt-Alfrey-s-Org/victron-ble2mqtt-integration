@@ -149,12 +149,22 @@ def test_timings_kept() -> None:
         "dump_turn_off_batt_ku",
         "dump_turn_off_batt_sph",
         "dump_sph_vguard_shed",
+        "dump_sph_charge_on",
+        "dump_sph_charge_off",
+        "dump_sph_charge_source_stop",
+        "dump_sph_charge_inlet_dark",
         "dump_hold_start",
         "dump_hold_end",
     }
     for aid, auto in autos.items():
-        if aid.startswith("dump_hold_") or aid == "dump_sph_vguard_shed":
-            continue  # hold: switch/timer triggers. Guard: dwell comes from a helper.
+        if aid.startswith("dump_hold_") or aid in {
+            "dump_sph_vguard_shed",
+            "dump_sph_charge_on",
+            "dump_sph_charge_off",
+            "dump_sph_charge_source_stop",
+            "dump_sph_charge_inlet_dark",
+        }:
+            continue  # hold: switch/timer triggers. Guard and charge: dwell comes from a helper.
         for trig in auto["triggers"]:
             if trig.get("entity_id") != "sensor.dump_next_plug":
                 want = "00:10:00" if aid == "dump_notify_load_exceeds_solar" else "00:01:00"
@@ -453,9 +463,10 @@ def test_every_dump_path_has_the_hold_guard() -> None:
     for aid in TURN_OFF_LISTS:
         assert HOLD_OFF.format(v="s") in autos[aid]["actions"][0]["variables"]["targets"], aid
     # Turn-on skips holds in next_plug, the turn-on recheck, on-demand on, on-demand
-    # off (count + list) and the off script. Turn-offs: shed + 7 lists + the guard.
-    assert text.count(HOLD_ON.format(v="s")) + text.count(HOLD_ON.format(v="sock")) == 6
-    assert text.count(HOLD_OFF.format(v="s")) == 9
+    # off (count + list) and the off script, plus the Sungold charge turn-on list.
+    # Turn-offs: shed + 7 lists + the guard, plus charge recovery and source stop.
+    assert text.count(HOLD_ON.format(v="s")) + text.count(HOLD_ON.format(v="sock")) == 7
+    assert text.count(HOLD_OFF.format(v="s")) == 11
     # "Sockets set to dump" still counts held sockets and lists them in `held`.
     assert "_hold'" not in tpl["dump_sockets"]["state"]
     assert "_hold')" in tpl["dump_sockets"]["attributes"]["held"]
@@ -524,7 +535,7 @@ def test_every_dump_switch_action_is_announced_first() -> None:
                 assert prev["event_data"]["state"] == node["action"].split("_")[-1], auto["id"]
                 want = "{{ repeat.item }}" if "repeat.item" in node["target"]["entity_id"] else "{{ sock }}"
                 assert prev["event_data"]["sock"] == want, auto["id"]
-    assert found == 14  # + Sungold voltage guard shed (on-demand scripts are not automations)
+    assert found == 18  # + guard shed, charge on, charge off, source stop, hold-end charge path
 
 
 def _render_ha(template: str, states: dict[str, str] | None = None, **extra) -> str:
@@ -846,3 +857,206 @@ def test_sungold_guard_sheds_only_sungold_dump_sockets_after_helper_dwell() -> N
     assert _targets("dump_sph_vguard_shed", st) == []
     st["input_boolean.dump_hold_blocks_turn_off"] = "off"
     assert _targets("dump_sph_vguard_shed", st) == ["2f9d_left"]
+
+
+# -------------------------------------------------------------- Sungold charge inlet
+
+
+def _charge_states(**over) -> dict[str, str]:
+    st = {
+        "input_boolean.sph_charge_enabled": "on",
+        "input_boolean.sph_charge_soc_enabled": "off",
+        "input_boolean.sph_charge_source_soc_enabled": "off",
+        "input_boolean.dump_hold_blocks_turn_off": "off",
+        "input_boolean.dump_sph_vguard_enabled": "off",
+        "binary_sensor.dump_sph_vguard": "off",
+        "binary_sensor.sph_charge_need": "on",
+        "binary_sensor.sph_charge_inlet_dark": "off",
+        "sensor.sungold_sph302480a_battery_voltage": "22.0",
+        "sensor.sungold_sph302480a_battery_soc": "21",
+        "sensor.sungold_sph302480a_grid_voltage": "0.0",
+        "sensor.sungold_sph302480a_charging_power": "0",
+        "sensor.battery_1_voltage": "27.0",
+        "sensor.battery_2_voltage": "27.0",
+        "sensor.battery_1_state_of_charge": "99.3",
+        "sensor.battery_2_state_of_charge": "99.4",
+        "input_number.sph_charge_floor_v": "25.0",
+        "input_number.sph_charge_margin_v": "0.50",
+        "input_number.sph_charge_target_v": "0.20",
+        "input_number.sph_charge_full_v": "26.8",
+        "input_number.sph_charge_soc_below": "50",
+        "input_number.sph_charge_source_min_v": "26.6",
+        "input_number.sph_charge_source_stop_v": "26.2",
+        "input_number.sph_charge_source_min_soc": "90",
+    }
+    st.update(over)
+    return st
+
+
+def _need(states, was="off") -> str:
+    return _render_ha(_templates()["sph_charge_need"]["state"], states, this=SimpleNamespace(state=was))
+
+
+def test_sungold_charge_socket_is_not_a_dump() -> None:
+    """Use Sungold charge is skipped by add, shed, on-demand and the guard shed."""
+    st = _ok_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "input_select.h5082_2f9d_left_inverter": "T2",
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "input_select.h5082_3013_left_use": "dump",
+        "input_select.h5082_3013_left_inverter": "T2",
+        "switch.ihoment_h5082_3013_left": "off",
+    })
+    assert _next(st) == "switch.ihoment_h5082_3013_left"
+    assert _shed(st) == "none"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_3013_left"
+    listed = _render(_templates()["dump_ondemand_off"]["attributes"]["sockets"], st)
+    assert "2f9d_left" not in listed
+    st["switch.ihoment_h5082_2f9d_left"] = "on"
+    st["switch.ihoment_h5082_3013_left"] = "on"
+    for aid in (
+        "dump_turn_off_solar_gone",
+        "dump_turn_off_rebulk_t2",
+        "dump_turn_off_batt_t2",
+        "dump_sph_vguard_shed",
+    ):
+        assert "2f9d_left" not in _targets(aid, st), aid
+    assert _targets("dump_turn_off_rebulk_t2", st) == ["3013_left"]
+    guard = _ok_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "input_select.h5082_2f9d_left_inverter": "Sungold",
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "input_boolean.dump_hold_blocks_turn_off": "off",
+    })
+    assert _targets("dump_sph_vguard_shed", guard) == []
+
+
+def test_sungold_charge_need_trips_and_clears_with_guard_and_soc() -> None:
+    base = _charge_states()
+    assert _need(base) == "on"  # 22 < 25 floor and < 27 - 0.50
+    assert _need(_charge_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.60"})) == "off"
+    assert _need(_charge_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.60"}), was="on") == "on"
+    assert _need(_charge_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.80"}), was="on") == "off"
+    assert _need(_charge_states(**{"input_boolean.sph_charge_enabled": "off"})) == "off"
+    assert _need(_charge_states(**{"sensor.sungold_sph302480a_battery_voltage": "unknown"})) == "off"
+    assert _need(_charge_states(**{"sensor.sungold_sph302480a_battery_voltage": "unknown"}), was="on") == "on"
+    assert _need(_charge_states(**{
+        "sensor.sungold_sph302480a_battery_voltage": "28.0",
+        "binary_sensor.dump_sph_vguard": "on",
+    })) == "on"
+    assert _need(_charge_states(**{
+        "sensor.sungold_sph302480a_battery_voltage": "28.0",
+        "binary_sensor.dump_sph_vguard": "on",
+    }), was="on") == "on"
+    assert _need(_charge_states(**{
+        "sensor.sungold_sph302480a_battery_voltage": "28.0",
+        "input_boolean.sph_charge_soc_enabled": "on",
+    })) == "on"  # SoC 21 < 50 even though volts are high
+    high = _charge_states(**{
+        "sensor.sungold_sph302480a_battery_voltage": "28.0",
+        "input_boolean.sph_charge_soc_enabled": "on",
+        "sensor.sungold_sph302480a_battery_soc": "55",
+    })
+    assert _need(high) == "off"
+    nums = _load()["input_number"]
+    for key in (
+        "sph_charge_floor_v",
+        "sph_charge_margin_v",
+        "sph_charge_target_v",
+        "sph_charge_full_v",
+        "sph_charge_source_min_v",
+        "sph_charge_source_stop_v",
+        "sph_charge_dwell_s",
+        "sph_charge_min_on_s",
+        "sph_charge_confirm_s",
+    ):
+        assert "initial" not in nums[key]
+    assert "sph_charge" not in _strings(_load()["script"]["dump_load_recommended_defaults"])
+
+
+def test_sungold_charge_on_off_follow_source_hold_and_cooldown() -> None:
+    st = _ok_states(**_charge_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "input_select.h5082_2f9d_left_inverter": "T2",
+        "switch.ihoment_h5082_2f9d_left": "off",
+        "input_select.h5082_3013_left_use": "dump",
+        "input_select.h5082_3013_left_inverter": "T2",
+        "switch.ihoment_h5082_3013_left": "off",
+    }))
+    assert _targets("dump_sph_charge_on", st) == ["2f9d_left"]
+    st["sensor.battery_1_voltage"] = "26.0"  # under source min 26.6
+    assert _targets("dump_sph_charge_on", st) == []
+    st["sensor.battery_1_voltage"] = "27.0"
+    st["timer.h5082_2f9d_left_cooldown"] = "active"
+    assert _targets("dump_sph_charge_on", st) == []
+    st["timer.h5082_2f9d_left_cooldown"] = "idle"
+    st["timer.h5082_2f9d_left_hold"] = "active"
+    assert _targets("dump_sph_charge_on", st) == []
+    st["timer.h5082_2f9d_left_hold"] = "idle"
+    st["input_boolean.sph_charge_source_soc_enabled"] = "on"
+    st["sensor.battery_1_state_of_charge"] = "80"  # under 90
+    assert _targets("dump_sph_charge_on", st) == []
+    st["sensor.battery_1_state_of_charge"] = "99.3"
+    assert _targets("dump_sph_charge_on", st) == ["2f9d_left"]
+    # Inverter Sungold is not a feeding bank, even if Use is Sungold charge.
+    st["input_select.h5082_2f9d_left_inverter"] = "Sungold"
+    assert _targets("dump_sph_charge_on", st) == []
+    on = _automations()["dump_sph_charge_on"]
+    dwell = "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+    assert on["conditions"][1]["for"]["seconds"] == dwell
+    blob = _strings(on)
+    for hardcoded in ("25.0", "0.50", "26.6", "26.8"):
+        assert hardcoded not in blob
+
+
+def test_sungold_charge_off_source_stop_inlet_and_hold() -> None:
+    st = _ok_states(**_charge_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "input_select.h5082_2f9d_left_inverter": "T2",
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "sensor.battery_1_voltage": "26.0",
+        "input_boolean.dump_hold_blocks_turn_off": "off",
+    }))
+    assert _render(_templates()["sph_charge_source_stop"]["state"], st) == "on"
+    assert _targets("dump_sph_charge_source_stop", st) == ["2f9d_left"]
+    st["timer.h5082_2f9d_left_hold"] = "active"
+    st["input_boolean.dump_hold_blocks_turn_off"] = "on"
+    assert _render(_templates()["sph_charge_source_stop"]["state"], st) == "on"
+    assert _targets("dump_sph_charge_source_stop", st) == []
+    st["input_boolean.dump_hold_blocks_turn_off"] = "off"
+    assert _targets("dump_sph_charge_source_stop", st) == ["2f9d_left"]
+    st["timer.h5082_2f9d_left_hold"] = "idle"
+    st["sensor.battery_1_voltage"] = "27.0"
+    assert _targets("dump_sph_charge_source_stop", st) == []
+    assert _targets("dump_sph_charge_off", st) == ["2f9d_left"]
+    st["timer.h5082_2f9d_left_hold"] = "active"
+    st["input_boolean.dump_hold_blocks_turn_off"] = "on"
+    assert _targets("dump_sph_charge_off", st) == []
+
+    dark = _charge_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "switch.ihoment_h5082_2f9d_left": "on",
+    })
+    assert _render(_templates()["sph_charge_inlet_dark"]["state"], dark) == "on"
+    dark["sensor.sungold_sph302480a_grid_voltage"] = "120"
+    assert _render(_templates()["sph_charge_inlet_dark"]["state"], dark) == "off"
+    dark["sensor.sungold_sph302480a_grid_voltage"] = "0.0"
+    dark["switch.ihoment_h5082_2f9d_left"] = "off"
+    assert _render(_templates()["sph_charge_inlet_dark"]["state"], dark) == "off"
+    assert _render(_templates()["sph_charge_status"]["state"], _charge_states()) == "need"
+    charging = _charge_states(**{
+        "input_select.h5082_2f9d_left_use": "Sungold charge",
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "binary_sensor.sph_charge_inlet_dark": "off",
+        "sensor.sungold_sph302480a_grid_voltage": "120",
+        "sensor.sungold_sph302480a_charging_power": "400",
+    })
+    assert _render(_templates()["sph_charge_status"]["state"], charging) == "charging"
+    assert _render(
+        _templates()["sph_charge_status"]["state"],
+        _charge_states(**{"input_boolean.sph_charge_enabled": "off"}),
+    ) == "disabled"
+    cond = next(
+        a for a in _automations()["dump_hold_start"]["actions"] if a.get("condition") == "template"
+    )["value_template"]
+    assert "Sungold charge" in cond and "hold_min > 0" in cond
