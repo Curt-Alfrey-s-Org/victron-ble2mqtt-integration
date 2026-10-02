@@ -34,10 +34,18 @@
 # Sungold sidecar is read-only, so this cannot change inverter charge settings.
 # See docs/site-solar/dump-sph-vguard.md.
 # Sungold charge: Use "Sungold charge" plus input_boolean.sph_charge_enabled.
-# Turns that socket on when the Sungold pack is low and the bank named by its
-# Inverter helper (T2 or KU) is healthy, and off when the pack recovers or that
-# bank falls under the source-stop helper. A guard trip is also a charge reason
-# while both switches are on. The inverter's own panel must allow mains charging.
+# Rescue turns that socket on when the Sungold pack is low and the bank named by
+# its Inverter helper (T2 or KU) is healthy, and off when the pack reaches the
+# full-volts helper or that bank falls under the source-stop helper. Rescue
+# ignores the per-socket cooldown so a surplus off cannot block a low pack.
+# While rescue is off and Sungold volts are under full, the same socket can turn
+# on for surplus: that bank must already meet the dump accept checks (float,
+# solar present, not at stop volts, within its discharge limit) and its battery
+# must be charging by at least input_number.sph_charge_surplus_min_w. Surplus
+# waits while the dump master is on and sensor.dump_next_plug still names a dump
+# socket, so small dumps stage first. The voltage guard does not start a charge;
+# it only sheds dump sockets whose Inverter is Sungold. The inverter's own panel
+# must allow mains charging.
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
 # Notify when that overdraw lasts 10 minutes (Companion or persistent).
@@ -313,14 +321,6 @@ input_number:
     unit_of_measurement: V
     mode: box
     icon: mdi:approximately-equal
-  sph_charge_target_v:
-    name: Sungold charge target gap
-    min: 0
-    max: 2
-    step: 0.05
-    unit_of_measurement: V
-    mode: box
-    icon: mdi:delta
   sph_charge_full_v:
     name: Sungold charge full volts
     min: 24
@@ -377,14 +377,15 @@ input_number:
     unit_of_measurement: s
     mode: box
     icon: mdi:timer-play
-  sph_charge_confirm_s:
-    name: Sungold charge inlet confirm
-    min: 30
-    max: 900
-    step: 30
-    unit_of_measurement: s
+  # Suggested start 1100 W is typed in HA. A brand-new helper starts at min (100).
+  sph_charge_surplus_min_w:
+    name: Sungold surplus min charge W
+    min: 100
+    max: 4000
+    step: 50
+    unit_of_measurement: W
     mode: box
-    icon: mdi:timer-alert
+    icon: mdi:flash
 
 input_select:
   h5082_2f9d_left_inverter:
@@ -981,6 +982,9 @@ template:
           {% set enabled = is_state('input_boolean.sph_charge_enabled', 'on') %}
           {% set need = is_state('binary_sensor.sph_charge_need', 'on') %}
           {% set dark = is_state('binary_sensor.sph_charge_inlet_dark', 'on') %}
+          {% set raw_v = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set raw_full = states('input_number.sph_charge_full_v') %}
+          {% set under = is_number(raw_v) and is_number(raw_full) and (raw_v | float) < (raw_full | float) %}
           {% set ns = namespace(n=0) %}
           {% for s in [
             '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
@@ -998,6 +1002,8 @@ template:
             inlet dark
           {% elif ns.n > 0 and need %}
             charging
+          {% elif ns.n > 0 and under %}
+            surplus
           {% elif ns.n > 0 %}
             min on
           {% elif need %}
@@ -1010,6 +1016,9 @@ template:
             {% set enabled = is_state('input_boolean.sph_charge_enabled', 'on') %}
             {% set need = is_state('binary_sensor.sph_charge_need', 'on') %}
             {% set dark = is_state('binary_sensor.sph_charge_inlet_dark', 'on') %}
+            {% set raw_v = states('sensor.sungold_sph302480a_battery_voltage') %}
+            {% set raw_full = states('input_number.sph_charge_full_v') %}
+            {% set under = is_number(raw_v) and is_number(raw_full) and (raw_v | float) < (raw_full | float) %}
             {% set ns = namespace(n=0) %}
             {% for s in [
               '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
@@ -1024,15 +1033,17 @@ template:
             {% if not enabled %}
               charge control is off
             {% elif dark %}
-              a Sungold charge socket is on but grid voltage and charging power are not above 0
+              a Sungold charge socket is on but charging power is about 0, with grid voltage missing from the inlet or present while the panel is not charging from it
             {% elif ns.n > 0 and need %}
               pack is low and a Sungold charge socket is on
+            {% elif ns.n > 0 and under %}
+              rescue is off and Sungold is under full volts; a Sungold charge socket is on because its feeding bank has surplus charge watts
             {% elif ns.n > 0 %}
-              pack recovered; socket stays on until the minimum on time ends or the feeding bank hits stop volts
+              pack is at full volts; socket stays on until the minimum on time ends or the feeding bank hits stop volts
             {% elif need %}
-              pack is low; a socket turns on when its Inverter is T2 or KU, that bank is at the source minimum, and the socket is off, not on hold and not in cooldown
+              pack is low; a socket turns on when its Inverter is T2 or KU and that bank is at the source minimum. Rescue does not wait for cooldown
             {% else %}
-              Sungold is not below the charge limits
+              Sungold is not below the charge limits, and no feeding bank is in surplus under full volts
             {% endif %}
   - binary_sensor:
       - name: Dump charge ok
@@ -1239,11 +1250,11 @@ template:
         device_class: problem
         icon: mdi:battery-charging-low
         # On while charge control is enabled and the pack should charge: under the floor,
-        # under the lower of T2 and KU by the margin, under the optional SoC, or the
-        # Sungold voltage guard is on. Once on, stays on until Sungold reaches the full
-        # helper or comes within the target gap of that lower shunt, and the guard is
-        # off, and the optional SoC is no longer under its helper. Missing Sungold volts
-        # do not start a floor or margin trip; if this was already on, they keep it on.
+        # under the lower of T2 and KU by the margin, or under the optional SoC.
+        # The voltage guard is not a charge reason. Once on, stays on until Sungold
+        # reaches the full helper and the optional SoC is no longer under its helper.
+        # Missing Sungold volts do not start a floor or margin trip; if this was
+        # already on, they keep it on.
         state: >
           {% set enabled = is_state('input_boolean.sph_charge_enabled', 'on') %}
           {% if not enabled %}
@@ -1255,7 +1266,6 @@ template:
             {% set raw_ku = states('sensor.battery_2_voltage') %}
             {% set raw_floor = states('input_number.sph_charge_floor_v') %}
             {% set raw_margin = states('input_number.sph_charge_margin_v') %}
-            {% set raw_target = states('input_number.sph_charge_target_v') %}
             {% set raw_full = states('input_number.sph_charge_full_v') %}
             {% set raw_soc_below = states('input_number.sph_charge_soc_below') %}
             {% set refs = [] %}
@@ -1263,7 +1273,6 @@ template:
             {% if is_number(raw_ku) %}{% set refs = refs + [raw_ku | float] %}{% endif %}
             {% set low = (refs | min) if refs else none %}
             {% set was = this is defined and this.state is defined and this.state == 'on' %}
-            {% set guard = is_state('binary_sensor.dump_sph_vguard', 'on') %}
             {% set floor_hit = is_number(raw_v) and is_number(raw_floor) and (raw_v | float) < (raw_floor | float) %}
             {% set margin_hit = is_number(raw_v) and is_number(raw_margin) and low is not none and (raw_v | float) < (low - (raw_margin | float)) %}
             {% set soc_hit = is_state('input_boolean.sph_charge_soc_enabled', 'on') and is_number(raw_soc) and is_number(raw_soc_below) and (raw_soc | float) < (raw_soc_below | float) %}
@@ -1273,12 +1282,11 @@ template:
               {% else %}
                 {% set sv = raw_v | float %}
                 {% set full_ok = is_number(raw_full) and sv >= (raw_full | float) %}
-                {% set target_ok = is_number(raw_target) and low is not none and sv >= (low - (raw_target | float)) %}
-                {% set recovered = (full_ok or target_ok) and not guard and not soc_hit %}
+                {% set recovered = full_ok and not soc_hit %}
                 {{ 'off' if recovered else 'on' }}
               {% endif %}
             {% else %}
-              {{ 'on' if floor_hit or margin_hit or soc_hit or guard else 'off' }}
+              {{ 'on' if floor_hit or margin_hit or soc_hit else 'off' }}
             {% endif %}
           {% endif %}
       - name: Sungold charge inlet dark
@@ -1286,7 +1294,11 @@ template:
         default_entity_id: binary_sensor.sph_charge_inlet_dark
         device_class: problem
         icon: mdi:power-plug-off
-        # A Sungold charge socket is on, but the Sungold is not seeing mains power.
+        # A Sungold charge socket is on, and the sidecar reports numbers, but the
+        # inlet is not charging: grid at or below 0 with charging power at or below
+        # 5 W, or grid at or above 50 V with charging power still at or below 5 W
+        # (panel likely solar-only). Missing or unknown sidecar values stay off.
+        # This does not turn the socket off. The alert waits a fixed 3 minutes.
         state: >
           {% set ns = namespace(on=false) %}
           {% for s in [
@@ -1301,8 +1313,11 @@ template:
           {% endfor %}
           {% set gv = states('sensor.sungold_sph302480a_grid_voltage') %}
           {% set cp = states('sensor.sungold_sph302480a_charging_power') %}
-          {% set dark = (not is_number(gv) or (gv | float) <= 0) and (not is_number(cp) or (cp | float) <= 0) %}
-          {{ 'on' if ns.on and dark else 'off' }}
+          {% if not ns.on or not is_number(gv) or not is_number(cp) %}
+            off
+          {% else %}
+            {{ 'on' if ((gv | float) <= 0 or (gv | float) >= 50) and (cp | float) <= 5 else 'off' }}
+          {% endif %}
       - name: Sungold charge source stop
         unique_id: sph_charge_source_stop
         default_entity_id: binary_sensor.sph_charge_source_stop
@@ -1327,6 +1342,95 @@ template:
               {% set ns.hit = true %}
             {% endif %}
           {% endfor %}
+          {{ 'on' if ns.hit else 'off' }}
+      - name: Sungold charge surplus ready
+        unique_id: sph_charge_surplus_ready
+        default_entity_id: binary_sensor.sph_charge_surplus_ready
+        icon: mdi:transmission-tower
+        # Rescue is off, Sungold is under full volts, and at least one Sungold charge
+        # socket can take surplus from its feeding bank. Dump accept for that bank:
+        # float, solar present, not at stop volts, within the discharge limit, and
+        # battery charge watts at or above the surplus helper. Defers while the dump
+        # master is on and a dump socket is still next.
+        state: >
+          {% set defer = is_state('input_boolean.dump_control_enabled', 'on')
+             and states('sensor.dump_next_plug').startswith('switch.ihoment_h5082_') %}
+          {% set ns = namespace(hit=false) %}
+          {% if is_state('input_boolean.sph_charge_enabled', 'on')
+             and not is_state('binary_sensor.sph_charge_need', 'on')
+             and not defer %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+              {% set rawp = states('sensor.battery_1_power') if bus == 'T2' else states('sensor.battery_2_power') %}
+              {% set minw = states('input_number.sph_charge_surplus_min_w') %}
+              {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+              {% set full = states('input_number.sph_charge_full_v') %}
+              {% set bank = namespace(ok=false) %}
+              {% if bus == 'T2' or bus == 'KU' %}
+                {% set bank.ok = is_state('binary_sensor.dump_v_float_t2' if bus == 'T2' else 'binary_sensor.dump_v_float_ku', 'on')
+                   and not is_state('binary_sensor.dump_v_rebulk_t2' if bus == 'T2' else 'binary_sensor.dump_v_rebulk_ku', 'on')
+                   and is_state('binary_sensor.dump_batt_t2_ok' if bus == 'T2' else 'binary_sensor.dump_batt_ku_ok', 'on')
+                   and is_state('binary_sensor.dump_solar_present', 'on')
+                   and is_number(rawp) and is_number(minw) and (rawp | float) >= (minw | float)
+                   and is_number(rawv) and is_number(full) and (rawv | float) < (full | float) %}
+              {% endif %}
+              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'Sungold charge')
+                 and is_state('switch.ihoment_h5082_' ~ s, 'off')
+                 and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+                 and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
+                 and bank.ok %}
+                {% set ns.hit = true %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {{ 'on' if ns.hit else 'off' }}
+      - name: Sungold charge surplus stop
+        unique_id: sph_charge_surplus_stop
+        default_entity_id: binary_sensor.sph_charge_surplus_stop
+        icon: mdi:transmission-tower-off
+        # A Sungold charge socket is on, rescue is off, its min-on timer is idle,
+        # and its feeding bank no longer qualifies for surplus, while Sungold is
+        # not yet at full volts (full volts are the rescue off path). Unknown
+        # Sungold volts count as not full and not in room, so the socket turns off.
+        state: >
+          {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set full = states('input_number.sph_charge_full_v') %}
+          {% set at_full = is_number(rawv) and is_number(full) and (rawv | float) >= (full | float) %}
+          {% set ns = namespace(hit=false) %}
+          {% if is_state('input_boolean.sph_charge_enabled', 'on')
+             and not is_state('binary_sensor.sph_charge_need', 'on')
+             and not at_full %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+              {% set rawp = states('sensor.battery_1_power') if bus == 'T2' else states('sensor.battery_2_power') %}
+              {% set minw = states('input_number.sph_charge_surplus_min_w') %}
+              {% set bank = namespace(ok=false) %}
+              {% if bus == 'T2' or bus == 'KU' %}
+                {% set bank.ok = is_state('binary_sensor.dump_v_float_t2' if bus == 'T2' else 'binary_sensor.dump_v_float_ku', 'on')
+                   and not is_state('binary_sensor.dump_v_rebulk_t2' if bus == 'T2' else 'binary_sensor.dump_v_rebulk_ku', 'on')
+                   and is_state('binary_sensor.dump_batt_t2_ok' if bus == 'T2' else 'binary_sensor.dump_batt_ku_ok', 'on')
+                   and is_state('binary_sensor.dump_solar_present', 'on')
+                   and is_number(rawp) and is_number(minw) and (rawp | float) >= (minw | float)
+                   and is_number(rawv) and is_number(full) and (rawv | float) < (full | float) %}
+              {% endif %}
+              {% if is_state('input_select.h5082_' ~ s ~ '_use', 'Sungold charge')
+                 and (bus == 'T2' or bus == 'KU')
+                 and is_state('switch.ihoment_h5082_' ~ s, 'on')
+                 and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
+                 and states('timer.h5082_' ~ s ~ '_min_on') not in ['active', 'paused']
+                 and not bank.ok %}
+                {% set ns.hit = true %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
           {{ 'on' if ns.hit else 'off' }}
 
 sensor:
@@ -2209,11 +2313,13 @@ automation dump_load:
     description: >
       Sungold charge is enabled and the pack has stayed low for the dwell helper,
       under the floor, under the lower of the live T2 and KU volts by the margin,
-      under the optional SoC, or because the Sungold voltage guard is on. Turns on
-      each socket whose Use is Sungold charge and whose Inverter helper is T2 or KU
-      when that bank is at the source minimum, the socket is off, not on hold and
-      not in cooldown. Fires dump_control_switching first so a hand tap is still a
-      hold. Does not use the dump master switch and does not switch dump sockets.
+      or under the optional SoC. The voltage guard is not a reason to charge.
+      Turns on each socket whose Use is Sungold charge and whose Inverter helper
+      is T2 or KU when that bank is at the source minimum, the socket is off and
+      not on hold. Rescue ignores cooldown so a surplus off cannot block a low pack.
+      Home Assistant start and a one minute poll re-check a need that is already on.
+      Fires dump_control_switching first so a hand tap is still a hold. Does not
+      use the dump master switch and does not switch dump sockets.
     mode: single
     max_exceeded: silent
     triggers:
@@ -2231,6 +2337,10 @@ automation dump_load:
       - trigger: state
         entity_id: input_boolean.sph_charge_enabled
         to: "on"
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
     conditions:
       - condition: state
         entity_id: input_boolean.sph_charge_enabled
@@ -2262,7 +2372,6 @@ automation dump_load:
                  and (bus == 'T2' or bus == 'KU')
                  and is_state('switch.ihoment_h5082_' ~ s, 'off')
                  and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
-                 and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
                  and healthy %}
                 {% set ns.out = ns.out + [s] %}
               {% endif %}
@@ -2273,7 +2382,7 @@ automation dump_load:
           sequence:
             - if:
                 - condition: template
-                  value_template: "{{ is_state('switch.ihoment_h5082_' ~ repeat.item, 'off') and states('timer.h5082_' ~ repeat.item ~ '_hold') not in ['active', 'paused'] and is_state('timer.h5082_' ~ repeat.item ~ '_cooldown', 'idle') }}"
+                  value_template: "{{ is_state('switch.ihoment_h5082_' ~ repeat.item, 'off') and states('timer.h5082_' ~ repeat.item ~ '_hold') not in ['active', 'paused'] }}"
               then:
                 - event: dump_control_switching
                   event_data:
@@ -2302,13 +2411,15 @@ automation dump_load:
   - id: dump_sph_charge_off
     alias: "Dump OFF Sungold charge sockets: pack recovered"
     description: >
-      Sungold charge is enabled and the pack has recovered for the dwell helper
-      (at the full volts, or within the target gap of the lower T2 and KU shunt,
-      and the voltage guard is off). Turns off Sungold charge sockets whose Inverter
-      is T2 or KU after each socket's minimum on time, then starts that socket's
-      cooldown. A held socket is skipped only while hold also blocks turn-offs.
+      Sungold charge is enabled and the pack has recovered for the dwell helper,
+      which means Sungold volts are at or above the full helper. Turns off Sungold
+      charge sockets whose Inverter is T2 or KU after each socket's minimum on time,
+      then starts that socket's cooldown. Does not turn a socket off while Sungold
+      is still under full volts, so a surplus charge is left to the surplus rule.
+      A held socket is skipped only while hold also blocks turn-offs.
       Does not wait out the minimum on time when the feeding bank is under stop volts;
-      that is the source-stop rule. Does not switch dump sockets.
+      that is the source-stop rule. Home Assistant start and a one minute poll
+      re-check a recovery that is already true. Does not switch dump sockets.
     mode: restart
     triggers:
       - trigger: state
@@ -2316,6 +2427,12 @@ automation dump_load:
         to: "off"
         for:
           seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+      - trigger: state
+        entity_id: sensor.sungold_sph302480a_battery_voltage
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
       - trigger: state
         entity_id:
           - timer.h5082_2f9d_left_min_on
@@ -2354,9 +2471,13 @@ automation dump_load:
               'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
             ] %}
               {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+              {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+              {% set full = states('input_number.sph_charge_full_v') %}
+              {% set at_full = is_number(rawv) and is_number(full) and (rawv | float) >= (full | float) %}
               {% if is_state('input_select.h5082_' ~ s ~ '_use', 'Sungold charge')
                  and (bus == 'T2' or bus == 'KU')
                  and is_state('switch.ihoment_h5082_' ~ s, 'on')
+                 and at_full
                  and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on')) %}
                 {% set ns.out = ns.out + [s] %}
               {% endif %}
@@ -2392,6 +2513,235 @@ automation dump_load:
                     message: >-
                       {{ label }}: turned OFF by "Dump OFF Sungold charge sockets: pack recovered": Sungold {{ states('sensor.sungold_sph302480a_battery_voltage') }} V. Cooldown 10 min.
 
+  - id: dump_sph_charge_surplus_on
+    alias: "Dump ON Sungold charge sockets: feeding bank has surplus"
+    description: >
+      Sungold charge is enabled, rescue is off, and Sungold volts are under the
+      full helper. Turns on a socket whose Use is Sungold charge when the bank
+      named by its Inverter helper is in float, solar is present, that bank is
+      not at stop volts, its battery is within the discharge limit, and that
+      battery is charging by at least the surplus watts helper. Waits the charge
+      dwell. Skips the socket while it is on hold or in cooldown, and waits while
+      the dump master is on and a dump socket is still next so small dumps stage
+      first. Does not start the minimum on timer. Does not run while rescue is on,
+      and does not switch dump sockets. Home Assistant start and a one minute poll
+      re-check a surplus that is already true.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.sph_charge_surplus_ready
+        to: "on"
+        for:
+          seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+      - trigger: state
+        entity_id:
+          - sensor.battery_1_power
+          - sensor.battery_2_power
+          - sensor.sungold_sph302480a_battery_voltage
+          - sensor.dump_next_plug
+          - binary_sensor.dump_solar_present
+          - binary_sensor.dump_v_float_t2
+          - binary_sensor.dump_v_float_ku
+          - binary_sensor.dump_v_rebulk_t2
+          - binary_sensor.dump_v_rebulk_ku
+          - binary_sensor.dump_batt_t2_ok
+          - binary_sensor.dump_batt_ku_ok
+          - binary_sensor.sph_charge_need
+          - input_boolean.dump_control_enabled
+          - input_boolean.sph_charge_enabled
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.sph_charge_enabled
+        state: "on"
+      - condition: state
+        entity_id: binary_sensor.sph_charge_need
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.sph_charge_surplus_ready
+        state: "on"
+        for:
+          seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+    actions:
+      - variables:
+          targets: >
+            {% set defer = is_state('input_boolean.dump_control_enabled', 'on')
+               and states('sensor.dump_next_plug').startswith('switch.ihoment_h5082_') %}
+            {% set ns = namespace(out=[]) %}
+            {% if not defer %}
+              {% for s in [
+                '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+                '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+                'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+              ] %}
+                {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+                {% set rawp = states('sensor.battery_1_power') if bus == 'T2' else states('sensor.battery_2_power') %}
+                {% set minw = states('input_number.sph_charge_surplus_min_w') %}
+                {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+                {% set full = states('input_number.sph_charge_full_v') %}
+                {% set bank = namespace(ok=false) %}
+                {% if bus == 'T2' or bus == 'KU' %}
+                  {% set bank.ok = is_state('binary_sensor.dump_v_float_t2' if bus == 'T2' else 'binary_sensor.dump_v_float_ku', 'on')
+                     and not is_state('binary_sensor.dump_v_rebulk_t2' if bus == 'T2' else 'binary_sensor.dump_v_rebulk_ku', 'on')
+                     and is_state('binary_sensor.dump_batt_t2_ok' if bus == 'T2' else 'binary_sensor.dump_batt_ku_ok', 'on')
+                     and is_state('binary_sensor.dump_solar_present', 'on')
+                     and is_number(rawp) and is_number(minw) and (rawp | float) >= (minw | float)
+                     and is_number(rawv) and is_number(full) and (rawv | float) < (full | float) %}
+                {% endif %}
+                {% if not is_state('binary_sensor.sph_charge_need', 'on')
+                   and is_state('input_select.h5082_' ~ s ~ '_use', 'Sungold charge')
+                   and is_state('switch.ihoment_h5082_' ~ s, 'off')
+                   and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+                   and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
+                   and bank.ok %}
+                  {% set ns.out = ns.out + [s] %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.out }}
+      - repeat:
+          for_each: "{{ targets }}"
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state('switch.ihoment_h5082_' ~ repeat.item, 'off') and states('timer.h5082_' ~ repeat.item ~ '_hold') not in ['active', 'paused'] and is_state('timer.h5082_' ~ repeat.item ~ '_cooldown', 'idle') and not is_state('binary_sensor.sph_charge_need', 'on') }}"
+              then:
+                - event: dump_control_switching
+                  event_data:
+                    sock: "{{ repeat.item }}"
+                    state: "on"
+                - action: switch.turn_on
+                  target:
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                - variables:
+                    sock: "{{ repeat.item }}"
+                - *socket_label
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                    message: >-
+                      {{ label }}: turned ON by "Dump ON Sungold charge sockets: feeding bank has surplus": Sungold {{ states('sensor.sungold_sph302480a_battery_voltage') }} V, T2 {{ states('sensor.battery_1_power') }} W, KU {{ states('sensor.battery_2_power') }} W.
+
+  - id: dump_sph_charge_surplus_off
+    alias: "Dump OFF Sungold charge sockets: surplus ended"
+    description: >
+      Sungold charge is enabled and rescue is off. Turns off a Sungold charge
+      socket when its feeding bank no longer meets the surplus checks, or when
+      Sungold volts are no longer a number, after the charge dwell, once that
+      socket's minimum on timer is idle. Reaching full volts is the pack-recovered
+      rule, so this rule leaves that case alone. A held socket is skipped only
+      while hold also blocks turn-offs. Starts the cooldown. Does not run while
+      rescue is on, so solar gone and re-bulk do not shed a rescue charge.
+      Home Assistant start and a one minute poll re-check a stop that is already true.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.sph_charge_surplus_stop
+        to: "on"
+        for:
+          seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+      - trigger: state
+        entity_id:
+          - sensor.battery_1_power
+          - sensor.battery_2_power
+          - sensor.sungold_sph302480a_battery_voltage
+          - binary_sensor.dump_solar_present
+          - binary_sensor.dump_v_float_t2
+          - binary_sensor.dump_v_float_ku
+          - binary_sensor.dump_v_rebulk_t2
+          - binary_sensor.dump_v_rebulk_ku
+          - binary_sensor.dump_batt_t2_ok
+          - binary_sensor.dump_batt_ku_ok
+          - binary_sensor.sph_charge_need
+          - input_boolean.sph_charge_enabled
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.sph_charge_enabled
+        state: "on"
+      - condition: state
+        entity_id: binary_sensor.sph_charge_need
+        state: "off"
+      - condition: state
+        entity_id: binary_sensor.sph_charge_surplus_stop
+        state: "on"
+        for:
+          seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+    actions:
+      - variables:
+          targets: >
+            {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+            {% set full = states('input_number.sph_charge_full_v') %}
+            {% set at_full = is_number(rawv) and is_number(full) and (rawv | float) >= (full | float) %}
+            {% set ns = namespace(out=[]) %}
+            {% if not is_state('binary_sensor.sph_charge_need', 'on') and not at_full %}
+              {% for s in [
+                '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+                '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+                'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+              ] %}
+                {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+                {% set rawp = states('sensor.battery_1_power') if bus == 'T2' else states('sensor.battery_2_power') %}
+                {% set minw = states('input_number.sph_charge_surplus_min_w') %}
+                {% set bank = namespace(ok=false) %}
+                {% if bus == 'T2' or bus == 'KU' %}
+                  {% set bank.ok = is_state('binary_sensor.dump_v_float_t2' if bus == 'T2' else 'binary_sensor.dump_v_float_ku', 'on')
+                     and not is_state('binary_sensor.dump_v_rebulk_t2' if bus == 'T2' else 'binary_sensor.dump_v_rebulk_ku', 'on')
+                     and is_state('binary_sensor.dump_batt_t2_ok' if bus == 'T2' else 'binary_sensor.dump_batt_ku_ok', 'on')
+                     and is_state('binary_sensor.dump_solar_present', 'on')
+                     and is_number(rawp) and is_number(minw) and (rawp | float) >= (minw | float)
+                     and is_number(rawv) and is_number(full) and (rawv | float) < (full | float) %}
+                {% endif %}
+                {% if is_state('input_select.h5082_' ~ s ~ '_use', 'Sungold charge')
+                   and (bus == 'T2' or bus == 'KU')
+                   and is_state('switch.ihoment_h5082_' ~ s, 'on')
+                   and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
+                   and states('timer.h5082_' ~ s ~ '_min_on') not in ['active', 'paused']
+                   and not bank.ok %}
+                  {% set ns.out = ns.out + [s] %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.out }}
+      - repeat:
+          for_each: "{{ targets }}"
+          sequence:
+            - if:
+                - condition: template
+                  value_template: "{{ is_state('switch.ihoment_h5082_' ~ repeat.item, 'on') and states('timer.h5082_' ~ repeat.item ~ '_min_on') not in ['active', 'paused'] and not is_state('binary_sensor.sph_charge_need', 'on') }}"
+              then:
+                - event: dump_control_switching
+                  event_data:
+                    sock: "{{ repeat.item }}"
+                    state: "off"
+                - action: switch.turn_off
+                  target:
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.h5082_{{ repeat.item }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+                - variables:
+                    sock: "{{ repeat.item }}"
+                - *socket_label
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                    message: >-
+                      {{ label }}: turned OFF by "Dump OFF Sungold charge sockets: surplus ended": Sungold {{ states('sensor.sungold_sph302480a_battery_voltage') }} V, T2 {{ states('sensor.battery_1_power') }} W, KU {{ states('sensor.battery_2_power') }} W. Cooldown 10 min.
+
   - id: dump_sph_charge_source_stop
     alias: "Dump OFF Sungold charge sockets: feeding bank low"
     description: >
@@ -2400,7 +2750,8 @@ automation dump_load:
       Turns that Sungold charge socket off even during the minimum on time, then
       starts its cooldown, so a sagging T2 or KU pack is not kept on the inlet.
       A held socket is skipped only while hold also blocks turn-offs. Does not
-      switch sockets whose Use is dump.
+      switch sockets whose Use is dump. Home Assistant start and a one minute poll
+      re-check a feeding bank that is already under stop volts.
     mode: single
     max_exceeded: silent
     triggers:
@@ -2409,6 +2760,10 @@ automation dump_load:
         to: "on"
         for:
           seconds: "{{ states('input_number.sph_charge_dwell_s') | int(0) }}"
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
     conditions:
       - condition: state
         entity_id: input_boolean.sph_charge_enabled
@@ -2472,19 +2827,25 @@ automation dump_load:
   - id: dump_sph_charge_inlet_dark
     alias: "Dump ALERT Sungold charge: inlet has no power"
     description: >
-      A socket whose Use is Sungold charge has been on, but Sungold grid voltage
-      and charging power have both stayed at or below zero for the inlet confirm
-      helper. Posts a notification and a phone text when the alert service is set.
-      Does not turn the socket off. The usual causes are a plug that did not switch,
-      or the Sungold panel set so it will not charge from mains.
+      A socket whose Use is Sungold charge has been on for 3 minutes while the
+      Sungold sidecar reports numbers and charging power stays at or below 5 W,
+      either with grid voltage at or below 0 or with grid voltage at or above 50 V.
+      Missing sidecar values do not alert. Posts a notification and a phone text
+      when the alert service is set. Does not turn the socket off. The usual causes
+      are a plug that did not switch, or the Sungold panel set so it will not
+      charge from mains. Home Assistant start and a one minute poll re-check an
+      inlet that is already dark.
     mode: single
     max_exceeded: silent
     triggers:
       - trigger: state
         entity_id: binary_sensor.sph_charge_inlet_dark
         to: "on"
-        for:
-          seconds: "{{ states('input_number.sph_charge_confirm_s') | int(0) }}"
+        for: "00:03:00"
+      - trigger: homeassistant
+        event: start
+      - trigger: time_pattern
+        minutes: "/1"
     conditions:
       - condition: state
         entity_id: input_boolean.sph_charge_enabled
@@ -2492,17 +2853,16 @@ automation dump_load:
       - condition: state
         entity_id: binary_sensor.sph_charge_inlet_dark
         state: "on"
-        for:
-          seconds: "{{ states('input_number.sph_charge_confirm_s') | int(0) }}"
+        for: "00:03:00"
     actions:
       - variables:
           msg: >-
             A Sungold charge socket is on, but Sungold grid voltage is
             {{ states('sensor.sungold_sph302480a_grid_voltage') }} V and charging power is
-            {{ states('sensor.sungold_sph302480a_charging_power') }} W after
-            {{ states('input_number.sph_charge_confirm_s') }} s.
-            The plug may be unreachable, or the Sungold panel may be set to charge from solar only.
-            Mains charging has to be allowed on the inverter panel or the inlet will not charge the pack.
+            {{ states('sensor.sungold_sph302480a_charging_power') }} W after 3 minutes.
+            Grid voltage with charging power still about 0 usually means the panel is solar-only.
+            The plug may also be unreachable. Mains charging has to be allowed on the inverter
+            panel or the inlet will not charge the pack.
           svc: "{{ states('input_text.dump_notify_service') | trim }}"
       - action: notify.persistent_notification
         data:
@@ -2602,7 +2962,8 @@ automation dump_load:
       absorption/float, Sungold load above solar, the Sungold voltage guard, its bus at
       stop volts or its battery past the limit), it is turned off with a cooldown.
       A Sungold charge socket is turned off here only when charge control is enabled and
-      the pack no longer needs charge or its feeding bank is under the source stop helper.
+      rescue is off and the feeding bank is not in surplus, or its feeding bank is under
+      the source stop helper. A surplus charge that still qualifies is left on.
       Dump reasons such as solar gone do not turn a Sungold charge socket off.
       Turning a dump socket on resumes by itself through sensor.dump_next_plug.
     mode: queued
@@ -2685,14 +3046,26 @@ automation dump_load:
             state: "on"
           - condition: template
             value_template: >-
+              {% set raw_bus = states('sensor.battery_1_voltage') if bus == 'T2' else states('sensor.battery_2_voltage') %}
+              {% set stop = states('input_number.sph_charge_source_stop_v') %}
+              {% set source_low = (bus == 'T2' or bus == 'KU')
+                 and is_number(raw_bus) and is_number(stop) and (raw_bus | float) < (stop | float) %}
+              {% set rawp = states('sensor.battery_1_power') if bus == 'T2' else states('sensor.battery_2_power') %}
+              {% set minw = states('input_number.sph_charge_surplus_min_w') %}
+              {% set rawv = states('sensor.sungold_sph302480a_battery_voltage') %}
+              {% set full = states('input_number.sph_charge_full_v') %}
+              {% set fl = 'binary_sensor.dump_v_float_t2' if bus == 'T2' else 'binary_sensor.dump_v_float_ku' %}
+              {% set rb = 'binary_sensor.dump_v_rebulk_t2' if bus == 'T2' else 'binary_sensor.dump_v_rebulk_ku' %}
+              {% set batt = 'binary_sensor.dump_batt_t2_ok' if bus == 'T2' else 'binary_sensor.dump_batt_ku_ok' %}
+              {% set bank_ok = (bus == 'T2' or bus == 'KU')
+                 and is_state(fl, 'on') and not is_state(rb, 'on') and is_state(batt, 'on')
+                 and is_state('binary_sensor.dump_solar_present', 'on')
+                 and is_number(rawp) and is_number(minw) and (rawp | float) >= (minw | float)
+                 and is_number(rawv) and is_number(full) and (rawv | float) < (full | float) %}
               {{ is_state('input_select.h5082_' ~ sock ~ '_use', 'Sungold charge')
-                 and (is_state('input_select.h5082_' ~ sock ~ '_inverter', 'T2') or is_state('input_select.h5082_' ~ sock ~ '_inverter', 'KU'))
+                 and (bus == 'T2' or bus == 'KU')
                  and is_state(target, 'on')
-                 and (not is_state('binary_sensor.sph_charge_need', 'on')
-                      or (is_number(states('sensor.battery_1_voltage') if bus == 'T2' else states('sensor.battery_2_voltage'))
-                          and is_number(states('input_number.sph_charge_source_stop_v'))
-                          and ((states('sensor.battery_1_voltage') if bus == 'T2' else states('sensor.battery_2_voltage')) | float)
-                              < (states('input_number.sph_charge_source_stop_v') | float))) }}
+                 and (source_low or (not is_state('binary_sensor.sph_charge_need', 'on') and not bank_ok)) }}
         then:
           - event: dump_control_switching
             event_data:

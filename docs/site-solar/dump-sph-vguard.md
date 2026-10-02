@@ -33,9 +33,8 @@ an inlet. Shedding only removes the AC load of the dump sockets you assigned to
 Sungold. If the sag is the inverter's own load, a socket whose Use is normal, or
 charge settings on the panel, the guard still **alerts** and the voltage can keep
 falling. To feed the Sungold from T2 or KU through a socket, use
-[Sungold charge](sph-charge.md). That rule is separate. If both switches are on, a
-guard trip is also a reason to turn the charge socket on. The guard shed still only
-targets Use = dump and Inverter = Sungold.
+[Sungold charge](sph-charge.md). That rule is separate. A guard trip does not turn
+the charge socket on. The guard shed still only targets Use = dump and Inverter = Sungold.
 
 Which sockets are on the Sungold inverter is only the **Inverter** helper
 (`input_select.h5082_<id>_<side>_inverter` = Sungold). Nothing in the repo names a load

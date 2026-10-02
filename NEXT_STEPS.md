@@ -1,6 +1,46 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "Sungold surplus watt gate" (2026-10-02)
+
+From branch `cursor/sungold-surplus-gate-fe4a`. Same Use **Sungold charge**. No new Use and no new enable switch.
+
+While rescue is off and Sungold volts are under full, a Sungold charge socket turns on when the bank named by its Inverter helper is in float, solar is present, that bank is not at stop volts, the battery is within its discharge limit, and that battery is charging by at least **Sungold surplus min charge W**. It turns off when those fail. Reaching full volts is still the pack-recovered off. Rescue ignores cooldown. Dump add, shed, off, on-demand and the voltage guard still ignore this Use. The guard no longer starts a charge. A hand tap still starts manual hold. Home Assistant start and a one minute poll re-check a need or a surplus that is already true.
+
+The inlet alert is a fixed 3 minutes. It stays off when Sungold grid voltage or charging power is unavailable. It also fires when grid voltage is present (50 V or more) and charging power stays at or below 5 W.
+
+`input_number.sph_charge_target_v` and `input_number.sph_charge_confirm_s` are removed from the package. The install restart drops those YAML helpers. If either is still listed afterward, delete it under Settings > Devices & services > Helpers. A leftover is unused. Nothing writes it.
+
+Only `.105` (Home Assistant container `homeassistant`, repo `~/victron-ble2mqtt-integration`). Pi 4 and Pi 5: nothing to do. Keep `~/.ha_token`. Do not delete it.
+
+Set the new watts number by hand **after** the helpers appear. A brand-new number starts at its minimum (100 W), not at 1100. **Load recommended starting values** does not write it and does not turn Enable Sungold charge on.
+
+**`.105`, one command per line, in this order**
+
+- [ ] **1.** Merge the PR (operator). Do not start until `main` has it.
+- [ ] **2.** `cd ~/victron-ble2mqtt-integration`
+- [ ] **3.** `git pull --ff-only origin main`
+- [ ] **4.** `bash scripts/install_dump_control_ha.sh`
+- [ ] **5.** `bash scripts/site_solar_session.sh --no-pull dashboard-dry-run`
+- [ ] **6.** `HA_TOKEN_FILE="$HOME/.ha_token" python3 scripts/create_h5082_socket_labels.py`
+- [ ] **7.** `bash scripts/site_solar_session.sh --no-pull dashboard-apply`
+
+Do not run `rm ~/.ha_token`. That file stays on `.105` on purpose.
+
+Step 4 copies `dump_control.yaml` into Home Assistant, runs check_config, and restarts container `homeassistant`. Existing helper values stay. The new surplus watts helper appears at 100. The target-gap and inlet-confirm helpers leave with the package.
+
+Step 5 pulls nothing (`--no-pull`). It uses the existing `~/.ha_token` and leaves that file in place. It waits for HA, backs up helpers and the live dashboard, then dry-runs the Site solar seed. It writes nothing to the dashboard. If it says REFUSED (exit 3), live `/site-solar` has UI edits; the wrapper then shows what step 7 would replace, still writing nothing.
+
+Step 6 appends **Sungold charge** on a Use dropdown that does not have it yet. It does not change the Use value you already set, and it does not write `initial`. Skip it only if it prints `USE OK` for every Use helper.
+
+Step 7 re-seeds `/site-solar` after another backup under `.backups/site-solar/<stamp>-before-seed/`. UI edits on Site solar since the last seed are replaced. Undo with `bash scripts/site_solar_session.sh --no-pull restore --from <that folder> --dashboard`.
+
+**Then, in HA** (Site solar > Now > Sungold charge)
+
+- [ ] **8.** Set **Surplus min charge W** to **1100**. Leave the inlet socket on Use **Sungold charge** and Inverter set to the feeding bank (T2 or KU). Confirm Enable Sungold charge is what you want.
+
 ## Next step: host steps for "Sungold charge inlet" (2026-10-02)
+
+Already on `.105` from PR #16. The surplus section above removes the target-gap and inlet-confirm helpers. Do not look for those two rows.
 
 From branch `cursor/sungold-charge-inlet-fe4a`. A socket Use option **Sungold charge** plus helpers in `config/packages/dump_control.yaml` (no `initial:`). You pick the inlet in HA. The repo does not name a plug.
 
@@ -13,16 +53,15 @@ Set the numbers by hand **before** you turn Enable Sungold charge on. A brand-ne
 Suggested starting values, typed in Site solar:
 
 - Floor: 25.0 V (new helper starts at 20)
-- Margin below the lower of T2 and KU: 0.50 V (starts at 0; keep the target gap smaller than this)
-- Target gap: 0.20 V (starts at 0)
-- Full volts: 26.8 V (starts at 24)
+- Margin below the lower of T2 and KU: 0.50 V (starts at 0)
+- Full volts: 26.8 V (starts at 24). This is the only rescue cap. The target-gap helper is gone.
 - Also charge when SoC is low: off (or on, with SoC below 50)
 - Source minimum volts: 26.6 V (starts at 24)
 - Source stop volts: 26.2 V (starts at 24; keep this below the source minimum)
 - Require source SoC: off (or on, with source minimum SoC 90)
 - Dwell: 60 s (starts at 15)
 - Minimum on time: 300 s (starts at 60)
-- Inlet confirm: 180 s (starts at 30)
+- Inlet confirm: removed. The no-power alert is a fixed 3 minutes.
 - Enable Sungold charge: off until the numbers above are what you want, then on
 - Inlet socket: Use = Sungold charge, Inverter = the feeding bank (T2 or KU)
 
