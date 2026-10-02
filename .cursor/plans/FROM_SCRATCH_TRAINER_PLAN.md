@@ -41,13 +41,16 @@ can execute will not run in a joint step. bf16 works on both. fp16 needs loss
 scaling and a narrower range; use it only if a bf16 matmul fails on a given
 wheel.
 
-**Wheel.** PyTorch built with CUDA 12.8 or newer. Those builds are the ones
-that contain sm_120 kernels; CUDA 12.1 and 12.4 wheels do not
-([PyTorch forum](https://discuss.pytorch.org/t/nvidia-geforce-rtx-5070-ti-with-cuda-capability-sm-120/221509)).
-Before any training run, do a bf16 matmul on one 5070 and one 3060 with the
-same install. Windows 5070 hosts have shipped broken wheels before (partial
-2.7, missing embedding kernels in early cu128 nightlies). Verify the op, do
-not trust `torch.cuda.is_available()`.
+**Wheel.** PyTorch **2.14** with the **cu130** wheel
+(`pip install torch --index-url https://download.pytorch.org/whl/cu130`).
+That stable line (2 September 2026) ships CUDA 13.0 by default, and the
+CUDA 13.0 / 13.2 Linux and Windows x86 wheels include both Ampere sm_86 and
+Blackwell sm_120 ([PyTorch RELEASE.md](https://github.com/pytorch/pytorch/blob/main/RELEASE.md),
+[2.14 blog](https://pytorch.org/blog/pytorch-2-14-release-blog/)). CUDA 12.6
+and older wheels stop at Hopper. sm_120 has been in stable wheels since
+2.7 plus CUDA 12.8; cu130 is the pin so one install sees all four cards.
+Before any training run, do a bf16 matmul on one 5070 and one 3060 with that
+same install. Verify the op, do not trust `torch.cuda.is_available()`.
 
 **Attention.** `scaled_dot_product_attention` in that PyTorch build. FlashAttention-3
 kernels are Hopper (sm_90); Karpathy's nanochat falls back to SDPA on
@@ -73,14 +76,21 @@ checkpointing off, unless a smoke test OOMs.
 **Inner optimizer, two stages.**
 
 1. Ship **AdamW** in bf16 first. That is the inner optimizer DiLoCo measured.
-2. Then turn on **Muon** for the 2D hidden matrices, and keep AdamW for
-   embeddings, the output head, and 1D parameters. Newton–Schulz runs in
-   bf16. On the speedrun's FineWeb setup, Muon is described as about 1.5×
-   better sample efficiency, under 2% wall-clock overhead, and less memory
-   than Adam ([modded-nanogpt Muon section](https://github.com/KellerJordan/modded-nanogpt/blob/master/README.md),
-   [writeup](https://kellerjordan.github.io/posts/muon/)). Those figures are
-   their benchmark, not a measurement on 5070s. Treat them as the reason to
-   try Muon, then confirm on a short A/B here.
+2. Then turn on **Muon** for the 2D hidden matrices, and keep **fused
+   AdamW** (`fused=True`) for embeddings, the output head, and 1D
+   parameters. Newton–Schulz runs in bf16. `torch.optim.Muon` is in PyTorch
+   main; the 2.14 blog does not mention it, so import-check the wheel and
+   fall back to the Keller implementation if the symbol is missing
+   ([torch/optim/_muon.py](https://github.com/pytorch/pytorch/blob/main/torch/optim/_muon.py)).
+   On the speedrun's FineWeb setup, Muon is described as about 1.5× better
+   sample efficiency, under 2% wall-clock overhead, and less memory than
+   Adam ([modded-nanogpt Muon section](https://github.com/KellerJordan/modded-nanogpt/blob/master/README.md),
+   [writeup](https://kellerjordan.github.io/posts/muon/)). A 4× RTX A4000
+   reproduction measured the synthetic step at 1.15× AdamW (slower), with
+   the optimizer itself heavier and only a small slice of that fake step
+   ([A4000 note](https://huggingface.co/blog/bird-of-paradise/reproducing-and-validating-distributed-muon)).
+   The win to confirm here is tokens to a held-out loss, not a faster
+   microstep.
 
 Do not start from the speedrun's full record script. It assumes 8×H100, FP8,
 and FlashAttention-3. Copy the bf16 Muon update and the architecture pieces.
@@ -151,24 +161,41 @@ hardware. Re-measure tokens/sec on one 5070 and one 3060 before trusting them.
 |---|---|---|
 | 1 | bf16 autocast, no GradScaler | Right dtype for Ampere and Blackwell together ([torch.amp](https://docs.pytorch.org/docs/2.13/amp.html)) |
 | 2 | SDPA | Only attention path that is real on both sm_86 and sm_120 today |
-| 3 | `torch.compile` | Standard win on the speedrun. First call is slow (they note about 7 minutes on their stack). Compile once per machine. |
-| 4 | Document packing | Concatenate files with an EOS between them so a 2048 window is full. The speedrun also aligns batch starts to EOS. Windows that cross files without EOS teach the model that one repo continues into the next. |
-| 5 | Muon on 2D weights | Sample efficiency on their benchmark, bf16 Newton–Schulz, less optimizer state than Adam on those matrices |
+| 3 | `torch.compile` per block | Compile the block, not the whole DDP step. Compiling the full forward and backward stops DDP from overlapping allreduce with backward ([DDP notes](https://docs.pytorch.org/docs/stable/notes/ddp.md)). First call is slow (about 7 minutes on the speedrun). TorchTitan's measured gain on Llama 3.1 8B was about 7% on 8×H100 ([TorchTitan](https://arxiv.org/html/2410.06511v3)). |
+| 4 | Document packing and EoS alignment | Concatenate files from the same repo with an EOS between them so a 2048 window is full. The ~2× packing number is for short, variable-length SFT (FLAN on 8×A100), not for an already-packed pretrain stream ([HF packing](https://huggingface.co/blog/packing-with-FA2)). |
+| 5 | Muon on 2D weights, fused AdamW on the rest | Sample efficiency on the speedrun. Wall-clock can go the other way; measure both. |
 | 6 | bf16 activations | Speedrun record 10. Do this with the autocast, not a second dtype. |
 | 7 | DDP on all four GPUs | Default, so the 3060s stay in the from-scratch job. Before a long run, measure tokens/sec of the two 5070s alone against all four. If the 3060 gates the step so hard that the 5070 pair finishes more tokens per wall-clock second, move the 3060s to a second job (eval, or their own shard) for that run. Published DiLoCo also assumes the devices inside one island are homogeneous ([DiLoCo](https://arxiv.org/html/2311.08105v3)). |
-| 8 | Activation checkpointing | Only if a 12 GB card OOMs. It trades speed for memory. |
-| 9 | bf16 cross-entropy | Speedrun record 37. Flag, default off, until loss is stable in fp32 CE. |
+| 8 | Selective activation checkpointing | Only if a 12 GB card OOMs. Full per-layer recompute costs about 30–40% step time ([Korthikanti et al.](https://proceedings.mlsys.org/paper_files/paper/2023/file/80083951326cf5b35e5100260d64ed81-Paper-mlsys2023.pdf)). Recompute pointwise ops first and keep the matmuls. |
+| 9 | Cut cross-entropy, then bf16 CE | Do not materialize the full `[tokens, vocab]` logit tensor on 12 GB. Apple's cut cross-entropy is the memory win when vocab is large relative to hidden size ([CCE](https://machinelearning.apple.com/research/cut-your-losses)). bf16 CE (speedrun record 37) stays a flag until loss matches fp32 CE. |
 
 Skip for this cluster:
 
-- FP8 MLP, FP8 head, FP4
-- FlashAttention-3, and a from-source FlashAttention-2 build for sm_120
-- NCCL `torchrun` between the house and the friend
-- DeepSpeed ZeRO for the 410M run. Optimizer state fits. ZeRO pays for itself if the model grows toward 1B and a 12 GB card OOMs.
+- FP8, MXFP8, NVFP4, and Transformer Engine FP8 recipes. A mixed 5090+3090
+  run already crashed because Triton emitted `tl.float8e4nv` and sm_86 cannot
+  execute it ([club-3090 #762](https://github.com/noonghunna/club-3090/issues/762)).
+- FlashAttention-3, stock `flash-attn` wheels, and Liger's CuTe DSL backend
+  (`LIGER_KERNEL_IMPL=cutedsl` is SM90 / SM100 / SM110 only).
+- CUDA graphs. The published Llama 405B speedup is an FP4 result, and the
+  same note reports no speedup in FP8 because the GEMMs already hide launch
+  overhead. Variable-length packing also fights fixed-shape graphs
+  ([NVIDIA CUDA graphs](https://docs.nvidia.com/dl-cuda-graph/latest/examples/llama-31-405b.html)).
+- Whole-model `torch.compile` under DDP.
+- NCCL `torchrun` between the house and the friend.
+- DeepSpeed ZeRO-3 or FSDP full shard for the 410M run. A replica fits.
+  Full shard adds all-gathers on PCIe. ZeRO pays for itself if the model
+  grows toward 1B and a 12 GB card OOMs.
 
-`torch.compile` and SDPA also apply to the 7B trainer. Muon does not, until
-someone measures it on LoRA adapters. The speedrun result is for full
-matrices trained from scratch.
+Value residual and logit softcap are still in the bf16 half of the speedrun.
+Leave them off until the Muon A/B is done. They change the model, and the
+later leaderboard minutes that use them are measured on 8×H100.
+
+SDPA and per-block compile also apply to the 7B trainer. Muon does not.
+The speedrun result is for full matrices trained from scratch. On native
+Windows, official Triton is not the supported path. Keep the PowerShell
+trainer on SDPA plus bitsandbytes until a WSL or Docker venv completes one
+step on both a 5070 and a 3060
+([triton-windows](https://github.com/triton-lang/triton-windows)).
 
 ## Continued learning
 
@@ -349,8 +376,13 @@ Do not treat it as a 12 GB tokens/sec number
 Changes worth making in `Start-AlfaTrain7bQlora.ps1` / the GUI, after the
 from-scratch smoke test proves the wheel:
 
-1. Same cu128 (or newer) PyTorch, with the matmul check on a 5070 and a 3060.
-   Triton 3.3.1 or newer on the 5070 if Unsloth asks for it.
+1. Same PyTorch 2.14 cu130 wheel, with the matmul check on a 5070 and a 3060.
+   bitsandbytes must be a CUDA 12.8 or 13.x build (sm_120 has been in those
+   wheels since about v0.45.3). A CUDA 12.6 bitsandbytes wheel omits sm_120
+   ([bnb install matrix](https://github.com/bitsandbytes-foundation/bitsandbytes/blob/main/docs/source/installation.mdx)).
+   Unsloth's Triton kernels and Liger are a WSL or Docker experiment on the
+   Windows trainer. The PowerShell path stays SDPA plus bitsandbytes until
+   that venv finishes one step on both cards.
 2. SDPA. Padding-free packing needs FlashAttention varlen, which these 5070s
    do not have. Use `SFTConfig(packing=True)` and leave `padding_free` off
    ([TRL packing](https://huggingface.co/docs/trl/en/sft_trainer)).
@@ -394,9 +426,10 @@ Implement in alfa-ai, in this order. Each step is runnable on its own.
 
 1. **Corpus tool.** Read the repo map, filter secrets, pack by repo with the
    borrowed tokenizer, write shards to the hub. No GPU required.
-2. **Wheel check.** bf16 matmul on one 5070 and one 3060.
-3. **Single-island trainer.** 410M, AdamW, bf16, SDPA, compile, packing, DDP
-   on all four GPUs. Checkpoint to the hub.
+2. **Wheel check.** PyTorch 2.14 cu130. bf16 matmul on one 5070 and one 3060.
+   Import-check `torch.optim.Muon`.
+3. **Single-island trainer.** 410M, fused AdamW, bf16, SDPA, per-block
+   compile, packing, DDP on all four GPUs. Checkpoint to the hub.
 4. **Muon flag.** A/B a few hundred steps against AdamW. Keep the winner.
 5. **Replay.** Ordinary commits use the inverted mix (old corpus is most of
    the batch, changed files upsampled, no learning-rate re-warm). Log
@@ -405,9 +438,10 @@ Implement in alfa-ai, in this order. Each step is runnable on its own.
    home. Friend data stays with the friend. H = 500. Outer Nesterov SGD
    (learning rate 0.7, momentum 0.9). A missed round omits that island from
    the average.
-7. **7B port.** Wheel check, SDPA, packing, Unsloth or Liger (one of them),
-   5070 as the default device, and adapter outer-sync in the existing QLoRA
-   launcher.
+7. **7B port.** Same cu130 wheel and bitsandbytes build, SDPA, packing, 5070
+   as the default device, and adapter outer-sync in the existing QLoRA
+   launcher. Unsloth or Liger only after one step succeeds in WSL or Docker
+   on both a 5070 and a 3060.
 
 ## Non-goals
 
@@ -428,7 +462,14 @@ Implement in alfa-ai, in this order. Each step is runnable on its own.
 - Muon writeup: https://kellerjordan.github.io/posts/muon/
 - SDPA on non-Hopper, including Blackwell: https://github.com/karpathy/nanochat/blob/0aaca568/nanochat/flash_attention.py
 - FlashAttention-2 sm_120 build failure: https://github.com/Dao-AILab/flash-attention/issues/2361
-- PyTorch cu128 and sm_120: https://discuss.pytorch.org/t/nvidia-geforce-rtx-5070-ti-with-cuda-capability-sm-120/221509
+- PyTorch 2.14 cu130 wheel matrix: https://github.com/pytorch/pytorch/blob/main/RELEASE.md
+- PyTorch 2.14 release: https://pytorch.org/blog/pytorch-2-14-release-blog/
+- torch.optim.Muon: https://github.com/pytorch/pytorch/blob/main/torch/optim/_muon.py
+- DDP compile vs allreduce overlap: https://docs.pytorch.org/docs/stable/notes/ddp.md
+- Activation checkpointing cost: https://proceedings.mlsys.org/paper_files/paper/2023/file/80083951326cf5b35e5100260d64ed81-Paper-mlsys2023.pdf
+- Cut cross-entropy: https://machinelearning.apple.com/research/cut-your-losses
+- Mixed-arch FP8 crash: https://github.com/noonghunna/club-3090/issues/762
+- bitsandbytes sm_120 wheels: https://github.com/bitsandbytes-foundation/bitsandbytes/blob/main/docs/source/installation.mdx
 - torch.amp bf16 vs fp16: https://docs.pytorch.org/docs/2.13/amp.html
 - Continual pretraining, replay, learning-rate re-warm: https://arxiv.org/abs/2403.08763
 - TiC-LM, replay ahead of EWC: https://arxiv.org/abs/2504.02107
