@@ -14,9 +14,12 @@ later. A hand switch puts that socket **on hold** for a while; when the hold end
 automatic control resumes.
 
 A hand switch is any on/off change of a dump socket that dump control did not ask for:
-a **Plugs** button tap, the plug's **own button**, the socket's switch in any other card
-or app, another automation. Only dump sockets get a hold (Use = dump and Inverter not
-House); a normal or House socket is never switched by dump control anyway.
+a **Plugs** button tap, the plug's **own button**, **Turn next dump ON**, **Turn dumps
+OFF**, the socket's switch in any other card or app, another automation. The on-demand
+buttons do not announce themselves as dump control, so the hold starts when the plug
+reports the new state (see [Dump on demand](dump-on-demand.md)). Only dump sockets get
+a hold (Use = dump and Inverter not House); a normal or House socket is never switched
+by dump control anyway.
 
 ## The entities
 
@@ -64,17 +67,18 @@ switches anything.
   leave it alone until 16:45.` Another hand switch restarts the hold. It runs even while
   the master switch is off, so turning the master switch on later does not undo you.
 - **While held.** `sensor.dump_next_plug` and the recheck in `dump_turn_on` skip the
-  socket (always). `sensor.dump_shed_plug` and the seven turn-off lists (solar gone, the
-  three stop-volts rules, the three battery rules) skip it only while **Hold also
-  blocks turn-offs** is on. `sensor.dump_sockets` still counts it (it is still set to
+  socket (always). `sensor.dump_shed_plug` and the turn-off lists (solar gone, the
+  three stop-volts rules, the three battery rules, and the Sungold voltage guard)
+  skip it only while **Hold also blocks turn-offs** is on. `sensor.dump_sockets` still counts it (it is still set to
   dump); its attribute `held` lists the held sockets.
 - **Hold end.** When the timer goes back to idle (time up, Cancel, or Clear all holds),
   `Dump HOLD end` logs `hold ended (time up)` or `hold ended (cleared)`. The turn-off
   rules only fire when their condition starts, so if the master switch is on and the
   socket is still on while dump control would want it off right now (solar gone, T2
-  charger left absorption/float, Sungold load above solar, its bus at stop volts, or its
-  battery past the limit), it is turned off with a 10 minute cooldown and the log says
-  why. Turning on resumes by itself: `sensor.dump_next_plug` offers the socket again.
+  charger left absorption/float, Sungold load above solar, its bus at stop volts, its
+  battery past the limit, or the Sungold voltage guard while this socket's Inverter is
+  Sungold), it is turned off with a 10 minute cooldown and the log says why. Turning on
+  resumes by itself: `sensor.dump_next_plug` offers the socket again.
 - The Plugs button label shows `hold to HH:MM` while a socket is held, and
   **Dump status > Dump sockets by name** adds `on hold to HH:MM`.
 

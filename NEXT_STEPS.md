@@ -1,5 +1,51 @@
 # Next steps — victron-ble2mqtt-integration
 
+## Next step: host steps for "dump on demand and Sungold voltage guard" (2026-10-02)
+
+From branch `cursor/dump-ondemand-sph-vguard-fe4a`. Two Site solar controls, both in `config/packages/dump_control.yaml` (no `initial:` on any helper):
+
+- **Dump on demand.** Turn next dump ON switches one eligible dump socket now (it does not wait for float). Turn dumps OFF switches off every on dump socket that is not already on hold. Skip cooldown once lets that next on ignore the 10 minute cooldown, or lets the off skip starting one, then the switch turns itself off. A press does not announce itself as dump control, so when the plug reports the new state the existing manual hold arms (set Dump manual hold above 0, or nothing is armed).
+- **Sungold voltage guard.** Helper floor, margin under the lower of T2 (`sensor.battery_1_voltage`) and KU (`sensor.battery_2_voltage`), hysteresis, and a minimum dwell. While it is on, dump sockets whose Inverter helper is Sungold are shed (master switch on) and are not turned on. The guard also notifies when the master switch is off. The Sungold sidecar is read-only, so this cannot command the inverter to charge. If no dump socket is assigned to Sungold, you only get the alert.
+
+Only `.105` (Home Assistant container `homeassistant`, repo `~/victron-ble2mqtt-integration`). Pi 4 and Pi 5: nothing to do. No other repo changes. Now and History tiles are unchanged. Do not press **Load recommended starting values** unless you want every dump number replaced; that button writes the guard numbers below and leaves the guard switch off.
+
+Set the guard numbers by hand **before** you turn the guard on. A brand-new number starts at its minimum (floor 24.0 V, margin 0 V, hysteresis 0.05 V, dwell 15 s), not at the suggested start.
+
+Suggested starting values, typed in Site solar (not written by the package on restart):
+
+- Dump manual hold: 60 min (already the recommended hold; 0 means a forced on or off is not armed)
+- Hold also blocks turn-offs: on if a forced socket should also survive solar-gone, stop volts, battery limits and this guard; off if those rules should still win
+- Skip cooldown once: off until you want one immediate cycle
+- Sungold voltage guard floor: 25.6 V
+- Margin below the lower of T2 and KU: 0.30 V
+- Hysteresis: 0.10 V
+- Minimum time under the limit: 60 s
+- Enable Sungold voltage guard: off until the four numbers above are what you want, then on
+
+**`.105`, one command per line, in this order**
+
+- [ ] **1.** Merge the PR (operator). Do not start until `main` has it.
+- [ ] **2.** `cd ~/victron-ble2mqtt-integration`
+- [ ] **3.** `git pull --ff-only origin main`
+- [ ] **4.** `bash scripts/install_dump_control_ha.sh`
+- [ ] **5.** `bash scripts/site_solar_session.sh --no-pull --keep-token dashboard-dry-run`
+- [ ] **6.** `bash scripts/site_solar_session.sh --no-pull --keep-token dashboard-apply`
+- [ ] **7.** `rm -f ~/.ha_token`
+
+Step 4 copies `dump_control.yaml` into Home Assistant, runs check_config, and restarts container `homeassistant`. Your existing helper values stay (nothing in the package uses `initial:`). New helpers appear at their minimum, switches off.
+
+Step 5 pulls nothing (`--no-pull`), uses `~/.ha_token` (creates it mode 600 and opens `nano` if missing), waits for HA, backs up helpers and the live dashboard (`python3 scripts/site_solar_settings.py export`), then dry-runs the Site solar seed. It writes nothing to the dashboard. If it says REFUSED (exit 3), live `/site-solar` has UI edits; the wrapper then shows what step 6 would replace, still writing nothing.
+
+Step 6 re-seeds `/site-solar` (`save_solar_plant_storage_dashboard.py --force`) after another backup under `.backups/site-solar/<stamp>-before-seed/`. UI edits on Site solar since the last seed are replaced. Undo with `bash scripts/site_solar_session.sh --no-pull restore --from <that folder> --dashboard` (add `--dry-run` before that restore if you want a preview).
+
+Step 7 removes the token file. Skip it if you want `~/.ha_token` kept for a later session.
+
+**Checks in HA** (Site solar > Now)
+
+- [ ] **8.** Dump on demand: with Skip cooldown once off, a socket whose cooldown is active is not the one named by Next socket Turn next dump ON. Turn Skip cooldown once on, press Turn next dump ON, and that socket turns on. Skip cooldown once goes off. If Dump manual hold is above 0, Holds shows the socket and the activity log has a `by hand` line (not `charger in float`).
+- [ ] **9.** Press Turn dumps OFF with Skip cooldown once on: those sockets turn off, their cooldown timers stay idle, and the skip switch turns off. Press it again later with the skip switch off: cooldown shows active.
+- [ ] **10.** Set the four guard numbers, then enable the guard. Put the floor above the live Sungold voltage for one dwell, then put it back. Guard active turns on, a notification appears, dump sockets whose Inverter is Sungold turn off (master switch on, Hold also blocks turn-offs off), and a dump socket on T2 or KU stays on. The gap row is Sungold volts minus the lower of T2 and KU.
+
 ## Next step: host steps for "Solar tab cards on Site solar" (2026-09-29)
 
 From branch `site-solar-solar-tab-cards` (from main `052780e`, after #13). Phase 1 is done: on 2026-09-29 you exported the live Solar tab (77 cards in 2 views). `compare_solar_tab.py --apply` added one new view to the Site solar seed, **Solar tab** (`path: solar-tab`), with only the 9 cards that were not live on Site solar yet. 39 were already there, and 23 were skipped (22 repeats in the Solar tab's second "Sungold" view, plus the "Animated solar flow" link, which names a Tailscale host). Now and History are unchanged. Table and decisions: `docs/SOLAR_TAB_MERGE_PLAN.md`. New wrapper for the usual `.105` session: `scripts/site_solar_session.sh` (`docs/SOLAR_HA_DASHBOARD.md`, "One session on `.105`").

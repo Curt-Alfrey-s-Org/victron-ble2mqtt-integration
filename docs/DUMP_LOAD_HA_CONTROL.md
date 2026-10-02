@@ -279,6 +279,44 @@ Full page: [Site solar help: Dump manual hold](site-solar/dump-hold.md).
   ends from its timer row (Cancel).
 - Every hold start / end writes a `Dump control` line to the Dump activity log.
 
+### On demand and skip cooldown
+
+Full page: [Site solar help: Dump on demand](site-solar/dump-on-demand.md).
+
+- **Turn next dump ON** (`script.dump_force_on`) switches the one socket in
+  `sensor.dump_ondemand_on`. It does not wait for float, solar, SoC, start volts,
+  battery ok or AC headroom. It still skips House, normal, held sockets, cooldown
+  (unless skip cooldown is on), and Sungold sockets while the voltage guard is on.
+- **Turn dumps OFF** (`script.dump_force_off`) switches off every on dump socket that
+  is not on hold (`sensor.dump_ondemand_off`).
+- Neither script fires `dump_control_switching`. When the plug reports the new state,
+  `Dump HOLD start` arms the manual hold, so automation does not immediately undo the
+  press. Hold minutes **0** arms nothing.
+- `input_boolean.dump_skip_cooldown` (no `initial:`, starts off) lets the next
+  automatic add and the ON button ignore cooldown, and makes the OFF button skip
+  starting a cooldown. It turns off after that next success.
+
+### Sungold voltage guard
+
+Full page: [Site solar help: Sungold voltage guard](site-solar/dump-sph-vguard.md).
+
+The Sungold sidecar is read-only. This guard cannot write charge settings. It sheds
+and blocks dump sockets whose **Inverter** helper is Sungold, and it notifies.
+
+- Helpers (no `initial:`): `input_boolean.dump_sph_vguard_enabled` (starts off),
+  `input_number.dump_sph_vguard_floor_v` (suggested 25.6 V, new helper starts at 24.0),
+  `input_number.dump_sph_vguard_margin_v` (suggested 0.30 V, starts at 0),
+  `input_number.dump_sph_vguard_hysteresis_v` (suggested 0.10 V, starts at 0.05),
+  `input_number.dump_sph_vguard_dwell_s` (suggested 60 s, starts at 15).
+- Trip: enabled, and Sungold volts under the floor **or** under the lower of
+  `sensor.battery_1_voltage` (T2) and `sensor.battery_2_voltage` (KU) by the margin.
+  Hysteresis uses the sensor's previous state. Dwell is the helper, not a fixed minute.
+- `binary_sensor.dump_sph_vguard` and `sensor.dump_sph_vguard_gap` (Sungold minus that
+  lower shunt) are on Site solar. While the guard is on, `sensor.dump_next_plug` skips
+  Sungold sockets. T2 and KU sockets are not blocked by this rule.
+- Shedding needs the master switch. The notification runs either way. A held socket is
+  skipped only when **Hold also blocks turn-offs** is on, same as the other turn-offs.
+
 ### Review 2026-09-28 (ported from the sim package)
 
 - Dump actions only ever target sockets whose **Use** is dump. The sim package used
@@ -334,6 +372,8 @@ Each dump box on Site solar > Now has a short help card and a **Help** link:
 | Dump alerts | [dump-alerts.md](site-solar/dump-alerts.md) |
 | Dump timers (min-on / cooldown) | [dump-timers.md](site-solar/dump-timers.md) |
 | Dump manual hold | [dump-hold.md](site-solar/dump-hold.md) |
+| Dump on demand | [dump-on-demand.md](site-solar/dump-on-demand.md) |
+| Sungold voltage guard | [dump-sph-vguard.md](site-solar/dump-sph-vguard.md) |
 | Plugs | [plug-buttons.md](site-solar/plug-buttons.md) |
 | Plug names (Where / Load) | [plug-names.md](site-solar/plug-names.md) |
 | Socket Use (normal / dump) | [socket-use.md](site-solar/socket-use.md) |
