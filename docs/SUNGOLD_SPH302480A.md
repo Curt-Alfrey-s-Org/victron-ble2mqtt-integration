@@ -4,6 +4,8 @@
 
 Sibling sidecar to **victron_ble2mqtt**. Publishes **sensors and binary_sensors only** — no HA controls, no Modbus writes. Change inverter settings on the **front panel** only.
 
+**Voltage guard (Site solar):** dump control can shed dump sockets whose Inverter helper is Sungold, and can alert, when Sungold battery voltage is under helpers you set. It cannot command this inverter to charge. See [docs/site-solar/dump-sph-vguard.md](site-solar/dump-sph-vguard.md).
+
 ## Hardware
 
 **This site:** the SPH302480A sits on a **dolly cart** with **2x LiTime 24 V 100 Ah** in parallel (emergency backup). It is **not** wired into the T2/KU trailer buses. Trailer layout: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).

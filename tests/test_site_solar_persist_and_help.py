@@ -51,12 +51,15 @@ def test_no_initial_on_any_user_set_helper(path: Path) -> None:
 
 def test_dump_package_keeps_every_helper_id() -> None:
     data = _pkg()
-    assert len(data["input_number"]) == 17  # + 3 booleans + 1 text = 21 helpers
+    assert len(data["input_number"]) == 21  # + 5 booleans + 1 text = 27 helpers
     assert "dump_manual_hold_min" in data["input_number"]
+    assert "dump_sph_vguard_floor_v" in data["input_number"]
     assert set(data["input_boolean"]) == {
         "dump_control_enabled",
         "dump_soc_unsynced",
         "dump_hold_blocks_turn_off",
+        "dump_skip_cooldown",
+        "dump_sph_vguard_enabled",
     }
     assert set(data["input_text"]) == {"dump_notify_service"}
     assert len(data["input_select"]) == 16

@@ -22,6 +22,7 @@ dumping?" has an answer. Nothing here is a setting; the settings are the other b
 | T2 PV now | `sensor.solar_controller_solar` | T2 MPPT PV watts, straight from the charger (the rules read this through `binary_sensor.dump_solar_present`) | - |
 | PV falling (blocks adding) | `binary_sensor.dump_pv_falling` | T2 PV is dropping: its 15-minute derivative (`sensor.dump_surplus_derivative`, W/min) is below the threshold helper's lower limit 0 with hysteresis 5 (turns on below about -5 W/min, off above about +5 W/min) | weather |
 | Sungold load above solar (sheds) | `binary_sensor.dump_load_exceeds_solar` | Sungold AC-out > T2 PV + Sungold PV (with solar >= Min solar) | loads |
+| Sungold voltage guard (blocks adding on Sungold) | `binary_sensor.dump_sph_vguard` | On = Sungold volts are under the guard floor or under the lower of T2 and KU by the margin (hysteresis applies). While on, adding skips sockets whose Inverter is Sungold. T2 and KU are not blocked by this row. | [Sungold voltage guard](dump-sph-vguard.md) |
 | T2 absorption or float (off = sheds) | `binary_sensor.dump_charge_ok` | T2 MPPT in absorption or float; off for 1 min sheds one socket per minute | charger |
 | <bus> at/above start volts | `binary_sensor.dump_v_float_t2` / `_ku` / `_sph` | Bus voltage >= start volts | [Dump voltage](dump-voltage.md) |
 | <bus> at/below stop volts | `binary_sensor.dump_v_rebulk_t2` / `_ku` / `_sph` | Bus voltage <= stop volts; on for 1 min turns that bus's dump sockets off | [Dump voltage](dump-voltage.md) |
@@ -42,12 +43,14 @@ HA **adds** a socket (`dump_turn_on`) only when all of these hold:
 - PV falling **off**; Sungold load above solar **off**;
 - `sensor.dump_next_plug` names a socket. It picks, in the order 2F9D left, 2F9D
   right, 3013 left ... CF79 right, the first socket that has Use = dump (and Inverter not House), is **off**, is not on manual hold,
-  has an idle cooldown, and whose Inverter bus is at/above start volts, not at/below
-  stop volts, battery ok, and under its AC limit.
+  has an idle cooldown (or [Skip cooldown once](dump-on-demand.md) is on), is not a Sungold
+  socket while `binary_sensor.dump_sph_vguard` is on, and whose Inverter bus is at/above
+  start volts, not at/below stop volts, battery ok, and under its AC limit.
 
 HA **removes** sockets when: solar present off 1 min (all), T2 absorption/float off
 1 min (one per minute), Sungold load above solar 1 min (one per minute), a bus at stop
-volts 1 min or its battery not ok 1 min (all on that bus).
+volts 1 min or its battery not ok 1 min (all on that bus), or the Sungold voltage guard
+has been on for its dwell (Sungold sockets only).
 
 ## Example
 

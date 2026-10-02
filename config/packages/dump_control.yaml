@@ -13,12 +13,22 @@
 # you set in HA (Site solar > Plug names), and the logbook lines read them live.
 # Stage/shed order is the list order below (stage first, shed last-first).
 # Manual hold (2026-09-28): a dump socket switched by hand (Plugs button, the plug's own
-# button, any change dump control did not request) starts timer.h5082_<id>_<side>_hold
-# for input_number.dump_manual_hold_min (0 = off). While a hold is active dump control
-# never turns that socket ON, and turns it OFF only if input_boolean.
-# dump_hold_blocks_turn_off is off. Dump rules announce each switch with the event
-# dump_control_switching (sensor.dump_control_switching) so hand switches can be told
-# apart. See docs/site-solar/dump-hold.md.
+# button, Turn next dump ON / Turn dumps OFF, any change dump control did not request)
+# starts timer.h5082_<id>_<side>_hold for input_number.dump_manual_hold_min (0 = off).
+# While a hold is active dump control never turns that socket ON, and turns it OFF only
+# if input_boolean.dump_hold_blocks_turn_off is off. Dump rules announce each switch
+# with the event dump_control_switching (sensor.dump_control_switching) so hand switches
+# can be told apart. The on-demand scripts do NOT fire that event: the resulting plug
+# report is a hand switch, so the hold arms only after the plug actually changes.
+# See docs/site-solar/dump-hold.md and docs/site-solar/dump-on-demand.md.
+# Skip cooldown once (input_boolean.dump_skip_cooldown): while on, the next automatic
+# add and Turn next dump ON ignore per-socket cooldown. The switch turns itself off
+# after that next on, or after Turn dumps OFF (those offs do not start a cooldown).
+# Sungold voltage guard: binary_sensor.dump_sph_vguard. While on, no new dump socket
+# whose Inverter is Sungold is added, and (master switch on, after the dwell helper)
+# those dump sockets are turned off. Thresholds are helpers with no initial. The
+# Sungold sidecar is read-only, so this cannot change inverter charge settings.
+# See docs/site-solar/dump-sph-vguard.md.
 # Victron float hold then staged ON (site load delta, 15 min min-on, 10 min cooldown).
 # Solar-gone and re-bulk OFF (1 minute). Shed one dump plug when Sungold load > site solar.
 # Notify when that overdraw lasts 10 minutes (Companion or persistent).
@@ -77,6 +87,12 @@ input_boolean:
   dump_hold_blocks_turn_off:
     name: Dump hold also blocks turn-offs
     icon: mdi:hand-back-right-off-outline
+  dump_skip_cooldown:
+    name: Dump skip cooldown once
+    icon: mdi:timer-off-outline
+  dump_sph_vguard_enabled:
+    name: Dump Sungold voltage guard
+    icon: mdi:battery-heart-outline
 
 input_text:
   dump_notify_service:
@@ -225,6 +241,40 @@ input_number:
     unit_of_measurement: min
     mode: box
     icon: mdi:hand-back-right-outline
+  # Suggested starts (docs only, not initial:): floor 25.6 V, margin 0.30 V,
+  # hysteresis 0.10 V, dwell 60 s. A new helper starts at its minimum.
+  dump_sph_vguard_floor_v:
+    name: Dump Sungold voltage guard floor
+    min: 24.0
+    max: 29.5
+    step: 0.05
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:battery-alert
+  dump_sph_vguard_margin_v:
+    name: Dump Sungold voltage guard margin
+    min: 0
+    max: 2
+    step: 0.05
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:approximately-equal
+  dump_sph_vguard_hysteresis_v:
+    name: Dump Sungold voltage guard hysteresis
+    min: 0.05
+    max: 1
+    step: 0.05
+    unit_of_measurement: V
+    mode: box
+    icon: mdi:delta
+  dump_sph_vguard_dwell_s:
+    name: Dump Sungold voltage guard dwell
+    min: 15
+    max: 600
+    step: 15
+    unit_of_measurement: s
+    mode: box
+    icon: mdi:timer-sand
 
 input_select:
   h5082_2f9d_left_inverter:
@@ -698,7 +748,8 @@ template:
               {% if pick.eid == 'none'
                  and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
                  and is_state(eid, 'off')
-                 and is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle')
+                 and (is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle') or is_state('input_boolean.dump_skip_cooldown', 'on'))
+                 and not (bus == 'Sungold' and is_state('binary_sensor.dump_sph_vguard', 'on'))
                  and batt.get(bus, False)
                  and vfloat.get(bus, False) and not vrebulk.get(bus, False)
                  and head.get(bus, -1) > 0 %}
@@ -732,6 +783,85 @@ template:
             {% endif %}
           {% endfor %}
           {{ pick.eid }}
+      - name: Dump on demand next on
+        unique_id: dump_ondemand_on
+        default_entity_id: sensor.dump_ondemand_on
+        icon: mdi:power-plug
+        # What "Turn next dump ON" would switch. Same socket order as dump_next_plug,
+        # but it does not wait for float, solar, SoC, start volts, battery or AC headroom.
+        # It still skips a held socket, a cooldown (unless skip cooldown is on), House,
+        # and a Sungold socket while the voltage guard is on.
+        state: >
+          {% set skip = is_state('input_boolean.dump_skip_cooldown', 'on') %}
+          {% set pick = namespace(eid='none') %}
+          {% for s in [
+            '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+            '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+            'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+          ] %}
+            {% set eid = 'switch.ihoment_h5082_' ~ s %}
+            {% set bus = states('input_select.h5082_' ~ s ~ '_inverter') %}
+            {% if pick.eid == 'none'
+               and (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+               and is_state(eid, 'off')
+               and (is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle') or skip)
+               and not (bus == 'Sungold' and is_state('binary_sensor.dump_sph_vguard', 'on')) %}
+              {% set pick.eid = eid %}
+            {% endif %}
+          {% endfor %}
+          {{ pick.eid }}
+      - name: Dump on demand off count
+        unique_id: dump_ondemand_off
+        default_entity_id: sensor.dump_ondemand_off
+        icon: mdi:power-plug-off
+        # How many dump sockets "Turn dumps OFF" would switch: on, not House, not on hold.
+        state: >
+          {% set ns = namespace(n=0) %}
+          {% for s in [
+            '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+            '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+            'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+          ] %}
+            {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+               and is_state('switch.ihoment_h5082_' ~ s, 'on') %}
+              {% set ns.n = ns.n + 1 %}
+            {% endif %}
+          {% endfor %}
+          {{ ns.n }}
+        attributes:
+          sockets: >
+            {% set ns = namespace(out=[]) %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+                 and is_state('switch.ihoment_h5082_' ~ s, 'on') %}
+                {% set ns.out = ns.out + [s] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out }}
+      - name: Dump Sungold voltage gap
+        unique_id: dump_sph_vguard_gap
+        default_entity_id: sensor.dump_sph_vguard_gap
+        unit_of_measurement: V
+        state_class: measurement
+        icon: mdi:delta
+        # Sungold battery volts minus the lower of the live T2 and KU shunt volts.
+        # Negative means Sungold is below that shunt. None when a side is missing.
+        state: >
+          {% set raw_v = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set raw_t2 = states('sensor.battery_1_voltage') %}
+          {% set raw_ku = states('sensor.battery_2_voltage') %}
+          {% set refs = [] %}
+          {% if is_number(raw_t2) %}{% set refs = refs + [raw_t2 | float] %}{% endif %}
+          {% if is_number(raw_ku) %}{% set refs = refs + [raw_ku | float] %}{% endif %}
+          {% if is_number(raw_v) and refs %}
+            {{ (raw_v | float - (refs | min)) | round(3) }}
+          {% else %}
+            none
+          {% endif %}
   - binary_sensor:
       - name: Dump charge ok
         unique_id: dump_charge_ok
@@ -851,6 +981,86 @@ template:
           {% set v = states('sensor.sungold_sph302480a_battery_voltage') %}
           {% set rb = states('input_number.dump_rebulk_sph_v') %}
           {{ is_number(v) and is_number(rb) and (v | float) <= (rb | float) }}
+      - name: Dump Sungold voltage guard active
+        unique_id: dump_sph_vguard
+        default_entity_id: binary_sensor.dump_sph_vguard
+        device_class: problem
+        icon: mdi:battery-alert
+        # On when the guard is enabled and Sungold volts are under the floor helper,
+        # or under the lower live T2/KU shunt by the margin helper. While already on,
+        # both tests stay tripped until the voltage recovers by the hysteresis helper
+        # (`this.state`). Off when the guard is disabled or Sungold volts are missing.
+        state: >
+          {% set enabled = is_state('input_boolean.dump_sph_vguard_enabled', 'on') %}
+          {% set raw_v = states('sensor.sungold_sph302480a_battery_voltage') %}
+          {% set raw_t2 = states('sensor.battery_1_voltage') %}
+          {% set raw_ku = states('sensor.battery_2_voltage') %}
+          {% set raw_floor = states('input_number.dump_sph_vguard_floor_v') %}
+          {% set raw_margin = states('input_number.dump_sph_vguard_margin_v') %}
+          {% set raw_hyst = states('input_number.dump_sph_vguard_hysteresis_v') %}
+          {% if not enabled or not is_number(raw_v) or not is_number(raw_floor) or not is_number(raw_margin) or not is_number(raw_hyst) %}
+            off
+          {% else %}
+            {% set sv = raw_v | float %}
+            {% set floor = raw_floor | float %}
+            {% set margin = raw_margin | float %}
+            {% set hyst = raw_hyst | float %}
+            {% set refs = [] %}
+            {% if is_number(raw_t2) %}{% set refs = refs + [raw_t2 | float] %}{% endif %}
+            {% if is_number(raw_ku) %}{% set refs = refs + [raw_ku | float] %}{% endif %}
+            {% set low = (refs | min) if refs else none %}
+            {% set was = this is defined and this.state is defined and this.state == 'on' %}
+            {% set lift = hyst if was else 0 %}
+            {% set floor_hit = sv < (floor + lift) %}
+            {% set rel_hit = low is not none and sv < (low - margin + lift) %}
+            {{ 'on' if floor_hit or rel_hit else 'off' }}
+          {% endif %}
+        attributes:
+          sungold_v: "{{ states('sensor.sungold_sph302480a_battery_voltage') }}"
+          t2_v: "{{ states('sensor.battery_1_voltage') }}"
+          ku_v: "{{ states('sensor.battery_2_voltage') }}"
+          ref_v: >-
+            {% set raw_t2 = states('sensor.battery_1_voltage') %}
+            {% set raw_ku = states('sensor.battery_2_voltage') %}
+            {% set refs = [] %}
+            {% if is_number(raw_t2) %}{% set refs = refs + [raw_t2 | float] %}{% endif %}
+            {% if is_number(raw_ku) %}{% set refs = refs + [raw_ku | float] %}{% endif %}
+            {% if refs %}{{ refs | min }}{% else %}none{% endif %}
+          reason: >-
+            {% set enabled = is_state('input_boolean.dump_sph_vguard_enabled', 'on') %}
+            {% set raw_v = states('sensor.sungold_sph302480a_battery_voltage') %}
+            {% set raw_t2 = states('sensor.battery_1_voltage') %}
+            {% set raw_ku = states('sensor.battery_2_voltage') %}
+            {% set raw_floor = states('input_number.dump_sph_vguard_floor_v') %}
+            {% set raw_margin = states('input_number.dump_sph_vguard_margin_v') %}
+            {% set raw_hyst = states('input_number.dump_sph_vguard_hysteresis_v') %}
+            {% if not enabled %}
+              disabled
+            {% elif not is_number(raw_v) or not is_number(raw_floor) or not is_number(raw_margin) or not is_number(raw_hyst) %}
+              sungold voltage unavailable
+            {% else %}
+              {% set sv = raw_v | float %}
+              {% set floor = raw_floor | float %}
+              {% set margin = raw_margin | float %}
+              {% set hyst = raw_hyst | float %}
+              {% set refs = [] %}
+              {% if is_number(raw_t2) %}{% set refs = refs + [raw_t2 | float] %}{% endif %}
+              {% if is_number(raw_ku) %}{% set refs = refs + [raw_ku | float] %}{% endif %}
+              {% set low = (refs | min) if refs else none %}
+              {% set was = this is defined and this.state is defined and this.state == 'on' %}
+              {% set lift = hyst if was else 0 %}
+              {% set floor_hit = sv < (floor + lift) %}
+              {% set rel_hit = low is not none and sv < (low - margin + lift) %}
+              {% if floor_hit and rel_hit %}
+                below floor and below T2/KU minus margin
+              {% elif floor_hit %}
+                below floor
+              {% elif rel_hit %}
+                below T2/KU minus margin
+              {% else %}
+                clear
+              {% endif %}
+            {% endif %}
 
 sensor:
   - platform: derivative
@@ -969,7 +1179,7 @@ automation dump_load:
             - variables:
                 load_before: "{{ states(load_eid) | float if is_number(states(load_eid)) else none }}"
             - condition: template
-              value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) and states('timer.h5082_' ~ sock ~ '_hold') not in ['active', 'paused'] }}"
+              value_template: "{{ (is_state('input_select.h5082_' ~ sock ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ sock ~ '_inverter', 'House')) and states('timer.h5082_' ~ sock ~ '_hold') not in ['active', 'paused'] and not (is_state('input_select.h5082_' ~ sock ~ '_inverter', 'Sungold') and is_state('binary_sensor.dump_sph_vguard', 'on')) }}"
             # Live name for the logbook line: the socket's Load text and its plug's
             # Where text (input_text helpers you set in HA), else the plug id + side.
             # Nothing about what is plugged in is hard-coded here. Reused below.
@@ -991,6 +1201,15 @@ automation dump_load:
                   {{ states('sensor.dump_surplus_w') }} W, bus {{ states(volts_eid) }} V
                   >= start {{ states(start_v_eid) }} V, {{ bus }} load before
                   {{ load_before }} W.
+                  {% if is_state('input_boolean.dump_skip_cooldown', 'on') %}Skip cooldown was on, so an active cooldown did not block this socket. The skip switch is now off.{% endif %}
+            - if:
+                - condition: state
+                  entity_id: input_boolean.dump_skip_cooldown
+                  state: "on"
+              then:
+                - action: input_boolean.turn_off
+                  target:
+                    entity_id: input_boolean.dump_skip_cooldown
             - event: dump_control_switching
               event_data:
                 sock: "{{ sock }}"
@@ -1624,6 +1843,100 @@ automation dump_load:
                 message: >-
                   {{ label }}: turned OFF by "Dump OFF Sungold sockets: Sungold battery discharging past limit": Sungold battery power {{ states('sensor.sungold_sph302480a_charging_power') }} W is past the -{{ states('input_number.dump_max_discharge_sph_w') }} W limit for 1 min. Cooldown 10 min.
 
+  - id: dump_sph_vguard_shed
+    alias: "Dump OFF Sungold sockets: Sungold voltage guard"
+    description: >
+      Sungold battery voltage has stayed under the guard floor or under the lower of
+      the live T2 and KU shunt voltages by the guard margin, for the guard dwell
+      helper. Always posts a notification (and a phone text when the alert service is
+      set), even if the master switch is off. When the master switch is on, turns off
+      every dump socket whose Inverter helper is Sungold and that is not already off,
+      unless a manual hold blocks turn-offs. Does not write Sungold inverter settings.
+    mode: single
+    max_exceeded: silent
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.dump_sph_vguard
+        to: "on"
+        for:
+          seconds: "{{ states('input_number.dump_sph_vguard_dwell_s') | int(0) }}"
+      - trigger: state
+        entity_id: input_boolean.dump_control_enabled
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.dump_sph_vguard
+        state: "on"
+        for:
+          seconds: "{{ states('input_number.dump_sph_vguard_dwell_s') | int(0) }}"
+    actions:
+      - variables:
+          targets: >
+            {% set ns = namespace(out=[]) %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and (states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused'] or not is_state('input_boolean.dump_hold_blocks_turn_off', 'on'))
+                 and is_state('input_select.h5082_' ~ s ~ '_inverter', 'Sungold')
+                 and not is_state('switch.ihoment_h5082_' ~ s, 'off') %}
+                {% set ns.out = ns.out + [s] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out }}
+          msg: >-
+            Sungold battery {{ states('sensor.sungold_sph302480a_battery_voltage') }} V,
+            T2 {{ states('sensor.battery_1_voltage') }} V, KU {{ states('sensor.battery_2_voltage') }} V
+            ({{ state_attr('binary_sensor.dump_sph_vguard', 'reason') }}).
+            Floor {{ states('input_number.dump_sph_vguard_floor_v') }} V, margin
+            {{ states('input_number.dump_sph_vguard_margin_v') }} V, hysteresis
+            {{ states('input_number.dump_sph_vguard_hysteresis_v') }} V, dwell
+            {{ states('input_number.dump_sph_vguard_dwell_s') }} s.
+          svc: "{{ states('input_text.dump_notify_service') | trim }}"
+      - action: notify.persistent_notification
+        data:
+          title: Sungold voltage guard
+          message: "{{ msg }}"
+      - if:
+          - condition: template
+            value_template: "{{ svc not in ['persistent_notification', '', 'unknown', 'unavailable', 'none'] }}"
+        then:
+          - action: "notify.{{ svc }}"
+            data:
+              title: Sungold voltage guard
+              message: "{{ msg }}"
+      - if:
+          - condition: state
+            entity_id: input_boolean.dump_control_enabled
+            state: "on"
+        then:
+          - repeat:
+              for_each: "{{ targets }}"
+              sequence:
+                - event: dump_control_switching
+                  event_data:
+                    sock: "{{ repeat.item }}"
+                    state: "off"
+                - action: switch.turn_off
+                  target:
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.h5082_{{ repeat.item }}_min_on"
+                - action: timer.start
+                  target:
+                    entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+                - variables:
+                    sock: "{{ repeat.item }}"
+                - *socket_label
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                    message: >-
+                      {{ label }}: turned OFF by "Dump OFF Sungold sockets: Sungold voltage guard": Sungold {{ states('sensor.sungold_sph302480a_battery_voltage') }} V, T2 {{ states('sensor.battery_1_voltage') }} V, KU {{ states('sensor.battery_2_voltage') }} V ({{ state_attr('binary_sensor.dump_sph_vguard', 'reason') }}). Cooldown 10 min.
+
   - id: dump_hold_start
     alias: "Dump HOLD start: dump socket switched by hand"
     description: >
@@ -1694,8 +2007,9 @@ automation dump_load:
           entity_id: "{{ trigger.entity_id }}"
           message: >-
             {{ label }}: switched {{ trigger.to_state.state | upper }} by hand (Plugs button, the
-            plug's own button or another app), not by dump control. Hold {{ hold_min }} min: the
-            dump rules leave it alone until {{ (now() + timedelta(minutes=hold_min)).strftime('%H:%M') }}.
+            plug's own button, Turn next dump ON, Turn dumps OFF, or another app), not by an
+            automatic dump rule. Hold {{ hold_min }} min: the dump rules leave it alone until
+            {{ (now() + timedelta(minutes=hold_min)).strftime('%H:%M') }}.
 
   - id: dump_hold_end
     alias: "Dump HOLD end: automatic control resumes"
@@ -1704,9 +2018,9 @@ automation dump_load:
       holds or the timer's Cancel). Logs it. The dump turn-off rules only fire when their
       condition starts, so if the master switch is on and this dump socket is still on
       while dump control would want it off right now (solar gone, T2 charger left
-      absorption/float, Sungold load above solar, its bus at stop volts or its battery past
-      the limit), it is turned off with a cooldown. Turning on resumes by itself through
-      sensor.dump_next_plug.
+      absorption/float, Sungold load above solar, the Sungold voltage guard, its bus at
+      stop volts or its battery past the limit), it is turned off with a cooldown.
+      Turning on resumes by itself through sensor.dump_next_plug.
     mode: queued
     max: 32
     triggers:
@@ -1741,6 +2055,7 @@ automation dump_load:
         {%- if not is_state('binary_sensor.dump_solar_present', 'on') -%}solar gone
         {%- elif not is_state('binary_sensor.dump_charge_ok', 'on') -%}T2 charger left absorption/float
         {%- elif is_state('binary_sensor.dump_load_exceeds_solar', 'on') -%}Sungold load above solar
+        {%- elif bus == 'Sungold' and is_state('binary_sensor.dump_sph_vguard', 'on') -%}Sungold voltage guard
         {%- elif b and is_state('binary_sensor.dump_v_rebulk_' ~ b, 'on') -%}{{ bus }} bus at stop volts
         {%- elif b and not is_state('binary_sensor.dump_batt_' ~ b ~ '_ok', 'on') -%}{{ bus }} battery past its discharge limit
         {%- endif -%}
@@ -1791,8 +2106,10 @@ script:
       Manual button. Replaces the dump volt, watt, SoC and confirm numbers with the
       recommended starting values (27.0 V start / 26.8 V stop on every bus, 2000 W AC
       limits, 0/0/50 W battery discharge, 50 W min solar, 95 % SoC, 5 s, 25 W, 60 min
-      manual hold) and turns Dump ignore SoC and Dump hold also blocks turn-offs on. Use
-      once on a fresh install, or to undo bad tuning.
+      manual hold, Sungold voltage guard floor 25.6 V, margin 0.30 V, hysteresis 0.10 V,
+      dwell 60 s) and turns Dump ignore SoC and Dump hold also blocks turn-offs on. It
+      does not turn the voltage guard on and does not touch skip cooldown. Use once on
+      a fresh install, or to undo bad tuning.
     icon: mdi:backup-restore
     mode: single
     sequence:
@@ -1857,6 +2174,26 @@ script:
           entity_id: input_number.dump_manual_hold_min
         data:
           value: 60
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_sph_vguard_floor_v
+        data:
+          value: 25.6
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_sph_vguard_margin_v
+        data:
+          value: 0.3
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_sph_vguard_hysteresis_v
+        data:
+          value: 0.1
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.dump_sph_vguard_dwell_s
+        data:
+          value: 60
       - action: input_boolean.turn_on
         target:
           entity_id:
@@ -1867,7 +2204,8 @@ script:
           name: Dump control
           entity_id: script.dump_load_recommended_defaults
           message: >-
-            loaded the recommended starting values into the dump settings (someone
+            loaded the recommended starting values into the dump settings, including
+            the Sungold voltage guard numbers, and left the guard switch off (someone
             pressed the button).
 
   dump_clear_holds:
@@ -1903,3 +2241,151 @@ script:
           entity_id: script.dump_clear_holds
           message: >-
             cleared every manual hold (someone pressed Clear all holds).
+
+  dump_force_on:
+    alias: "Dump on demand: turn next dump socket on"
+    description: >
+      Manual button. Turns on the one socket named by sensor.dump_ondemand_on (Use
+      dump, Inverter not House, off, not on hold, cooldown idle unless skip cooldown
+      is on, and not a Sungold socket while the voltage guard is on). Does not fire
+      dump_control_switching, so when the plug reports on, Dump HOLD start arms the
+      manual hold. Cancels that socket's cooldown after it reports on. If skip
+      cooldown was on, turns that switch off. Does nothing when the sensor is none.
+    icon: mdi:power-plug
+    mode: single
+    sequence:
+      - variables:
+          target: "{{ states('sensor.dump_ondemand_on') }}"
+          sock: "{{ states('sensor.dump_ondemand_on') | replace('switch.ihoment_h5082_', '') }}"
+          skip: "{{ is_state('input_boolean.dump_skip_cooldown', 'on') }}"
+      - condition: template
+        value_template: "{{ target is string and target.startswith('switch.ihoment_h5082_') }}"
+      - *socket_label
+      - action: logbook.log
+        data:
+          name: Dump control
+          entity_id: "{{ target }}"
+          message: >-
+            {{ label }}: Turn next dump ON pressed. Asking the socket to turn on.
+            Manual hold starts when the plug reports the new state, if Dump manual hold
+            is above 0.
+      - action: switch.turn_on
+        target:
+          entity_id: "{{ target }}"
+      - wait_template: "{{ is_state(target, 'on') }}"
+        timeout: "00:02:00"
+        continue_on_timeout: true
+      - if:
+          - condition: template
+            value_template: "{{ wait.completed }}"
+        then:
+          - action: timer.cancel
+            target:
+              entity_id: "timer.h5082_{{ sock }}_cooldown"
+          - if:
+              - condition: template
+                value_template: "{{ skip in [true, 'True', 'true'] }}"
+            then:
+              - action: input_boolean.turn_off
+                target:
+                  entity_id: input_boolean.dump_skip_cooldown
+          - action: logbook.log
+            data:
+              name: Dump control
+              entity_id: "{{ target }}"
+              message: >-
+                {{ label }}: plug reported on after Turn next dump ON.
+                {% if skip in [true, 'True', 'true'] %}Skip cooldown was on and is now off.{% endif %}
+        else:
+          - action: logbook.log
+            data:
+              name: Dump control
+              entity_id: "{{ target }}"
+              message: >-
+                {{ label }}: Turn next dump ON: plug did not report on within 2 min.
+                Skip cooldown was left as it was. No hold from this press.
+
+  dump_force_off:
+    alias: "Dump on demand: turn dump sockets off"
+    description: >
+      Manual button. Turns off every dump socket that sensor.dump_ondemand_off lists
+      (on, Use dump, Inverter not House, not on hold). Does not fire
+      dump_control_switching, so when each plug reports off, Dump HOLD start arms that
+      socket's manual hold. Starts each socket's cooldown unless skip cooldown was on,
+      in which case those cooldowns are cancelled and the skip switch turns off after
+      the first plug that reports off. Sockets already on hold are left alone.
+    icon: mdi:power-plug-off
+    mode: single
+    sequence:
+      - variables:
+          skip: "{{ is_state('input_boolean.dump_skip_cooldown', 'on') }}"
+          targets: >
+            {% set ns = namespace(out=[]) %}
+            {% for s in [
+              '2f9d_left', '2f9d_right', '3013_left', '3013_right', '3ec9_left', '3ec9_right',
+              '82fb_left', '82fb_right', '9607_left', '9607_right', 'c061_left', 'c061_right',
+              'c38d_left', 'c38d_right', 'cf79_left', 'cf79_right'
+            ] %}
+              {% if (is_state('input_select.h5082_' ~ s ~ '_use', 'dump') and not is_state('input_select.h5082_' ~ s ~ '_inverter', 'House')) and states('timer.h5082_' ~ s ~ '_hold') not in ['active', 'paused']
+                 and is_state('switch.ihoment_h5082_' ~ s, 'on') %}
+                {% set ns.out = ns.out + [s] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.out }}
+      - condition: template
+        value_template: "{{ (targets | string | trim) not in ['[]', '', 'None', 'none'] }}"
+      - repeat:
+          for_each: "{{ targets }}"
+          sequence:
+            - variables:
+                sock: "{{ repeat.item }}"
+            - *socket_label
+            - action: logbook.log
+              data:
+                name: Dump control
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                message: >-
+                  {{ label }}: Turn dumps OFF pressed. Asking the socket to turn off.
+                  Manual hold starts when the plug reports off, if Dump manual hold is above 0.
+            - action: switch.turn_off
+              target:
+                entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+            - wait_template: "{{ is_state('switch.ihoment_h5082_' ~ repeat.item, 'off') }}"
+              timeout: "00:02:00"
+              continue_on_timeout: true
+            - if:
+                - condition: template
+                  value_template: "{{ wait.completed }}"
+              then:
+                - action: timer.cancel
+                  target:
+                    entity_id: "timer.h5082_{{ repeat.item }}_min_on"
+                - if:
+                    - condition: template
+                      value_template: "{{ skip in [true, 'True', 'true'] }}"
+                  then:
+                    - action: timer.cancel
+                      target:
+                        entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+                    - action: input_boolean.turn_off
+                      target:
+                        entity_id: input_boolean.dump_skip_cooldown
+                  else:
+                    - action: timer.start
+                      target:
+                        entity_id: "timer.h5082_{{ repeat.item }}_cooldown"
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                    message: >-
+                      {{ label }}: plug reported off after Turn dumps OFF.
+                      {% if skip in [true, 'True', 'true'] %}Skip cooldown was on: no cooldown, and the skip switch is off.{% else %}Cooldown 10 min.{% endif %}
+              else:
+                - action: logbook.log
+                  data:
+                    name: Dump control
+                    entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
+                    message: >-
+                      {{ label }}: Turn dumps OFF: plug did not report off within 2 min.
+                      Cooldown and skip cooldown were left as they were.

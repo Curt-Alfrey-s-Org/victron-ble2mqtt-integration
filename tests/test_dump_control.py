@@ -113,8 +113,9 @@ def test_every_dump_pick_has_the_house_guard() -> None:
     text = PACKAGE.read_text(encoding="utf-8")
     hits = list(USE_DUMP.finditer(text))
     # dump_sockets (count + list), next, shed, turn_on recheck, solar gone, 3 re-bulk,
-    # 3 batt, and the two manual-hold rules (hold start, hold end).
-    assert len(hits) == 14
+    # 3 batt, the two manual-hold rules (hold start, hold end), on-demand on, on-demand
+    # off (count + list), the off script, and the Sungold voltage guard.
+    assert len(hits) == 19
     for m in hits:
         guard = f" and not is_state('input_select.h5082_' ~ {m.group(1)} ~ '_inverter', 'House'))"
         assert text[m.start() - 1] == "(", text[m.start() - 40 : m.end()]
@@ -147,12 +148,13 @@ def test_timings_kept() -> None:
         "dump_turn_off_batt_t2",
         "dump_turn_off_batt_ku",
         "dump_turn_off_batt_sph",
+        "dump_sph_vguard_shed",
         "dump_hold_start",
         "dump_hold_end",
     }
     for aid, auto in autos.items():
-        if aid.startswith("dump_hold_"):
-            continue  # state triggers on the switches / hold timers; checked below
+        if aid.startswith("dump_hold_") or aid == "dump_sph_vguard_shed":
+            continue  # hold: switch/timer triggers. Guard: dwell comes from a helper.
         for trig in auto["triggers"]:
             if trig.get("entity_id") != "sensor.dump_next_plug":
                 want = "00:10:00" if aid == "dump_notify_load_exceeds_solar" else "00:01:00"
@@ -450,9 +452,10 @@ def test_every_dump_path_has_the_hold_guard() -> None:
     assert HOLD_OFF.format(v="s") in tpl["dump_shed_plug"]["state"]
     for aid in TURN_OFF_LISTS:
         assert HOLD_OFF.format(v="s") in autos[aid]["actions"][0]["variables"]["targets"], aid
-    # Exactly those 10 places (the 2 shed rules use dump_shed_plug).
-    assert text.count(HOLD_ON.format(v="s")) + text.count(HOLD_ON.format(v="sock")) == 2
-    assert text.count(HOLD_OFF.format(v="s")) == 8
+    # Turn-on skips holds in next_plug, the turn-on recheck, on-demand on, on-demand
+    # off (count + list) and the off script. Turn-offs: shed + 7 lists + the guard.
+    assert text.count(HOLD_ON.format(v="s")) + text.count(HOLD_ON.format(v="sock")) == 6
+    assert text.count(HOLD_OFF.format(v="s")) == 9
     # "Sockets set to dump" still counts held sockets and lists them in `held`.
     assert "_hold'" not in tpl["dump_sockets"]["state"]
     assert "_hold')" in tpl["dump_sockets"]["attributes"]["held"]
@@ -521,7 +524,7 @@ def test_every_dump_switch_action_is_announced_first() -> None:
                 assert prev["event_data"]["state"] == node["action"].split("_")[-1], auto["id"]
                 want = "{{ repeat.item }}" if "repeat.item" in node["target"]["entity_id"] else "{{ sock }}"
                 assert prev["event_data"]["sock"] == want, auto["id"]
-    assert found == 13  # turn on + 2 unconfirmed offs, 2 sheds, 7 turn-off lists, hold end
+    assert found == 14  # + Sungold voltage guard shed (on-demand scripts are not automations)
 
 
 def _render_ha(template: str, states: dict[str, str] | None = None, **extra) -> str:
@@ -621,3 +624,225 @@ def test_hold_end_turns_off_only_what_dump_control_would_want_off() -> None:
     blob = _strings(auto["actions"])
     assert "input_boolean.dump_control_enabled" in blob
     assert "'_inverter', 'House'" in blob
+    assert _render_ha(why, {**ok, "binary_sensor.dump_sph_vguard": "on"}, bus="Sungold") == (
+        "Sungold voltage guard"
+    )
+    assert _render_ha(why, {**ok, "binary_sensor.dump_sph_vguard": "on"}, bus="T2") == ""
+
+
+# ------------------------------------------------------- on demand + skip cooldown
+
+
+def _ondemand_on(states):
+    return _render(_templates()["dump_ondemand_on"]["state"], states)
+
+
+def _ondemand_off(states):
+    row = _templates()["dump_ondemand_off"]
+    count = _render(row["state"], states)
+    sockets = yaml.safe_load(_render(row["attributes"]["sockets"], states).replace("'", '"'))
+    return count, sockets
+
+
+def test_ondemand_on_ignores_float_and_respects_hold_cooldown_and_guard() -> None:
+    base = {
+        "input_select.h5082_2f9d_left_use": "dump",
+        "input_select.h5082_2f9d_left_inverter": "Sungold",
+        "input_select.h5082_3013_left_use": "dump",
+        "input_select.h5082_3013_left_inverter": "T2",
+    }
+    # Float is off: automatic next refuses, the button still offers the first socket.
+    st = _ok_states(**base, **{"binary_sensor.dump_charge_float": "off"})
+    assert _next(st) == "none"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_2f9d_left"
+    # Cooldown blocks the button until skip cooldown is on.
+    st["timer.h5082_2f9d_left_cooldown"] = "active"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_3013_left"
+    assert _next(_ok_states(**base, **{"timer.h5082_2f9d_left_cooldown": "active"})) == (
+        "switch.ihoment_h5082_3013_left"
+    )
+    st["input_boolean.dump_skip_cooldown"] = "on"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_2f9d_left"
+    assert _next(_ok_states(**base, **{
+        "timer.h5082_2f9d_left_cooldown": "active",
+        "input_boolean.dump_skip_cooldown": "on",
+    })) == "switch.ihoment_h5082_2f9d_left"
+    # Hold is always respected. The voltage guard blocks Sungold only.
+    st["timer.h5082_2f9d_left_hold"] = "active"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_3013_left"
+    st["timer.h5082_2f9d_left_hold"] = "idle"
+    st["binary_sensor.dump_sph_vguard"] = "on"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_3013_left"
+    assert _next(_ok_states(**base, **{"binary_sensor.dump_sph_vguard": "on"})) == (
+        "switch.ihoment_h5082_3013_left"
+    )
+    # House is never offered. A guard on does not block a KU/T2 socket's recheck.
+    st["input_select.h5082_2f9d_left_inverter"] = "House"
+    st["binary_sensor.dump_sph_vguard"] = "off"
+    assert _ondemand_on(st) == "switch.ihoment_h5082_3013_left"
+
+
+def test_ondemand_off_skips_held_house_and_normal() -> None:
+    st = _ok_states(**{
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "input_select.h5082_2f9d_left_use": "dump",
+        "input_select.h5082_2f9d_left_inverter": "Sungold",
+        "switch.ihoment_h5082_3013_left": "on",
+        "input_select.h5082_3013_left_use": "dump",
+        "input_select.h5082_3013_left_inverter": "T2",
+        "timer.h5082_3013_left_hold": "active",
+        "switch.ihoment_h5082_3ec9_left": "on",
+        "input_select.h5082_3ec9_left_use": "dump",
+        "input_select.h5082_3ec9_left_inverter": "House",
+        "switch.ihoment_h5082_cf79_left": "on",  # normal
+    })
+    count, sockets = _ondemand_off(st)
+    assert count == "1"
+    assert sockets == ["2f9d_left"]
+    script_targets = _load()["script"]["dump_force_off"]["sequence"][0]["variables"]["targets"]
+    assert yaml.safe_load(_render(script_targets, st).replace("'", '"')) == sockets
+
+
+def test_force_scripts_let_the_hold_arm_and_revert_skip_cooldown() -> None:
+    scripts = _load()["script"]
+    on = _strings(scripts["dump_force_on"]["sequence"])
+    off = _strings(scripts["dump_force_off"]["sequence"])
+    assert "sensor.dump_ondemand_on" in on
+    # No dump_control_switching event: Dump HOLD start treats the plug report as a hand switch.
+    assert "dump_control_switching" not in on
+    assert "dump_control_switching" not in off
+    assert "input_boolean.dump_skip_cooldown" in on
+    assert "input_boolean.turn_off" in on and "input_boolean.turn_off" in off
+    assert "timer.h5082_{{ sock }}_cooldown" in on  # cancelled after the plug reports on
+    # Automatic add consumes the one-shot as it asks the socket to turn on.
+    turn_on = _strings(_automations()["dump_turn_on"]["actions"])
+    assert "input_boolean.dump_skip_cooldown" in turn_on
+    assert "input_boolean.turn_off" in turn_on
+    # Nothing in the on-demand path writes a threshold.
+    for blob in (on, off):
+        assert "input_number.set_value" not in blob
+
+
+def test_skip_cooldown_and_guard_are_not_reset_by_the_defaults_button() -> None:
+    script = _load()["script"]["dump_load_recommended_defaults"]
+    blob = _strings(script)
+    values = {}
+    turned_on = []
+    for step in script["sequence"]:
+        action = step.get("action")
+        eids = (step.get("target") or {}).get("entity_id")
+        if isinstance(eids, str):
+            eids = [eids]
+        eids = eids or []
+        if action == "input_number.set_value":
+            for eid in eids:
+                values[eid] = step["data"]["value"]
+        elif action == "input_boolean.turn_on":
+            turned_on.extend(eids)
+    assert values["input_number.dump_sph_vguard_floor_v"] == 25.6
+    assert values["input_number.dump_sph_vguard_margin_v"] == 0.3
+    assert values["input_number.dump_sph_vguard_hysteresis_v"] == 0.1
+    assert values["input_number.dump_sph_vguard_dwell_s"] == 60
+    assert "input_boolean.dump_sph_vguard_enabled" not in turned_on
+    assert "input_boolean.dump_skip_cooldown" not in turned_on
+    assert "input_boolean.dump_sph_vguard_enabled" not in blob
+    assert "input_boolean.dump_skip_cooldown" not in blob
+    nums = _load()["input_number"]
+    assert nums["dump_sph_vguard_floor_v"]["min"] == 24.0
+    assert nums["dump_sph_vguard_margin_v"]["min"] == 0
+    assert nums["dump_sph_vguard_hysteresis_v"]["min"] == 0.05
+    assert nums["dump_sph_vguard_dwell_s"]["min"] == 15
+    for key in (
+        "dump_sph_vguard_floor_v",
+        "dump_sph_vguard_margin_v",
+        "dump_sph_vguard_hysteresis_v",
+        "dump_sph_vguard_dwell_s",
+    ):
+        assert "initial" not in nums[key]
+
+
+# --------------------------------------------------------- Sungold voltage guard
+
+
+def _guard_states(**over) -> dict[str, str]:
+    st = {
+        "input_boolean.dump_sph_vguard_enabled": "on",
+        "sensor.sungold_sph302480a_battery_voltage": "26.65",
+        "sensor.battery_1_voltage": "27.20",
+        "sensor.battery_2_voltage": "27.00",
+        "input_number.dump_sph_vguard_floor_v": "25.6",
+        "input_number.dump_sph_vguard_margin_v": "0.30",
+        "input_number.dump_sph_vguard_hysteresis_v": "0.10",
+    }
+    st.update(over)
+    return st
+
+
+def _guard(states, was="off") -> str:
+    tpl = _templates()["dump_sph_vguard"]["state"]
+    return _render_ha(tpl, states, this=SimpleNamespace(state=was))
+
+
+def test_sungold_guard_trips_on_margin_or_floor_with_hysteresis() -> None:
+    assert _guard(_guard_states()) == "on"  # 26.65 < 27.00 - 0.30
+    assert _guard(_guard_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.75"})) == "off"
+    assert _guard(_guard_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.75"}), was="on") == "on"
+    assert _guard(_guard_states(**{"sensor.sungold_sph302480a_battery_voltage": "26.85"}), was="on") == "off"
+    assert _guard(_guard_states(**{"sensor.sungold_sph302480a_battery_voltage": "25.50"})) == "on"
+    assert _guard(_guard_states(**{"input_boolean.dump_sph_vguard_enabled": "off"})) == "off"
+    assert _guard(_guard_states(**{"sensor.sungold_sph302480a_battery_voltage": "unknown"})) == "off"
+    # One shunt missing: the other is the reference. Both missing: floor only.
+    assert _guard(_guard_states(**{
+        "sensor.battery_2_voltage": "unknown",
+        "sensor.sungold_sph302480a_battery_voltage": "26.85",
+    })) == "on"  # 26.85 < 27.20 - 0.30
+    assert _guard(_guard_states(**{
+        "sensor.battery_1_voltage": "unavailable",
+        "sensor.battery_2_voltage": "unavailable",
+        "sensor.sungold_sph302480a_battery_voltage": "26.00",
+    })) == "off"
+    assert _guard(_guard_states(**{
+        "sensor.battery_1_voltage": "unavailable",
+        "sensor.battery_2_voltage": "unavailable",
+        "sensor.sungold_sph302480a_battery_voltage": "25.00",
+    })) == "on"
+    reason = _render_ha(
+        _templates()["dump_sph_vguard"]["attributes"]["reason"],
+        _guard_states(),
+        this=SimpleNamespace(state="off"),
+    )
+    assert reason == "below T2/KU minus margin"
+    gap = _render(_templates()["dump_sph_vguard_gap"]["state"], _guard_states())
+    assert float(gap) == -0.35
+
+
+def test_sungold_guard_sheds_only_sungold_dump_sockets_after_helper_dwell() -> None:
+    auto = _automations()["dump_sph_vguard_shed"]
+    dwell = "{{ states('input_number.dump_sph_vguard_dwell_s') | int(0) }}"
+    assert auto["triggers"][0]["for"]["seconds"] == dwell
+    assert auto["conditions"][0]["for"]["seconds"] == dwell
+    blob = _strings(auto)
+    for hardcoded in ("25.6", "0.30", "0.10", "00:01:00", "00:10:00"):
+        assert hardcoded not in blob, hardcoded
+    assert "input_number.dump_sph_vguard_floor_v" in blob
+    assert "notify.persistent_notification" in blob
+    # Notify runs even with the master switch off; shedding is inside the if.
+    assert auto["conditions"][0]["entity_id"] == "binary_sensor.dump_sph_vguard"
+    st = _ok_states(**{
+        "input_select.h5082_2f9d_left_use": "dump",
+        "input_select.h5082_2f9d_left_inverter": "Sungold",
+        "switch.ihoment_h5082_2f9d_left": "on",
+        "input_select.h5082_3013_left_use": "dump",
+        "input_select.h5082_3013_left_inverter": "T2",
+        "switch.ihoment_h5082_3013_left": "on",
+        "input_select.h5082_3ec9_left_use": "dump",
+        "input_select.h5082_3ec9_left_inverter": "House",
+        "switch.ihoment_h5082_3ec9_left": "on",
+        "input_boolean.dump_hold_blocks_turn_off": "off",
+    })
+    assert _targets("dump_sph_vguard_shed", st) == ["2f9d_left"]
+    st["timer.h5082_2f9d_left_hold"] = "active"
+    st["input_boolean.dump_hold_blocks_turn_off"] = "on"
+    assert _targets("dump_sph_vguard_shed", st) == []
+    st["input_boolean.dump_hold_blocks_turn_off"] = "off"
+    assert _targets("dump_sph_vguard_shed", st) == ["2f9d_left"]

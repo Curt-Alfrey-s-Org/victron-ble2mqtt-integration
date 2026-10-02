@@ -253,7 +253,7 @@ views:
             content: |
               Lets Home Assistant switch dump sockets by itself: **on** = the dump rules run, **off** = HA never switches a dump socket (ones already on stay on until you turn them off).
               Start with it **off**, set Use and Inverter on one test socket, check the numbers below, then turn it on.
-              The LOAD button (it asks first) puts every dump number back to the recommended starting values.
+              The LOAD button (it asks first) puts every dump number back to the recommended starting values, including the Sungold guard numbers, and does not turn the guard on.
               [Help: Dump master switch](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-master-switch.md)
             grid_options:
               columns: full
@@ -273,8 +273,9 @@ views:
                   perform_action: script.dump_load_recommended_defaults
                   confirmation:
                     text: >-
-                      Replace ALL dump volt, watt, SoC, confirm and manual hold settings
-                      with the recommended starting values? Your tuned values will be lost.
+                      Replace ALL dump volt, watt, SoC, confirm, manual hold and Sungold
+                      voltage guard numbers with the recommended starting values? Your tuned
+                      values will be lost. The guard switch stays as it is.
 
       - type: grid
         cards:
@@ -284,7 +285,7 @@ views:
           - type: markdown
             content: |
               Read-only list of every condition the dump rules check, so you can see why HA is or is not adding a dump socket.
-              HA adds a socket only when everything under **Whole site** is on, nothing under **Blockers** is on, and that socket's bus shows start volts on, stop volts off and battery ok.
+              HA adds a socket only when everything under **Whole site** is on, nothing under **Blockers** is on, and that socket's bus shows start volts on, stop volts off and battery ok. The Sungold voltage guard blocks adding on Sungold only.
               Nothing to set here.
               [Help: Dump status (why / why not)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-status.md)
             grid_options:
@@ -316,6 +317,8 @@ views:
                 name: PV falling (blocks adding)
               - entity: binary_sensor.dump_load_exceeds_solar
                 name: Sungold load above solar (sheds)
+              - entity: binary_sensor.dump_sph_vguard
+                name: Sungold voltage guard (blocks adding on Sungold)
               - entity: binary_sensor.dump_charge_ok
                 name: T2 absorption or float (off = sheds)
               - type: section
@@ -607,6 +610,112 @@ views:
             show_empty: true
             grid_options:
               columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Dump on demand
+            icon: mdi:gesture-tap-button
+          - type: markdown
+            content: |
+              Turn the next dump socket on, or turn off the dump sockets that are on, without waiting for the float timer. Each socket that actually changes is put on manual hold so the dump rules do not undo it.
+              **Skip cooldown once** lets that next on ignore the 10 minute cooldown (and an off skips starting one), then the switch turns itself off.
+              Sockets already on hold are left alone. A Sungold socket is not turned on while the voltage guard is on. Set Dump manual hold above 0 or the hold does not arm.
+              [Help: Dump on demand](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-on-demand.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Dump on demand
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.dump_ondemand_on
+                name: Next socket Turn next dump ON would switch
+              - entity: sensor.dump_ondemand_off
+                name: Sockets Turn dumps OFF would switch
+              - entity: input_boolean.dump_skip_cooldown
+                name: Skip cooldown once
+              - type: button
+                name: Turn next dump ON
+                icon: mdi:power-plug
+                action_name: "ON"
+                tap_action:
+                  action: perform-action
+                  perform_action: script.dump_force_on
+                  confirmation:
+                    text: >-
+                      Turn on the next dump socket now (the one named above)? When the plug
+                      reports on it is put on manual hold, if Dump manual hold is above 0.
+                      If Skip cooldown once is on, it is used up.
+              - type: button
+                name: Turn dumps OFF
+                icon: mdi:power-plug-off
+                action_name: "OFF"
+                tap_action:
+                  action: perform-action
+                  perform_action: script.dump_force_off
+                  confirmation:
+                    text: >-
+                      Turn off every dump socket that is on and not on hold? When each plug
+                      reports off it is put on manual hold, if Dump manual hold is above 0.
+                      If Skip cooldown once is on, those sockets do not get a cooldown and
+                      the switch turns off.
+          - type: markdown
+            title: On demand by name (live)
+            content: |
+              {%- macro sock_name(s) -%}{%- set b = ['', 'unknown', 'unavailable', 'none'] -%}{%- set p = s[:4] -%}{%- set tag = p | upper ~ ' ' ~ s[5:] -%}{%- set l = states('input_text.h5082_' ~ s ~ '_load') | trim -%}{%- set w = states('input_text.h5082_' ~ p ~ '_location') | trim -%}{{ (l ~ ' (' ~ tag ~ ')') if l not in b else tag }}{{ (' at ' ~ w) if w not in b else '' }}{%- endmacro -%}
+              {%- set n = states('sensor.dump_ondemand_on') -%}
+              **ON would switch:** {{ sock_name(n | replace('switch.ihoment_h5082_', '')) if n.startswith('switch.ihoment_h5082_') else 'none' }}
+
+              **OFF would switch:**
+              {%- set raw = state_attr('sensor.dump_ondemand_off', 'sockets') -%}
+              {%- if raw -%}
+              {%- for s in raw %}
+              - {{ sock_name(s) }}
+              {%- endfor %}
+              {%- else %} none
+              {%- endif %}
+            grid_options:
+              columns: full
+
+      - type: grid
+        cards:
+          - type: heading
+            heading: Sungold voltage guard
+            icon: mdi:battery-heart-outline
+          - type: markdown
+            content: |
+              Keeps the Sungold battery from being pulled further down by dump sockets whose Inverter is Sungold, when its voltage is under your floor or under the lower of the T2 and KU shunt voltages by your margin.
+              The guard sheds those dump sockets and blocks turning them on. It cannot change Sungold charge settings: that sidecar only reads the inverter.
+              Set the numbers before you turn the guard on. Suggested start: floor 25.6 V, margin 0.30 V, hysteresis 0.10 V, dwell 60 s. A new number starts at its minimum, not at those values.
+              [Help: Sungold voltage guard](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/dump-sph-vguard.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Sungold voltage guard
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: binary_sensor.dump_sph_vguard
+                name: Guard active
+              - entity: sensor.dump_sph_vguard_gap
+                name: Sungold minus lower of T2 and KU
+              - entity: sensor.sungold_sph302480a_battery_voltage
+                name: Sungold battery voltage
+              - entity: sensor.battery_1_voltage
+                name: T2 battery voltage
+              - entity: sensor.battery_2_voltage
+                name: KU battery voltage
+              - entity: input_boolean.dump_sph_vguard_enabled
+                name: Enable Sungold voltage guard
+              - entity: input_number.dump_sph_vguard_floor_v
+                name: Floor (Sungold volts)
+              - entity: input_number.dump_sph_vguard_margin_v
+                name: Margin below the lower of T2 and KU
+              - entity: input_number.dump_sph_vguard_hysteresis_v
+                name: Hysteresis
+              - entity: input_number.dump_sph_vguard_dwell_s
+                name: Minimum time under the limit
 
       - type: grid
         cards:

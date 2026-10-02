@@ -27,6 +27,10 @@ Watch **when** and **why** a plug was switched, and whether HA or a person did i
 | `Dump control <name>: hold ended (time up); the dump rules may switch it again.` / `(cleared)` | The hold ran out, or was cancelled (row Cancel or Clear all holds). |
 | `Dump control <name>: turned OFF by "Dump HOLD end: automatic control resumes": the hold ended while solar gone. Cooldown 10 min.` | The hold ended while dump control wanted the socket off. |
 | `Dump control cleared every manual hold (someone pressed Clear all holds).` | The Clear all holds button. |
+| `Dump control <name>: Turn next dump ON pressed. Asking the socket to turn on. Manual hold starts when the plug reports the new state, if Dump manual hold is above 0.` | The on-demand ON button. The following `switched ON by hand` line is the hold arming. |
+| `Dump control <name>: plug reported on after Turn next dump ON. Skip cooldown was on and is now off.` | The plug confirmed. Skip cooldown, if it was on, reverted. |
+| `Dump control <name>: Turn dumps OFF pressed. Asking the socket to turn off.` | The on-demand OFF button, one line per socket. |
+| `Dump control <name>: turned OFF by "Dump OFF Sungold sockets: Sungold voltage guard": Sungold … V, T2 … V, KU … V. Cooldown 10 min.` | The Sungold voltage guard shed a socket whose Inverter is Sungold. |
 | `Dump load HA control (master switch) turned off triggered by action input_boolean.turn_off` + your name | Someone turned the master switch off. |
 | `<switch name> turned off` + a person's name | Switched by hand. |
 
