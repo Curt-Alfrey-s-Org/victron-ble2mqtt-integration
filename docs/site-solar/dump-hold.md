@@ -17,9 +17,11 @@ A hand switch is any on/off change of a dump socket that dump control did not as
 a **Plugs** button tap, the plug's **own button**, **Turn next dump ON**, **Turn dumps
 OFF**, the socket's switch in any other card or app, another automation. The on-demand
 buttons do not announce themselves as dump control, so the hold starts when the plug
-reports the new state (see [Dump on demand](dump-on-demand.md)). Only dump sockets get
-a hold (Use = dump and Inverter not House); a normal or House socket is never switched
-by dump control anyway.
+reports the new state (see [Dump on demand](dump-on-demand.md)). Dump sockets get
+a hold (Use = dump and Inverter not House). A [Sungold charge](sph-charge.md) socket
+gets the same hold when you switch it by hand and its Inverter is T2 or KU. An
+automatic charge on or off announces itself first, so it does not arm the hold. A
+normal or House socket is never switched by dump control anyway.
 
 ## The entities
 

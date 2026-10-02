@@ -32,7 +32,7 @@ button_card_templates:
         const use = states["input_select.h5082_" + id + "_use"];
         const place = where && where.state && where.state !== "unknown" && where.state !== "unavailable" && where.state !== "" ? where.state : plug.toUpperCase();
         const inv = states["input_select.h5082_" + id + "_inverter"];
-        const role = inv && inv.state === "House" ? "house" : (use && use.state === "dump" ? "dump" : "normal");
+        const role = inv && inv.state === "House" ? "house" : (use && use.state === "dump" ? "dump" : (use && use.state === "Sungold charge" ? "charge" : "normal"));
         const heard = states["sensor.h5082_" + plug + "_heard_by"];
         const radio = heard && heard.state && heard.state !== "unknown" && heard.state !== "unavailable" && heard.state !== "none" ? heard.state.split(" ")[0] : "";
         const hold = states["timer.h5082_" + id + "_hold"];
@@ -62,6 +62,8 @@ button_card_templates:
               const use = states["input_select.h5082_" + id + "_use"];
               const inv = states["input_select.h5082_" + id + "_inverter"];
               const dump = use && use.state === "dump" && !(inv && inv.state === "House");
+              const charge = use && use.state === "Sungold charge" && inv && (inv.state === "T2" || inv.state === "KU");
+              if (charge) return "2px solid #3d8bfd";
               return dump ? "2px solid #c9a227" : "1px solid var(--divider-color)";
             ]]]
       name:
@@ -720,11 +722,88 @@ views:
       - type: grid
         cards:
           - type: heading
+            heading: Sungold charge
+            icon: mdi:battery-charging
+          - type: markdown
+            content: |
+              Turns on sockets whose Use is Sungold charge so the pack can charge from the T2 or KU bank named on that socket's Inverter helper, when the pack is low and that bank is healthy.
+              Dump add, shed, off, on-demand and the voltage-guard shed never touch these sockets. A hand tap still starts manual hold. Set the numbers before you enable it; a new number starts at its minimum.
+              The Sungold front panel must allow mains charging, or the inlet can be on while charging power stays at 0. A guard trip is also a charge reason when both switches are on.
+              [Help: Sungold charge](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/sph-charge.md)
+            grid_options:
+              columns: full
+          - type: entities
+            title: Sungold charge
+            show_header_toggle: false
+            state_color: true
+            entities:
+              - entity: sensor.sph_charge_status
+                name: Status
+              - type: attribute
+                entity: sensor.sph_charge_status
+                attribute: reason
+                name: Why
+              - entity: binary_sensor.sph_charge_need
+                name: Pack needs charge
+              - entity: binary_sensor.sph_charge_inlet_dark
+                name: Inlet has no power
+              - entity: binary_sensor.sph_charge_source_stop
+                name: Feeding bank under stop volts
+              - entity: binary_sensor.dump_sph_vguard
+                name: Sungold voltage guard (also a charge reason)
+              - entity: input_boolean.sph_charge_enabled
+                name: Enable Sungold charge
+              - entity: input_number.sph_charge_floor_v
+                name: Floor (Sungold volts)
+              - entity: input_number.sph_charge_margin_v
+                name: Margin below the lower of T2 and KU
+              - entity: input_number.sph_charge_target_v
+                name: Target gap (off when this close)
+              - entity: input_number.sph_charge_full_v
+                name: Full volts (off at or above)
+              - entity: input_boolean.sph_charge_soc_enabled
+                name: Also charge when SoC is low
+              - entity: input_number.sph_charge_soc_below
+                name: SoC below
+              - entity: input_number.sph_charge_source_min_v
+                name: Source minimum volts
+              - entity: input_number.sph_charge_source_stop_v
+                name: Source stop volts
+              - entity: input_boolean.sph_charge_source_soc_enabled
+                name: Require source SoC
+              - entity: input_number.sph_charge_source_min_soc
+                name: Source minimum SoC
+              - entity: input_number.sph_charge_dwell_s
+                name: Dwell
+              - entity: input_number.sph_charge_min_on_s
+                name: Minimum on time
+              - entity: input_number.sph_charge_confirm_s
+                name: Inlet confirm
+              - entity: sensor.sungold_sph302480a_battery_voltage
+                name: Sungold battery voltage
+              - entity: sensor.sungold_sph302480a_battery_soc
+                name: Sungold battery SoC
+              - entity: sensor.sungold_sph302480a_grid_voltage
+                name: Sungold grid voltage
+              - entity: sensor.sungold_sph302480a_charging_power
+                name: Sungold charging power
+              - entity: sensor.battery_1_voltage
+                name: T2 battery voltage
+              - entity: sensor.battery_2_voltage
+                name: KU battery voltage
+              - entity: sensor.battery_1_state_of_charge
+                name: T2 battery SoC
+              - entity: sensor.battery_2_state_of_charge
+                name: KU battery SoC
+
+      - type: grid
+        cards:
+          - type: heading
             heading: Plugs
             icon: mdi:power-socket-us
           - type: markdown
             content: |
-              One button per socket: tap to switch it by hand, hold for details; a gold border means its Use is dump, and the label shows Where · normal/dump · the radio that hears it.
+              One button per socket: tap to switch it by hand, hold for details. A gold border means Use is dump; a blue border means Use is Sungold charge. The label shows Where · normal/dump/charge · the radio that hears it.
               A dump socket you switch by hand (here or on the plug) is put on hold: the dump rules leave it alone for **Dump manual hold** minutes and the label shows "hold to HH:MM".
               The big name is that socket's **Load** and the small text its plug's **Where** (set both under Plug names); a blank one shows the plug id and side.
               [Help: Plugs](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/plug-buttons.md)
@@ -916,14 +995,14 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: Socket Use (normal / dump)
+            heading: Socket Use (normal / dump / charge)
             icon: mdi:toggle-switch
           - type: markdown
             content: |
-              Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **normal** = HA never touches it (you still can). A socket whose Inverter is **House** (grid power) is never switched by dump control, even set to dump.
-              Only choose dump for a socket whose load may lose power at any time; each row shows the live Load and Where you typed (or the plug id and side when blank).
-              Safe start: everything normal, then one dump socket with a lamp to test.
-              [Help: Socket Use (normal / dump)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
+              Decides which sockets HA may switch by itself: **dump** = the dump rules may turn it on and off, **Sungold charge** = the charge rule may feed the inlet from the bank named by Inverter, **normal** = HA never touches it.
+              Sungold charge is not a dump. Dump add, shed, off, on-demand and the voltage-guard shed skip it. Set Inverter to the feeding bank (T2 or KU).
+              Safe start: everything normal. Choose Sungold charge only for the inlet socket, after the Sungold panel allows mains charging.
+              [Help: Socket Use (normal / dump / charge)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-use.md)
             grid_options:
               columns: full
           - type: custom:auto-entities
@@ -963,7 +1042,7 @@ views:
             content: |
               Which inverter / battery bus feeds each socket (T2, KU or Sungold): HA uses that bus's volts, battery and AC limit to decide on/off, and its meter to confirm the load. **House** = plug on house grid power: dump control never switches it (even set to dump); you still can.
               A wrong choice makes HA watch the wrong battery, so set it to where the socket is really wired.
-              It only matters for sockets whose Use is dump; a brand-new socket starts on Sungold.
+              It matters for dump sockets and for Sungold charge (Inverter is the bank that feeds the inlet, T2 or KU). A brand-new socket starts on Sungold.
               [Help: Socket inverter (bus)](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/socket-inverter.md)
             grid_options:
               columns: full

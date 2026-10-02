@@ -3,6 +3,8 @@
 # Removes the retired sim_dump_control.yaml / sim_dump_plugs.yaml copies (they share
 # helper ids with dump_control.yaml and would collide).
 # Needs the per-socket "use" selects first: python3 scripts/create_h5082_socket_labels.py
+# That script also appends the Use option "Sungold charge" without changing the current value.
+# Run it after this install, once HA is up, with HA_TOKEN_FILE pointing at ~/.ha_token.
 # Official packages: https://www.home-assistant.io/docs/configuration/packages/
 # Container restart:
 #   https://www.home-assistant.io/installation/linux#install-home-assistant-container

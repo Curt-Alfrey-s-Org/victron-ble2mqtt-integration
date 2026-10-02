@@ -317,6 +317,29 @@ and blocks dump sockets whose **Inverter** helper is Sungold, and it notifies.
 - Shedding needs the master switch. The notification runs either way. A held socket is
   skipped only when **Hold also blocks turn-offs** is on, same as the other turn-offs.
 
+### Sungold charge (grid inlet)
+
+Full page: [Site solar help: Sungold charge](site-solar/sph-charge.md).
+
+A socket whose Use is **Sungold charge** is not a dump. Dump add, shed, off,
+on-demand and the voltage-guard shed never select it. Its Inverter helper names the
+bank that feeds the inlet (T2 or KU).
+
+- Own enable switch `input_boolean.sph_charge_enabled` (starts off). Does not follow
+  the dump master switch.
+- Turns the socket on when the Sungold pack is under a floor helper, under the lower
+  of T2 and KU by a margin helper, under an optional SoC, or the voltage guard is on,
+  for a dwell, and the feeding bank is at or above a source-minimum volts helper
+  (optional source SoC). Turns it off when the pack reaches a full helper or comes
+  within a target gap of that lower shunt, after a minimum on time, or immediately
+  when the feeding bank falls under a source-stop helper.
+- A hand tap arms the same manual hold. Automatic charge switches announce themselves
+  first. Cooldown timers are the existing per-socket 10 minute timers.
+- If the socket is on but Sungold grid voltage and charging power stay at 0, a
+  notification fires. The Sungold panel must allow mains charging or the inlet will
+  not charge the pack. No helper has `initial:`. Suggested starts are only in the
+  help page. The defaults button does not write them.
+
 ### Review 2026-09-28 (ported from the sim package)
 
 - Dump actions only ever target sockets whose **Use** is dump. The sim package used
@@ -374,6 +397,7 @@ Each dump box on Site solar > Now has a short help card and a **Help** link:
 | Dump manual hold | [dump-hold.md](site-solar/dump-hold.md) |
 | Dump on demand | [dump-on-demand.md](site-solar/dump-on-demand.md) |
 | Sungold voltage guard | [dump-sph-vguard.md](site-solar/dump-sph-vguard.md) |
+| Sungold charge | [sph-charge.md](site-solar/sph-charge.md) |
 | Plugs | [plug-buttons.md](site-solar/plug-buttons.md) |
 | Plug names (Where / Load) | [plug-names.md](site-solar/plug-names.md) |
 | Socket Use (normal / dump) | [socket-use.md](site-solar/socket-use.md) |

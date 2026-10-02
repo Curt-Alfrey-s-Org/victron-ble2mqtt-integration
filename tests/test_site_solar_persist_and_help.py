@@ -51,15 +51,19 @@ def test_no_initial_on_any_user_set_helper(path: Path) -> None:
 
 def test_dump_package_keeps_every_helper_id() -> None:
     data = _pkg()
-    assert len(data["input_number"]) == 21  # + 5 booleans + 1 text = 27 helpers
+    assert len(data["input_number"]) == 32  # + 8 booleans + 1 text
     assert "dump_manual_hold_min" in data["input_number"]
     assert "dump_sph_vguard_floor_v" in data["input_number"]
+    assert "sph_charge_floor_v" in data["input_number"]
     assert set(data["input_boolean"]) == {
         "dump_control_enabled",
         "dump_soc_unsynced",
         "dump_hold_blocks_turn_off",
         "dump_skip_cooldown",
         "dump_sph_vguard_enabled",
+        "sph_charge_enabled",
+        "sph_charge_soc_enabled",
+        "sph_charge_source_soc_enabled",
     }
     assert set(data["input_text"]) == {"dump_notify_service"}
     assert len(data["input_select"]) == 16
@@ -124,6 +128,31 @@ def test_strip_initial_keeps_everything_else() -> None:
         "icon": "mdi:toggle-switch",
     }
     assert mod.strip_initial_update("input_text", {"id": "x", "name": "x"}) is None
+
+
+def test_use_payload_offers_sungold_charge_and_update_appends_it() -> None:
+    mod = _load("create_h5082_socket_labels")
+    use = [p for p, eid in mod.helper_payloads() if eid.endswith("_use")]
+    assert use and all(p["options"] == ["normal", "dump", "Sungold charge"] for p in use)
+    assert all("initial" not in p for p in use)
+    body = mod.use_charge_option_update(
+        {
+            "id": "h5082_82fb_left_use",
+            "name": "My renamed use",
+            "options": ["normal", "dump"],
+            "initial": "dump",
+            "icon": "mdi:toggle-switch",
+        }
+    )
+    assert body == {
+        "type": "input_select/update",
+        "input_select_id": "h5082_82fb_left_use",
+        "name": "My renamed use",
+        "options": ["normal", "dump", "Sungold charge"],
+        "icon": "mdi:toggle-switch",
+    }
+    assert "initial" not in body
+    assert mod.use_charge_option_update({"id": "x", "options": ["normal", "dump", "Sungold charge"]}) is None
 
 
 # ------------------------------------------------------------ dashboard save script

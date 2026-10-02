@@ -31,6 +31,9 @@ Watch **when** and **why** a plug was switched, and whether HA or a person did i
 | `Dump control <name>: plug reported on after Turn next dump ON. Skip cooldown was on and is now off.` | The plug confirmed. Skip cooldown, if it was on, reverted. |
 | `Dump control <name>: Turn dumps OFF pressed. Asking the socket to turn off.` | The on-demand OFF button, one line per socket. |
 | `Dump control <name>: turned OFF by "Dump OFF Sungold sockets: Sungold voltage guard": Sungold … V, T2 … V, KU … V. Cooldown 10 min.` | The Sungold voltage guard shed a socket whose Inverter is Sungold. |
+| `Dump control <name>: turned ON by "Dump ON Sungold charge sockets: pack is low": ...` | Sungold charge turned an inlet socket on. Use is Sungold charge, not dump. |
+| `Dump control <name>: turned OFF by "Dump OFF Sungold charge sockets: pack recovered": ...` | The pack recovered and the minimum on time had ended. |
+| `Dump control <name>: turned OFF by "Dump OFF Sungold charge sockets: feeding bank low": ...` | The T2 or KU bank feeding that socket fell under the source stop helper. |
 | `Dump load HA control (master switch) turned off triggered by action input_boolean.turn_off` + your name | Someone turned the master switch off. |
 | `<switch name> turned off` + a person's name | Switched by hand. |
 

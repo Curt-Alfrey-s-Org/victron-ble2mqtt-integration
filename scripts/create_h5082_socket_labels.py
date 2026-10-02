@@ -39,6 +39,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ENERGY = ROOT / "scripts" / "save_solar_plant_energy_prefs.py"
 SUFFIXES = ("2f9d", "3013", "3ec9", "82fb", "9607", "c061", "c38d", "cf79")
 SIDES = ("left", "right")
+# Third Use option. First option stays "normal" so a brand-new select still starts there.
+# "dump" is unchanged. Existing selects are updated by appending this option only.
+USE_CHARGE = "Sungold charge"
 
 
 def _energy():
@@ -89,7 +92,7 @@ def helper_payloads() -> list[tuple[dict[str, Any], str]]:
                         "type": "input_select/create",
                         "name": f"H5082 {label} {side} use",
                         # First option is what a brand-new select starts on: normal.
-                        "options": ["normal", "dump"],
+                        "options": ["normal", "dump", USE_CHARGE],
                         "icon": "mdi:toggle-switch",
                     },
                     f"input_select.h5082_{suffix}_{side}_use",
@@ -100,6 +103,25 @@ def helper_payloads() -> list[tuple[dict[str, Any], str]]:
 
 def managed_entity_ids() -> set[str]:
     return {eid for _payload, eid in helper_payloads()}
+
+
+def use_charge_option_update(item: dict[str, Any]) -> dict[str, Any] | None:
+    """Websocket update that appends Sungold charge if that option is missing.
+
+    Returns None when the option is already there or the item has no id.
+    Does not set a state and does not write `initial` (the current Use is left
+    as stored). Other stored fields are copied through.
+    """
+    options = item.get("options")
+    if not isinstance(options, list) or USE_CHARGE in options or "id" not in item:
+        return None
+    body: dict[str, Any] = {"type": "input_select/update", "input_select_id": item["id"]}
+    for key, value in item.items():
+        if key in ("id", "initial"):
+            continue
+        body[key] = value
+    body["options"] = [*options, USE_CHARGE]
+    return body
 
 
 def strip_initial_update(domain: str, item: dict[str, Any]) -> dict[str, Any] | None:
@@ -199,6 +221,32 @@ def strip_initials(client: _Client, reg: dict[tuple[str, str], str], dry_run: bo
     return stripped
 
 
+def ensure_use_charge_option(
+    client: _Client, reg: dict[tuple[str, str], str], dry_run: bool
+) -> int:
+    """Append Sungold charge on existing H5082 Use selects. Does not change the value."""
+    managed = {eid for eid in managed_entity_ids() if eid.endswith("_use")}
+    updated = 0
+    items = client.call({"type": "input_select/list"})
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        entity_id = reg.get(("input_select", str(item.get("id"))), "")
+        if entity_id not in managed:
+            continue
+        body = use_charge_option_update(item)
+        if body is None:
+            print("USE OK", entity_id)
+            continue
+        if dry_run:
+            print("WOULD ADD OPTION", entity_id, USE_CHARGE)
+            continue
+        client.call(body)
+        updated += 1
+        print("ADDED OPTION", entity_id, USE_CHARGE, "(current value not changed)")
+    return updated
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("--url", default=os.environ.get("HA_URL", "http://127.0.0.1:8123"))
@@ -214,10 +262,11 @@ def main(argv: list[str] | None = None) -> int:
     client = _Client(args.url, args.token_file)
     reg = _registry_map(client.call({"type": "config/entity_registry/list"}))
     create_missing(client, set(reg.values()), args.dry_run)
-    if args.no_strip_initial:
-        return 0
-    stripped = strip_initials(client, reg, args.dry_run)
-    print(f"done: removed initial from {stripped} helper(s); values were not changed")
+    if not args.no_strip_initial:
+        stripped = strip_initials(client, reg, args.dry_run)
+        print(f"done: removed initial from {stripped} helper(s); values were not changed")
+    added = ensure_use_charge_option(client, reg, args.dry_run)
+    print(f"done: Sungold charge option added on {added} Use helper(s); current values were not changed")
     return 0
 
 
