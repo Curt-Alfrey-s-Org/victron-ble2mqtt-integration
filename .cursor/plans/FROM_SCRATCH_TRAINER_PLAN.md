@@ -103,16 +103,41 @@ Scan the packed text again before it becomes a shard. Train on the **current
 tree**, not full git history, so deleted credentials are not the default
 corpus. A history pass is a separate, explicit job after a purge.
 
-**Tokenizer.** Train a SentencePiece BPE (32k) on that filtered text. The
-model is randomly initialized, so the vocab should match this code. If the
-packed corpus is too small for a stable vocab, fall back to a public code
-tokenizer and record that choice in the run config.
+**Tokenizer.** Use the tokenizer the 7B fine-tune already uses, or a
+StarCoder-family code BPE if that 7B tokenizer is a poor fit for these
+repos. Record the id in the run config. A SentencePiece model fit only to a
+few private repos is sparse, and it cannot be loaded into the 7B. StarCoder2
+trained a 49,152-token byte-level BPE on a large code corpus and found that
+jumping to 100k did not help ([StarCoder2](https://arxiv.org/abs/2402.19173)).
 
-**Data size.** A few private repos will not behave like FineWeb. The model
-will be a specialist in this codebase. If held-out loss flattens early, the
-next lever is more of the operator's own text (docs, issues, scripts), not a
-larger model. Mixing a public code corpus is a later decision and only for
-code whose license allows training.
+**Packing.** Pack files from the same repo into a window. Dependency order
+when the import graph is cheap; otherwise random order inside the repo.
+DeepSeek-Coder applied fill-in-the-middle to about half of packed documents
+for completion training ([DeepSeek-Coder](https://arxiv.org/abs/2401.14196)).
+That is a flag, on by default if the job is completion, off if the job is
+only next-token loss on whole files.
+
+**Data size.** The corpus is these repos. That is the goal. It is also far
+below the token budgets code models are trained with. Luo et al. fit code
+scaling from 0.2B to 3.8B and, at one large budget, saw lower validation
+loss near 150 tokens per parameter than at the natural-language ratio of
+about 20, with the preferred ratio rising as compute grew
+([arXiv 2510.08702](https://arxiv.org/abs/2510.08702)). A few private repos
+cannot reach that. Repeating them for on the order of four epochs is the
+useful limit: at fixed compute, about four epochs of repeated data barely
+changes loss versus fresh data, and further repetition stops helping
+([Muennighoff et al.](https://arxiv.org/abs/2305.16264)). Stop when held-out
+perplexity flattens or rises.
+
+A private-only run memorizes this codebase's APIs and style. It will not be
+a general coder. If that specialist is not enough, mix in license-clean
+public code in the languages these repos use, and upsample the private
+snapshot so it still appears every epoch. There is no published
+private-to-public ratio. Watch held-out private perplexity and one public
+code benchmark together, and change the mix only if one moves the wrong way.
+Train the mixture in one run. Walking repos one after another, with a fresh
+learning-rate cycle each time, was worse than mixing them
+([Ibrahim et al.](https://arxiv.org/abs/2403.08763)).
 
 Shards and checkpoints go on the TrueNAS hub layout already documented in
 alfa-ai `docs/HUB_ARTIFACTS.md` and `docs/CLUSTER_SHARED_STORAGE.md`.
@@ -130,7 +155,7 @@ hardware. Re-measure tokens/sec on one 5070 and one 3060 before trusting them.
 | 4 | Document packing | Concatenate files with an EOS between them so a 2048 window is full. The speedrun also aligns batch starts to EOS. Windows that cross files without EOS teach the model that one repo continues into the next. |
 | 5 | Muon on 2D weights | Sample efficiency on their benchmark, bf16 Newton–Schulz, less optimizer state than Adam on those matrices |
 | 6 | bf16 activations | Speedrun record 10. Do this with the autocast, not a second dtype. |
-| 7 | DDP, equal microbatch | User asked to keep the 3060s in the step. Uneven batches are a later option if the 5070s sit idle inside the step and a profile shows it. |
+| 7 | DDP on all four GPUs | Default, so the 3060s stay in the from-scratch job. Before a long run, measure tokens/sec of the two 5070s alone against all four. If the 3060 gates the step so hard that the 5070 pair finishes more tokens per wall-clock second, move the 3060s to a second job (eval, or their own shard) for that run. Published DiLoCo also assumes the devices inside one island are homogeneous ([DiLoCo](https://arxiv.org/html/2311.08105v3)). |
 | 8 | Activation checkpointing | Only if a 12 GB card OOMs. It trades speed for memory. |
 | 9 | bf16 cross-entropy | Speedrun record 37. Flag, default off, until loss is stable in fp32 CE. |
 
@@ -150,35 +175,49 @@ matrices trained from scratch.
 Train from scratch once. After that, keep training when repos change. Do not
 restart from random weights for each new commit.
 
-What is working in 2025–2026 for continual pretraining is **replay of old
-data**, not a new optimizer. Abbes et al. (CoLLAs 2025) trained Llama-family
-models with a replay buffer plus a cheap Reptile/MER interpolation and found
-that a **small** replay rate beats a high replay rate, and that a little
-replay is a better use of compute than growing the model to fight forgetting
-([paper](https://arxiv.org/abs/2508.01908),
-[chandar-lab/continual-pretraining](https://github.com/chandar-lab/continual-pretraining)).
-Secondary writeups of other CPT runs put a practical mix around 10–30% old
-tokens ([survey notes](https://www.emergentmind.com/topics/continual-pretraining-cp)).
-Use the paper's result: start small, measure, raise replay only if a frozen
-repo gets worse.
+What is working is **replay of old data plus a normal learning-rate
+schedule**. Elastic weight consolidation and progressive networks are not
+the lever. TiC-LM compared them at web scale and ranked replay ahead of EWC;
+EWC cut forgetting by giving up performance on the new data
+([TiC-LM](https://arxiv.org/abs/2504.02107)).
+
+The published replay percentages are for a huge new corpus with a little old
+data sprinkled in. Ibrahim et al. matched a full retrain on the union of old
+and new data by re-warming the learning rate, decaying it again, and
+replaying old tokens. On a mild shift, 5% replay was enough. On a hard shift
+(English to German), they used 25%. Even 1% replay cut forgetting a lot.
+50% replay matched the retrain on average loss but learned the new data
+worse, because those tokens replaced new tokens at fixed compute
+([Ibrahim et al.](https://arxiv.org/abs/2403.08763)). A daily commit is the
+opposite regime: the new text is a tiny delta. Training only on that delta
+overwrites older files. Old tokens should be most of each batch, and changed
+files should be upsampled by a small integer factor. That factor is a
+starting guess. Held-out perplexity on unchanged files picks the real one.
+
+Abbes et al. still matter for the other regime (a large new corpus): a small
+replay rate beat a high one, and a little replay was a better use of compute
+than growing the model ([Abbes et al.](https://arxiv.org/abs/2508.01908)).
+Use that paper when a whole new repo or language shows up. Use the inverted
+mix for ordinary commits.
 
 Day to day:
 
-1. Pack new and changed files into a "current" shard.
-2. Keep a disk replay buffer of older packed shards (one snapshot per repo per
-   week is enough).
-3. Each batch is mostly current text plus a small draw from the buffer.
-4. Every k steps, optional Reptile interpolate toward the weights from k
-   steps ago. The chandar-lab hook is the reference. Skip it until plain
-   replay is measured. It is cheap, and it is still the second knob.
-5. Log three numbers from their repo: learned loss (current shard), retained
-   loss (frozen replay validation), forgetting (retained loss now minus
-   retained loss when that shard was first learned).
+1. Rebuild the cleaned snapshot. Scan it. Continue from the last checkpoint.
+2. Each batch is the full previous clean corpus plus the new snapshot, with
+   changed files upsampled. Keep a frozen probe set per repo.
+3. Low learning rate. Do not re-warm for an ordinary commit. Ibrahim showed
+   that re-warming spikes loss even when the data distribution has not
+   changed. Re-warm, then decay, only when a large new repo or a new
+   language is added, and keep the old repos in the mix.
+4. Stop the update when perplexity on unchanged held-out files stops
+   improving.
+5. Reptile or MER interpolation (the chandar-lab hook) stays off until plain
+   replay is measured. Same for GeRe, which targets continual fine-tunes
+   ([GeRe](https://github.com/Qznan/GeRe)).
 
-EWC, progressive networks, and activation-matching replay (GeRe) are for
-later. GeRe targets continual **fine-tunes** with a fixed general replay set
-([GeRe](https://github.com/Qznan/GeRe)). Useful for the 7B trainer if
-adapter runs start wiping earlier tasks. Not the first from-scratch loop.
+Log learned loss (new and changed files), retained loss (frozen probe), and
+forgetting (retained loss now minus retained loss when that probe was first
+learned).
 
 ## Friend over the internet
 
@@ -194,37 +233,55 @@ Sync on an **outer clock**, which is the timing the operator asked for.
 DiLoCo ([Douillard et al.](https://arxiv.org/html/2311.08105v3)):
 
 - Copy the shared weights to each island.
-- Each island runs H inner steps on its own data. H starts at **500**, the
-  period OpenDiLoCo published (about 67 minutes between syncs on their
-  1.1B / 8×H100 run, which will be a different wall time here)
-  ([OpenDiLoCo](https://www.primeintellect.ai/blog/opendiloco)).
-- Pseudo-gradient is the parameter delta across those H steps.
-- Average the deltas. Outer optimizer is **Nesterov momentum**. That is the
-  outer optimizer the paper found best. Plain averaging is FedAvg, and they
-  showed it is weaker.
+- Each island runs H inner steps on its own data. Start at **H = 500**.
+  On DeepMind's 150M C4 setup that period was the knee: syncing more often
+  had diminishing returns, and H = 1000 cost about 2.9% relative perplexity
+  versus H = 50. OpenDiLoCo used the same 500 on a 1.1B model (about 67
+  minutes of local work on 8×H100, then a few minutes to all-reduce). Wall
+  time here will differ. Size H so one compressed transfer is a small
+  fraction of the inner phase on the house uplink
+  ([DiLoCo](https://arxiv.org/abs/2311.08105),
+  [OpenDiLoCo](https://www.primeintellect.ai/blog/opendiloco)).
+- Pseudo-gradient is the parameter delta across those H steps. Inner Adam
+  moments stay on the island. They are not synced.
+- Average the deltas. Outer optimizer is **Nesterov SGD**, the setting
+  DeepMind found robust: learning rate 0.7, momentum 0.9. Plain SGD with
+  learning rate 1 is FedAvg, and it was weaker.
 - Broadcast the new weights. Repeat.
 
-OpenDiLoCo ran this across countries on Hivemind's DHT all-reduce, with FSDP
-inside a worker, pseudo-gradients reduced in FP16, and 90–95% compute
-utilization on links of roughly 127–935 Mbit/s. Inner compute stayed on the
-GPUs the whole time because the sync is rare.
-[prime](https://github.com/PrimeIntellect-ai/prime-diloco) (the follow-on)
-adds `ElasticDeviceMesh`: heartbeats, a node can leave without killing the
-job, and a VPN path when public port-forward bandwidth is unstable. They
-shard the pseudo-gradient so several connections share the uplink.
+OpenDiLoCo ran this on Hivemind, with FSDP inside a worker, and saw no
+quality drop from reducing the outer delta in FP16. Utilization was 90–95%
+on links of roughly 127–935 Mbit/s. The OpenDiLoCo repo is unmaintained; the
+follow-on is [prime](https://github.com/PrimeIntellect-ai/prime-diloco).
+prime adds `ElasticDeviceMesh` (a joiner pulls the latest checkpoint and
+enters the next outer step with a zero pseudo-gradient), int8 outer
+gradients accumulated in fp32, and a VPN because public port-forward
+bandwidth was unstable. A later compression option, not the first version,
+is MuLoCo: Muon inside the island and 2-bit deltas with error feedback
+([MuLoCo](https://arxiv.org/html/2505.23725v1)).
 
 **Timing.** The outer round id is the clock. Islands do not barrier every
-microbatch. If the friend is late, wait for a timeout, then let the house
-continue and let the friend catch the next broadcast. prime's heartbeat is
-the pattern. A 3060 that is merely slower does not trip this. It is inside
-the house island, and the house step already waits for it.
+microbatch. A friend who misses the round is **left out of that average**.
+The house keeps training. The original paper's dropout simulation is the
+rule: a replica that misses the sync continues from its own weights, and at
+a 50% drop rate in their non-i.i.d. run the relative perplexity hit was
+2.1%, with loss spikes. Do not let a missing friend freeze the 5070s.
+Decoupled DiLoCo (DeepMind, April 2026) is the same idea at datacenter
+scale, with a quorum and a grace window, but the released stack is
+Pathways, not a homelab package
+([arXiv 2604.21428](https://arxiv.org/abs/2604.21428)). A 3060 that is merely
+slower does not trip the outer timeout. It is inside the house island.
 
 **Transport.** Tailscale between the two sites, same idea as
 [docs/TAILSCALE.md](../../docs/TAILSCALE.md): a private path, no training port
 on the public internet. Outer all-reduce goes over that path with Hivemind
 (or Gloo if a first prototype has only two islands). NCCL stays on the LAN
-inside each island. NCCL across WAN is the wrong tool: it expects a low-latency
-fabric, and a missed timeout takes down the job.
+inside each island. `torchrun` plus NCCL across the internet fails even
+after Tailscale gives both sides an address. OpenDiLoCo's
+`torch.distributed` path cannot cross NAT. NCCL's process-group timeout
+defaults to 10 minutes, then the job aborts
+([torch.distributed](https://docs.pytorch.org/docs/2.11/distributed.html)).
+A VPN fixes reachability. It does not make per-step NCCL a WAN algorithm.
 
 **What crosses the wire.** For the 410M model, the pseudo-gradient (bf16
 compute, fp16 on the wire if that matches OpenDiLoCo's reduction). On the
@@ -239,12 +296,14 @@ for "DiLoCo, but the averaged tensor is the adapter" is the MoreGPU example
 Copy the schedule (H inner AdamW steps, outer Nesterov, average adapters).
 Do not take that repo as a dependency.
 
-**Privacy.** Each worker holds the weights. A model trained on private code
-can memorize a secret that passed the filter, and the friend has the
-weights. The corpus filter runs before the first outer round, not after.
-Pseudo-gradients can also leak training text. The friend brings their own
-data. They do not get a shard of the operator's repos, and the operator does
-not get a shard of theirs.
+**Privacy.** Each worker holds the full weights after every outer step.
+With two islands the average is half the sum of the two deltas, so the
+friend can subtract their own delta and recover the house delta. That delta
+is not the corpus. It is still a function of whatever the house trained on.
+There is no published DiLoCo setup that uses a friend's GPUs and also
+withholds both the corpus and the weights. The corpus filter runs before
+the first outer round. The friend trains on the friend's data. They do not
+receive a shard of the operator's repos.
 
 **Petals.** If alfa-ai already vendors Hivemind for Petals, reuse that
 library for the outer all-reduce. Petals itself is an inference pipeline.
@@ -264,7 +323,7 @@ Copy behavior, not a second trainer.
 | alfa-ai Petals/Hivemind dependency, if present | Outer-island all-reduce only |
 | This repo `SECURITY_REMOVE_SECRETS.md` | Denylist for the corpus scanner |
 | [modded-nanogpt](https://github.com/KellerJordan/modded-nanogpt) Muon + RoPE + QK-norm | bf16 from-scratch loop. Pin a commit. Do not vendor the FP8 record. |
-| [prime-diloco](https://github.com/PrimeIntellect-ai/prime-diloco) / OpenDiLoCo | Outer clock, elastic membership, sharded delta. Read it. A first version can be a few hundred lines for exactly two islands. |
+| [prime-diloco](https://github.com/PrimeIntellect-ai/prime-diloco) | Outer clock, elastic membership, sharded delta. OpenDiLoCo's repo is unmaintained; read prime. A first version can be a few hundred lines for exactly two islands. |
 
 Leave the 7B QLoRA loop inside its current script. Call shared pieces
 (packing, wheel check, outer sync of adapters) from both.
@@ -276,41 +335,79 @@ fit in 12 GB. The 7B job stays **QLoRA**: 4-bit frozen base, **bf16**
 adapters. "16-bit" for that trainer means the adapter math and the SDPA
 dtype, not a bf16 copy of the base model.
 
+QLoRA still runs the GEMM in bf16 (`bnb_4bit_compute_dtype=bfloat16`). Stored
+bf16 LoRA of a 7B does not fit these cards. Unsloth's own guide says 16-bit
+LoRA is slightly faster and slightly more accurate and uses about 4× the
+VRAM of QLoRA, which puts it on a 24 GB-class card
+([Unsloth LoRA guide](https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide)).
+Their "2× training, about 70% less VRAM" claim is labeled against an 80 GB
+setup and, in NVIDIA's writeup, an RTX 5090 32 GB. Quote it as their claim.
+Do not treat it as a 12 GB tokens/sec number
+([Unsloth benchmarks](https://unsloth.ai/docs/basics/unsloth-benchmarks),
+[NVIDIA](https://developer.nvidia.com/blog/train-an-llm-on-an-nvidia-blackwell-desktop-with-unsloth-and-scale-it/)).
+
 Changes worth making in `Start-AlfaTrain7bQlora.ps1` / the GUI, after the
 from-scratch smoke test proves the wheel:
 
 1. Same cu128 (or newer) PyTorch, with the matmul check on a 5070 and a 3060.
-2. SDPA, if the script still asks for a FlashAttention wheel that has no
-   sm_120 build.
-3. Pack short instruction examples so a step is not padding.
-4. DDP with a full 4-bit replica on each GPU, including the 3060s. The step
-   waits for the 3060. Device-map splitting is the fallback if one card OOMs.
-5. Friend sync: outer Nesterov on adapter deltas every H inner steps, over
-   Tailscale. The base weights stay where they were loaded.
-6. If a later QLoRA run forgets an earlier task, add a small replay of the
-   old instruction set (GeRe's idea: a fixed replay mix). Measure retained
-   loss the same way as the from-scratch run.
+   Triton 3.3.1 or newer on the 5070 if Unsloth asks for it.
+2. SDPA. Padding-free packing needs FlashAttention varlen, which these 5070s
+   do not have. Use `SFTConfig(packing=True)` and leave `padding_free` off
+   ([TRL packing](https://huggingface.co/docs/trl/en/sft_trainer)).
+3. One stack. Unsloth QLoRA **or** Hugging Face Trainer plus Liger. Both
+   patch RMSNorm, RoPE, SwiGLU, and the loss. Liger's claim is about 20%
+   multi-GPU throughput and about 60% less memory
+   ([Liger](https://arxiv.org/html/2410.10989v1)). That claim is theirs.
+4. Rank 16, `lora_dropout=0` (Unsloth fuses the adapter when dropout is 0),
+   8-bit AdamW, gradient checkpointing if the sequence does not fit. Paged
+   AdamW is the spill valve after an eviction, not a faster step
+   ([bitsandbytes](https://huggingface.co/docs/bitsandbytes/en/explanations/optimizers)).
+5. The 7B already fits on one 12 GB card. A DDP step that includes a 3060
+   waits on that card and can be slower than the 5070 alone. Default the 7B
+   job to a 5070. Give a 3060 its own QLoRA job (a different mixture, or the
+   held-out eval) so the card is used and the 5070 is not gated. Same
+   measurement rule as the from-scratch run: if all-four DDP wins on
+   tokens/sec, use it. `device_map="auto"` across the two archs is the slow
+   path for a model that already fits.
+6. Friend sync: outer Nesterov on adapter deltas every H inner steps, over
+   Tailscale. The base weights stay where they were loaded. Same two-party
+   delta warning as the small model: the friend can recover the house
+   adapter delta from the average.
+7. Replay of the old instruction set if a later run forgets an earlier task.
+   LoRA already forgets less than full fine-tuning and also learns less.
+   Biderman et al. continued-pretrained Llama-2 7B on code: best full
+   fine-tune HumanEval was 0.263 versus 0.175 for the best LoRA (rank 256,
+   all target modules). LoRA was more sensitive to learning rate than to
+   rank ([Biderman et al.](https://arxiv.org/abs/2405.09673)). Keep the 7B
+   learning rate in the fine-tune range. Do not copy the from-scratch
+   re-warmup onto it.
 
-Muon stays off the 7B path until the from-scratch A/B says it is worth a
-separate experiment on adapters.
+Muon stays on the from-scratch model. On LoRA factors it does not
+consistently beat Adam, because the optimizer sees A and B while the model
+sees A×B ([PoLoRA](https://arxiv.org/html/2607.17620)). The small model's
+weights and tokenizer are not copied into the 7B. The data filter, packing,
+and replay mixture are what the two trainers share.
 
 ## Build order
 
 Implement in alfa-ai, in this order. Each step is runnable on its own.
 
-1. **Corpus tool.** Read the repo map, filter secrets, train the tokenizer,
-   write packed shards to the hub. No GPU required.
+1. **Corpus tool.** Read the repo map, filter secrets, pack by repo with the
+   borrowed tokenizer, write shards to the hub. No GPU required.
 2. **Wheel check.** bf16 matmul on one 5070 and one 3060.
 3. **Single-island trainer.** 410M, AdamW, bf16, SDPA, compile, packing, DDP
    on all four GPUs. Checkpoint to the hub.
 4. **Muon flag.** A/B a few hundred steps against AdamW. Keep the winner.
-5. **Replay.** Current shard plus a small replay buffer. Log learned,
-   retained, and forgetting loss per repo.
+5. **Replay.** Ordinary commits use the inverted mix (old corpus is most of
+   the batch, changed files upsampled, no learning-rate re-warm). Log
+   learned, retained, and forgetting loss per repo.
 6. **Second island.** Two-worker DiLoCo over Tailscale. House data stays
-   home. Friend data stays with the friend. H = 500. Outer Nesterov.
-   Timeout so a missing friend does not stop the house.
-7. **7B port.** Wheel check, SDPA, packing, and adapter outer-sync in the
-   existing QLoRA launcher.
+   home. Friend data stays with the friend. H = 500. Outer Nesterov SGD
+   (learning rate 0.7, momentum 0.9). A missed round omits that island from
+   the average.
+7. **7B port.** Wheel check, SDPA, packing, Unsloth or Liger (one of them),
+   5070 as the default device, and adapter outer-sync in the existing QLoRA
+   launcher.
 
 ## Non-goals
 
@@ -333,7 +430,20 @@ Implement in alfa-ai, in this order. Each step is runnable on its own.
 - FlashAttention-2 sm_120 build failure: https://github.com/Dao-AILab/flash-attention/issues/2361
 - PyTorch cu128 and sm_120: https://discuss.pytorch.org/t/nvidia-geforce-rtx-5070-ti-with-cuda-capability-sm-120/221509
 - torch.amp bf16 vs fp16: https://docs.pytorch.org/docs/2.13/amp.html
-- Continual pretraining replay: https://arxiv.org/abs/2508.01908
+- Continual pretraining, replay, learning-rate re-warm: https://arxiv.org/abs/2403.08763
+- TiC-LM, replay ahead of EWC: https://arxiv.org/abs/2504.02107
+- Abbes et al., replay vs gradient alignment: https://arxiv.org/abs/2508.01908
 - Replay implementation: https://github.com/chandar-lab/continual-pretraining
+- Code scaling: https://arxiv.org/abs/2510.08702
+- Repeated data, about four epochs: https://arxiv.org/abs/2305.16264
+- StarCoder2 tokenizer and latest-revision corpus: https://arxiv.org/abs/2402.19173
+- DeepSeek-Coder packing and FIM: https://arxiv.org/abs/2401.14196
+- LoRA learns less and forgets less: https://arxiv.org/abs/2405.09673
+- MuLoCo, 2-bit outer deltas: https://arxiv.org/html/2505.23725v1
+- Decoupled DiLoCo (quorum; Pathways, not the homelab package): https://arxiv.org/abs/2604.21428
+- NCCL process-group timeout: https://docs.pytorch.org/docs/2.11/distributed.html
 - Dec-LoRA: https://arxiv.org/html/2501.15361v1
 - Adapter-only DiLoCo sketch: https://github.com/ArioMoniri/moregpu/blob/main/examples/lora_distributed.py
+- Unsloth QLoRA vs 16-bit LoRA: https://unsloth.ai/docs/get-started/fine-tuning-llms-guide/lora-hyperparameters-guide
+- Liger kernels: https://arxiv.org/html/2410.10989v1
+- Muon on LoRA factors: https://arxiv.org/html/2607.17620
