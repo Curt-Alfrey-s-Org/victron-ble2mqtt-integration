@@ -6,7 +6,7 @@ Sibling sidecar to **victron_ble2mqtt**. Publishes **sensors and binary_sensors 
 
 **Voltage guard (Site solar):** dump control can shed dump sockets whose Inverter helper is Sungold, and can alert, when Sungold battery voltage is under helpers you set. It cannot command this inverter to charge. See [docs/site-solar/dump-sph-vguard.md](site-solar/dump-sph-vguard.md).
 
-**Sungold charge (Site solar):** a socket whose Use helper is **Sungold charge** can be turned on so a T2 or KU outlet feeds this inverter's AC inlet when the pack is low. The sidecar still does not write Modbus. On the front panel, charger source priority must allow mains / utility charging; if it is solar-only, inlet power will not charge the pack. See [docs/site-solar/sph-charge.md](site-solar/sph-charge.md).
+**Sungold charge (Site solar):** a socket whose Use helper is **Sungold charge** can be turned on so a T2 or KU outlet feeds this inverter's AC inlet when the pack is low, and again for surplus while that bank is charging hard and Sungold is under full volts. The voltage guard does not start this charge. The sidecar still does not write Modbus. On the front panel, charger source priority must allow mains / utility charging; if it is solar-only, inlet power will not charge the pack. See [docs/site-solar/sph-charge.md](site-solar/sph-charge.md).
 
 ## Hardware
 

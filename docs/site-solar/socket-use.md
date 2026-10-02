@@ -13,7 +13,7 @@ Decides which sockets Home Assistant may switch **by itself**.
 
 | Row | Entity | Options | What it does |
 |---|---|---|---|
-| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump`, `Sungold charge` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed), unless its [Inverter](socket-inverter.md) is **House**. **Sungold charge:** the [Sungold charge](sph-charge.md) rule may turn this socket on and off so the pack can charge from the bank named by Inverter (T2 or KU). It is not a dump. **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
+| live name (16 rows) | `input_select.h5082_<id>_<side>_use` | `normal`, `dump`, `Sungold charge` | **dump:** the dump rules may turn this socket on (when there is spare solar) and off (solar gone, stop volts, battery limit, shed), unless its [Inverter](socket-inverter.md) is **House**. **Sungold charge:** the [Sungold charge](sph-charge.md) rule may turn this socket on and off so the pack can charge from the bank named by Inverter (T2 or KU), for a low pack or for surplus watts while Sungold is under full volts. It is not a dump. **normal:** no rule ever touches it; only you (Plugs button, plug's own button). |
 
 Each row's name is live: the socket's **Load** and its plug's **Where** from
 [Plug names](plug-names.md), with the plug id and side in brackets, for example

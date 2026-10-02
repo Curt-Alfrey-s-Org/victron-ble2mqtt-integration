@@ -51,7 +51,7 @@ def test_no_initial_on_any_user_set_helper(path: Path) -> None:
 
 def test_dump_package_keeps_every_helper_id() -> None:
     data = _pkg()
-    assert len(data["input_number"]) == 32  # + 8 booleans + 1 text
+    assert len(data["input_number"]) == 31  # + 8 booleans + 1 text
     assert "dump_manual_hold_min" in data["input_number"]
     assert "dump_sph_vguard_floor_v" in data["input_number"]
     assert "sph_charge_floor_v" in data["input_number"]
@@ -83,15 +83,21 @@ def test_defaults_script_is_manual_only() -> None:
     # Nothing calls it: no automation, no startup trigger.
     autos = json.dumps(data["automation dump_load"])
     assert "dump_load_recommended_defaults" not in autos
-    assert "homeassistant" not in [
-        t.get("trigger") for a in data["automation dump_load"] for t in a["triggers"]
-    ]
+    for auto in data["automation dump_load"]:
+        kinds = [t.get("trigger") for t in auto["triggers"]]
+        if auto["id"].startswith("dump_sph_charge_"):
+            assert "homeassistant" in kinds and "time_pattern" in kinds, auto["id"]
+        else:
+            assert "homeassistant" not in kinds and "time_pattern" not in kinds, auto["id"]
 
 
 def test_no_automation_writes_helpers_on_start_or_timer() -> None:
     for auto in _pkg()["automation dump_load"]:
         for trig in auto["triggers"]:
-            assert trig.get("trigger") not in ("homeassistant", "time_pattern", "time", "event")
+            kind = trig.get("trigger")
+            if auto["id"].startswith("dump_sph_charge_") and kind in ("homeassistant", "time_pattern"):
+                continue
+            assert kind not in ("homeassistant", "time_pattern", "time", "event"), auto["id"]
         blob = json.dumps(auto["actions"])
         for svc in ("input_number.set_value", "input_select.select_option", "input_text.set_value"):
             assert svc not in blob, auto["id"]

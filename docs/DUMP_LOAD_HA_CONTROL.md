@@ -327,16 +327,24 @@ bank that feeds the inlet (T2 or KU).
 
 - Own enable switch `input_boolean.sph_charge_enabled` (starts off). Does not follow
   the dump master switch.
-- Turns the socket on when the Sungold pack is under a floor helper, under the lower
-  of T2 and KU by a margin helper, under an optional SoC, or the voltage guard is on,
-  for a dwell, and the feeding bank is at or above a source-minimum volts helper
-  (optional source SoC). Turns it off when the pack reaches a full helper or comes
-  within a target gap of that lower shunt, after a minimum on time, or immediately
-  when the feeding bank falls under a source-stop helper.
+- Rescue turns the socket on when the Sungold pack is under a floor helper, under
+  the lower of T2 and KU by a margin helper, or under an optional SoC, for a dwell,
+  and the feeding bank is at or above a source-minimum volts helper (optional source
+  SoC). The voltage guard does not start this charge. Rescue ignores the per-socket
+  cooldown. It turns the socket off when the pack reaches the full helper, after a
+  minimum on time, or immediately when the feeding bank falls under a source-stop helper.
+- Surplus uses the same Use and the same enable switch. While rescue is off and
+  Sungold is under full volts, the socket turns on when that bank is in float, solar
+  is present, the bank is not at stop volts, the battery is within its discharge
+  limit, and battery charge watts are at or above `input_number.sph_charge_surplus_min_w`
+  (suggested 1100 W, a new helper starts at 100). It waits while a dump socket is
+  still next and the dump master is on. It turns off when those checks fail. Full
+  volts are still the pack-recovered off.
 - A hand tap arms the same manual hold. Automatic charge switches announce themselves
-  first. Cooldown timers are the existing per-socket 10 minute timers.
-- If the socket is on but Sungold grid voltage and charging power stay at 0, a
-  notification fires. The Sungold panel must allow mains charging or the inlet will
+  first. Home Assistant start and a one minute poll re-check rescue and surplus.
+- If the socket is on and charging power stays about 0 W for 3 minutes, with grid
+  voltage at or below 0 or at or above 50, a notification fires. Missing sidecar
+  values do not alert. The Sungold panel must allow mains charging or the inlet will
   not charge the pack. No helper has `initial:`. Suggested starts are only in the
   help page. The defaults button does not write them.
 

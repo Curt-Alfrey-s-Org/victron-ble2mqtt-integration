@@ -726,9 +726,9 @@ views:
             icon: mdi:battery-charging
           - type: markdown
             content: |
-              Turns on sockets whose Use is Sungold charge so the pack can charge from the T2 or KU bank named on that socket's Inverter helper, when the pack is low and that bank is healthy.
+              Turns on sockets whose Use is Sungold charge so the pack can charge from the T2 or KU bank named on that socket's Inverter helper, when the pack is low or that bank has surplus watts and Sungold is under full volts.
               Dump add, shed, off, on-demand and the voltage-guard shed never touch these sockets. A hand tap still starts manual hold. Set the numbers before you enable it; a new number starts at its minimum.
-              The Sungold front panel must allow mains charging, or the inlet can be on while charging power stays at 0. A guard trip is also a charge reason when both switches are on.
+              The Sungold front panel must allow mains charging. Full volts are the rescue cap. The voltage guard sheds dump sockets only and does not start a charge.
               [Help: Sungold charge](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/site-solar/sph-charge.md)
             grid_options:
               columns: full
@@ -749,18 +749,20 @@ views:
                 name: Inlet has no power
               - entity: binary_sensor.sph_charge_source_stop
                 name: Feeding bank under stop volts
+              - entity: binary_sensor.sph_charge_surplus_ready
+                name: Feeding bank has surplus
               - entity: binary_sensor.dump_sph_vguard
-                name: Sungold voltage guard (also a charge reason)
+                name: Sungold voltage guard (sheds dump sockets only)
               - entity: input_boolean.sph_charge_enabled
                 name: Enable Sungold charge
               - entity: input_number.sph_charge_floor_v
                 name: Floor (Sungold volts)
               - entity: input_number.sph_charge_margin_v
                 name: Margin below the lower of T2 and KU
-              - entity: input_number.sph_charge_target_v
-                name: Target gap (off when this close)
               - entity: input_number.sph_charge_full_v
                 name: Full volts (off at or above)
+              - entity: input_number.sph_charge_surplus_min_w
+                name: Surplus min charge W
               - entity: input_boolean.sph_charge_soc_enabled
                 name: Also charge when SoC is low
               - entity: input_number.sph_charge_soc_below
@@ -777,8 +779,6 @@ views:
                 name: Dwell
               - entity: input_number.sph_charge_min_on_s
                 name: Minimum on time
-              - entity: input_number.sph_charge_confirm_s
-                name: Inlet confirm
               - entity: sensor.sungold_sph302480a_battery_voltage
                 name: Sungold battery voltage
               - entity: sensor.sungold_sph302480a_battery_soc
@@ -791,6 +791,10 @@ views:
                 name: T2 battery voltage
               - entity: sensor.battery_2_voltage
                 name: KU battery voltage
+              - entity: sensor.battery_1_power
+                name: T2 battery power
+              - entity: sensor.battery_2_power
+                name: KU battery power
               - entity: sensor.battery_1_state_of_charge
                 name: T2 battery SoC
               - entity: sensor.battery_2_state_of_charge
