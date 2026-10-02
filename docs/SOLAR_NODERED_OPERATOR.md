@@ -12,19 +12,19 @@ HA stays authoritative for sensors. Node-RED reads HA and provides the **editabl
 ufw (if enabled): allow LAN `1880/tcp` from `192.168.0.0/24` only.
 
 
-## Eight panel boxes (diagram tab)
+## Panel strings (diagram tab, operator 2026-10-02)
 
-On **Solar plant diagram**, the group **Solar panels (8x 2s strings)** polls HA every 5s and drives eight **Panel 1..8** function nodes (status boxes). Comment nodes label where each pair connects: `-> T2 MPPT #1`, `-> KU MPPT #2`, `-> KU MPPT #3`, `-> KU PWM`. Drag boxes inside the group to match roof layout; est W per panel is half of its 2s string (see `scripts/nodered_solar_computed.js` `panelBoxes()`).
+Physical layout is **three strings** (PWM and third 75/15 retired):
 
-## Panel group layout (spacing)
+| String | Bus | Charger | Panels |
+|--------|-----|---------|--------|
+| 2s3p | T2 | SmartSolar MPPT **100/50** | six panels -- **no HA entities** until VictronConnect Instant Readout key |
+| 2p Renogy | KU | second BlueSolar **75/15** | two 24 V Renogy panels parallel -- **pending key** |
+| 2s suitcase | KU | paired BlueSolar **75/15** (`sensor.solar_controller_*`) | two suitcase panels series -- which KU string is on the paired unit is **unconfirmed** |
 
-The orange group **Solar panels (8x 2s strings)** sits **below** the blue **Live HA clamps** group (no overlap). Inside it:
+The diagram may still show eight legacy panel boxes until flows are redrawn. **Retired:** `-> KU PWM`, third KU MPPT, and 8-panel equal-share est in `scripts/nodered_solar_computed.js` -- per-panel W waits on the new BLE keys and a Node-RED update (out of scope for doc-only pass).
 
-- Top row: poll chain (`Poll panels 5s` -> GET -> `compute + fan-out 8`).
-- Four rows: **Panel 1/3/5/7** left column, **Panel 2/4/6/8** right column; comment nodes show `-> T2 MPPT #1`, `-> KU MPPT #2`, etc.
-- **Link nodes** carry wires from the fan-out node to each panel box so wires do not cross the grid.
-
-After editing positions in the editor, export to `flows/solar_plant_diagram.json`. To reset canonical spacing from git: `python3 scripts/layout_solar_diagram_panels.py` then `bash scripts/deploy-nodered-solar.sh`.
+After editing positions in the editor, export to `flows/solar_plant_diagram.json`.
 ## Edit the diagram
 
 1. Open the **Solar plant diagram** tab.
@@ -43,7 +43,7 @@ After `install_solar_plant_ha.sh`, reload Node-RED or wait for the 5s poll -- no
 
 Tab **Solar computed meters** polls HA `/api/states` every 5s and runs `scripts/nodered_solar_computed.js`.
 
-Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (site totals, KU est, jumper, Sungold, plus an 8-panel table).
+Open **http://192.168.0.105:1880/solar/computed** for HTML tiles (site totals, jumper, Sungold; legacy 8-panel / PWM est retired until NR script update).
 
 **http://192.168.0.105:1880/solar/metrics** is the same cached object as Prometheus text ([exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/)). It does not recalculate. Grafana on `.107` scrapes it. The [http in](https://nodered.org/docs/user-guide/nodes) / [http response](https://nodered.org/docs/user-guide/nodes) nodes are the official Node-RED HTTP endpoints.
 

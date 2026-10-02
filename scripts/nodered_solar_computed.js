@@ -1,6 +1,10 @@
 /**
  * Solar computed meters + 8 panel boxes for Node-RED (HA device-only).
  * Mirrors victron scripts/solar_watt_ledger.py helpers.
+ *
+ * sensor.solar_controller_solar (2026-10-02): paired BlueSolar 75/15 on KU bus only.
+ * t2_mppt_w keeps the legacy export key but holds that paired KU solar W, not T2 100/50.
+ * T2 SmartSolar 100/50 has no HA entity yet; PWM and third 75/15 are retired.
  */
 
 function stateMap(statesArr) {
@@ -104,72 +108,71 @@ function kuRenogyAcProxy(states) {
     return null;
 }
 
-/** 8 physical panels: 4x 2s strings -> MPPT1 T2, MPPT2 KU, MPPT3 KU, PWM KU */
-function panelBoxes(mppt, mppt23, pwmEst) {
-    const kuMpptEach = mppt23 === null ? null : mppt23 / 2;
+/** Legacy 8 panel boxes; per-panel est_w mostly null until BLE keys land. */
+function panelBoxes() {
     return [
         {
             id: 1,
             label: "P1",
-            string: "T2 series A",
-            connects: "Panel 1+2 -> Victron MPPT #1 (T2) -> HQ2239CQYT2 24V",
-            est_w: halfString(mppt),
+            string: "T2 2s3p A",
+            connects: "T2 six-panel string -> SmartSolar 100/50 (no HA solar W yet)",
+            est_w: null,
         },
         {
             id: 2,
             label: "P2",
-            string: "T2 series B",
-            connects: "Panel 1+2 -> Victron MPPT #1 (T2) -> HQ2239CQYT2 24V",
-            est_w: halfString(mppt),
+            string: "T2 2s3p B",
+            connects: "T2 six-panel string -> SmartSolar 100/50 (no HA solar W yet)",
+            est_w: null,
         },
         {
             id: 3,
             label: "P3",
-            string: "KU MPPT2 A",
-            connects: "Panel 3+4 -> Victron MPPT #2 (KU) -> HQ2239JTRKU 24V",
-            est_w: halfString(kuMpptEach),
+            string: "KU string A",
+            connects: "KU Renogy 2p or suitcase 2s (which is on paired 75/15 unconfirmed)",
+            est_w: null,
         },
         {
             id: 4,
             label: "P4",
-            string: "KU MPPT2 B",
-            connects: "Panel 3+4 -> Victron MPPT #2 (KU) -> HQ2239JTRKU 24V",
-            est_w: halfString(kuMpptEach),
+            string: "KU string B",
+            connects: "KU Renogy 2p or suitcase 2s (which is on paired 75/15 unconfirmed)",
+            est_w: null,
         },
         {
             id: 5,
             label: "P5",
-            string: "KU MPPT3 A",
-            connects: "Panel 5+6 -> Victron MPPT #3 (KU) -> HQ2239JTRKU 24V",
-            est_w: halfString(kuMpptEach),
+            string: "KU string C",
+            connects: "Second KU BlueSolar 75/15 (no HA solar W yet)",
+            est_w: null,
         },
         {
             id: 6,
             label: "P6",
-            string: "KU MPPT3 B",
-            connects: "Panel 5+6 -> Victron MPPT #3 (KU) -> HQ2239JTRKU 24V",
-            est_w: halfString(kuMpptEach),
+            string: "KU string D",
+            connects: "Second KU BlueSolar 75/15 (no HA solar W yet)",
+            est_w: null,
         },
         {
             id: 7,
-            label: "P7",
-            string: "KU PWM A",
-            connects: "Panel 7+8 -> Renogy PWM 12/24 -> HQ2239JTRKU 24V",
-            est_w: halfString(pwmEst),
+            label: "P7 (PWM removed)",
+            string: "PWM removed",
+            connects: "PWM removed",
+            est_w: null,
         },
         {
             id: 8,
-            label: "P8",
-            string: "KU PWM B",
-            connects: "Panel 7+8 -> Renogy PWM 12/24 -> HQ2239JTRKU 24V",
-            est_w: halfString(pwmEst),
+            label: "P8 (PWM removed)",
+            string: "PWM removed",
+            connects: "PWM removed",
+            est_w: null,
         },
     ];
 }
 
 function computeSolarDerived(statesArr) {
     const states = stateMap(statesArr);
-    const mppt = num(states, "sensor.solar_controller_solar");
+    const paired75_15Solar = num(states, "sensor.solar_controller_solar");
     const mpptCharge = num(states, "sensor.solar_controller_charging_power");
     const b1 = num(states, "sensor.battery_1_power");
     const b2 = num(states, "sensor.battery_2_power");
@@ -181,21 +184,30 @@ function computeSolarDerived(statesArr) {
     const sgAcIn =
         sgGridV !== null && sgGridA !== null ? round1(Math.abs(sgGridV * sgGridA)) : null;
 
-    const jumper = mppt !== null && b1 !== null ? round1(mppt - b1) : null;
-    const mppt23 = mppt !== null ? round1(2 * mppt) : null;
+    const jumper =
+        paired75_15Solar !== null && b1 !== null ? round1(paired75_15Solar - b1) : null;
     const kuAc = kuRenogyAcProxy(states);
     let kuCombined = null;
     if (b2 !== null && jumper !== null && kuAc !== null) {
         kuCombined = round1(b2 - jumper + kuAc);
-    } else if (mppt23 !== null) {
-        kuCombined = mppt23;
     }
-    const pwmEst =
-        kuCombined !== null && mppt23 !== null ? round1(Math.max(0, kuCombined - mppt23)) : null;
-    const kuShare = kuCombined !== null ? round1(kuCombined / 3) : null;
+    const pwmEst = null;
+    const mppt23Est = null;
+    const kuShare = kuCombined !== null ? round1(kuCombined / 2) : null;
 
-    const siteSolar =
-        mppt !== null && kuCombined !== null ? round1(mppt + kuCombined) : null;
+    let kuPvForSite = kuCombined;
+    if (kuPvForSite === null && paired75_15Solar !== null) {
+        kuPvForSite = paired75_15Solar;
+    }
+    let siteSolar = null;
+    if (sgPv !== null && kuPvForSite !== null) {
+        siteSolar = round1(sgPv + kuPvForSite);
+    } else if (sgPv !== null) {
+        siteSolar = round1(sgPv);
+    } else if (kuPvForSite !== null) {
+        siteSolar = round1(kuPvForSite);
+    }
+
     const batt1Charge = b1 !== null && b1 > 0 ? round1(b1) : 0;
     const siteSource = round1(batt1Charge + (sgAcIn || 0) + (sgPv || 0));
     const siteLoad = sgLoad !== null ? round1(sgLoad) : null;
@@ -204,13 +216,14 @@ function computeSolarDerived(statesArr) {
     const sungoldCartToLoad =
         sgLoad !== null && kuAc !== null ? round1(Math.max(0, sgLoad - kuAc)) : null;
 
-    const panels = panelBoxes(mppt, mppt23, pwmEst);
+    const panels = panelBoxes();
 
     return {
-        t2_mppt_w: mppt,
+        t2_mppt_w: paired75_15Solar,
+        paired_75_15_w: paired75_15Solar,
         t2_mppt_charge_w: mpptCharge,
         t2_ku_jumper_w: jumper,
-        ku_victron_mppt23_est_w: mppt23,
+        ku_victron_mppt23_est_w: mppt23Est,
         ku_pwm_mppt_combined_est_w: kuCombined,
         ku_pwm_est_w: pwmEst,
         ku_charger_equal_share_w: kuShare,

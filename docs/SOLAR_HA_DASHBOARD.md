@@ -39,7 +39,7 @@ That is how numbers get **into** Energy. Dump on/off stays
 knobs live under **Settings > Helpers** (`input_boolean.dump_control_enabled`).
 
 Site physics: [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md).
-Energy solar is **T2 MPPT only**. Do **not** add KU equal-share or A3 as grid.
+Energy solar clamp is the **paired KU 75/15** (`sensor.solar_controller_solar`) only until T2 100/50 and second KU 75/15 keys exist. Do **not** add KU equal-share (retired 2026-10-02) or A3 as grid.
 Dump is an Energy **individual device** nested under Sungold AC-out
 (`included_in_stat` in `save_solar_plant_energy_prefs.py`).
 Sungold A/C out is the house-load device. Trailer-outlet A/C-in is a Site solar
@@ -69,11 +69,11 @@ Do **not** port-forward `:8123`.
 | **Home** (built-in) | Area tiles after devices have [areas](https://www.home-assistant.io/docs/organizing/areas/) |
 | **Solar** sidebar | MQTT entity list |
 | Template sensors | Jumper est., trailer outlet W, KU PV est., site solar/charge sums |
-| Integral sensors | kWh for Energy (T2 MPPT, batteries, trailer outlet, dump, Sungold load) |
+| Integral sensors | kWh for Energy (paired 75/15 MPPT, batteries, trailer outlet, dump, Sungold load) |
 | NWS REST | `sensor.nws_watauga_lake_alerts` (package; not an Energy card) |
 
 HA Energy / `power-sankey` is a **sources / battery / home / devices** Sankey, not a
-Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron clamps).
+Victron GX two-bus cartoon. Only one Victron MPPT is live in HA (paired KU 75/15). T2 100/50 and second KU 75/15 have **no** entities until Instant Readout keys ([DEVICES.md](DEVICES.md)).
 
 ---
 
@@ -86,15 +86,15 @@ Victron GX two-bus cartoon. KU MPPT/PWM remain **estimates** (no live Victron cl
 | `sensor.trailer_outlet_power` | `\|B3\|` if \|B3\| >= 0.5 W, else `\|A3\|`. EM16 hot leg on the KU trailer outlet (Sungold UTI cord). Vent fan and LEDs are on **Sungold AC out**, not a separate A3 sibling. |
 | `sensor.ku_renogy_ac_load_power` | `max(trailer_outlet_power, sungold_uti_va_power)`. KU Renogy inverter AC load (cord into Sungold UTI). Not house load. |
 | `sensor.sungold_cart_to_load_power` | `max(0, Sungold AC-out − ku_renogy_ac_load)`. **0** while KU feeds every house watt (T2 RV empty; mains bypass). Nonzero only if the cart/PV invert into AC-out. |
-| `sensor.ku_unmetered_pv_est_power` | `battery_2_power - jumper + ku_renogy_ac_load_power`. Subtract jumper so T2-sourced shunt-to-shunt watts in Battery 2 are not labeled KU PV. Batt 2 net can exceed KU Renogy AC when PWM/Victron charge offsets discharge. |
-| `sensor.ku_charger_equal_share_power` | KU PV est. / 3 (MPPT 1, MPPT 2, PWM each) |
+| `sensor.ku_unmetered_pv_est_power` | Legacy combined lower bound (`battery_2_power - jumper + ku_renogy_ac_load_power`). **Retired** as equal-share / PWM truth (2026-10-02); Node-RED may still compute until script update. |
+| `sensor.ku_charger_equal_share_power` | **Retired 2026-10-02** (was KU PV est. / 3 for two MPPTs + PWM). |
 | `sensor.battery_1_charge_power` / `_discharge_power` | `max(0, +/- battery_1_power)` |
 | `sensor.battery_2_charge_power` / `_discharge_power` | same for Battery 2 |
-| `sensor.t2_mppt_conversion_loss_power` | T2 MPPT conversion loss: `max(0, solar - charge - load)`; skip when charge 0/missing and jumper flowing |
+| `sensor.t2_mppt_conversion_loss_power` | Paired 75/15 conversion loss: `max(0, solar_controller_solar - charge - load)`; skip when charge 0/missing and jumper flowing |
 | `sensor.sungold_conversion_loss_power` | Sungold `SG_loss`: `max(0, (UTI V×A + PV) - batt_in - AC_out)`. `0` V×A is valid. Do **not** substitute AC-out for missing/zero AC INPUT. |
 | `sensor.sungold_uti_va_power` | Sungold grid `\|V × A\|` ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1 AC INPUT). Cross-check vs trailer clamp. Not house load. |
 | `sensor.sungold_ac_out_va_power` | Sungold `\|AC out V × Load A\|`. Cross-check vs LCD `load_power`. |
-| `sensor.solar_component_losses_power` | `combined_losses_w` = T2 MPPT loss + Sungold loss ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)) |
+| `sensor.solar_component_losses_power` | `combined_losses_w` = paired 75/15 MPPT loss + Sungold loss ([SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md)) |
 | `sensor.site_solar_power` | **Site solar now:** T2 `solar_controller_solar` + Sungold `sungold_sph302480a_pv_power` + `max(0, ku_unmetered_pv_est_power)`. Missing addends count as 0. Night KU est. is clamped so solar is not a negative residual. Attributes `t2_w`, `sph_pv_w`, `ku_est_w`, `ku_clamped_w` ([template attributes](https://www.home-assistant.io/integrations/template/)). |
 | `sensor.site_charge_power` | **Site charge now:** into the three packs — `battery_1_charge_power` + `battery_2_charge_power` + `max(0, sungold_sph302480a_charging_power)`. Not T2 MPPT `charging_power` (that can leave T2 on the jumper). |
 | `sensor.site_solar_energy_kwh` | Riemann of `site_solar_power` ([Integral](https://www.home-assistant.io/integrations/integration/#energy), left + 5 min). **Lifetime** total; use `sensor.site_solar_today` on Site totals. |
@@ -416,9 +416,9 @@ Days before recorder existed are not in HA; VictronConnect **History** on the ch
 the last 30 daily yield bars.
 
 **18 Sep 2026 T2** (two 200 W suitcases, 400 W STC): peak **356 W**, yield today **1670 Wh**.
-Damaged suitcases (shattered cargo-trailer glass with film still sealed; PWM wing hot-spot
+Damaged suitcases (shattered cargo-trailer glass with film still sealed; historical hot-spot note
 on unfold) stay in the array -- [SOLAR_POWER_BALANCE.md](SOLAR_POWER_BALANCE.md#suitcase-panel-condition-operator-2026-09-19).
-PWM is still unmetered; do not read T2 as a PWM clamp.
+PWM retired 2026-10-02; do not read the paired 75/15 clamp as the T2 100/50.
 
 ---
 

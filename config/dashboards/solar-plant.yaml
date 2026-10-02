@@ -122,18 +122,11 @@ views:
         cards:
           - type: heading
             heading: T2 24 V
-          - type: tile
-            entity: sensor.solar_controller_solar
-            name: MPPT W
-          - type: tile
-            entity: sensor.solar_controller_charge_state
-            name: Charge
-          - type: tile
-            entity: sensor.solar_controller_charging_power
-            name: Charge W
-          - type: tile
-            entity: sensor.solar_controller_yield_today
-            name: Yield today
+          - type: markdown
+            content: >
+              **SmartSolar MPPT 100/50** (2s3p on T2) has no Home Assistant entities until its
+              VictronConnect Instant Readout advertisement key is added in
+              `override/victron_ble2mqtt/user_settings_data.py`. See [DEVICES.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DEVICES.md).
           - type: tile
             entity: sensor.battery_1_power
             name: Batt 1 W
@@ -157,6 +150,18 @@ views:
         cards:
           - type: heading
             heading: KU 24 V
+          - type: tile
+            entity: sensor.solar_controller_solar
+            name: 75/15 W
+          - type: tile
+            entity: sensor.solar_controller_charge_state
+            name: 75/15 charge
+          - type: tile
+            entity: sensor.solar_controller_charging_power
+            name: 75/15 charge W
+          - type: tile
+            entity: sensor.solar_controller_yield_today
+            name: 75/15 yield
           - type: tile
             entity: sensor.battery_2_power
             name: Batt 2 W
@@ -1244,7 +1249,7 @@ views:
             hours_to_show: 72
             entities:
               - entity: sensor.solar_controller_solar
-                name: T2 MPPT
+                name: Paired 75/15
               - entity: sensor.battery_1_power
                 name: Battery 1
               - entity: sensor.battery_2_power
@@ -1269,7 +1274,7 @@ views:
             hours_to_show: 72
             entities:
               - entity: sensor.solar_controller_charging_power
-                name: T2 charge
+                name: Paired 75/15 charge
               - entity: sensor.sungold_sph302480a_charging_power
                 name: Sungold charge
             grid_options:
@@ -1303,7 +1308,7 @@ views:
               - entity: sensor.battery_2_voltage
                 name: Battery 2
               - entity: sensor.solar_controller_battery
-                name: T2 batt
+                name: Paired 75/15 batt
               - entity: sensor.sungold_sph302480a_battery_voltage
                 name: Sungold batt
               - entity: sensor.sungold_sph302480a_pv_voltage
@@ -1328,7 +1333,7 @@ views:
               - entity: sensor.battery_2_current
                 name: Battery 2
               - entity: sensor.solar_controller_battery_charging
-                name: T2 charge
+                name: Paired 75/15 charge
               - entity: sensor.sungold_sph302480a_battery_current
                 name: Sungold batt
               - entity: sensor.sungold_sph302480a_pv_current
@@ -1397,7 +1402,7 @@ views:
       - type: grid
         cards:
           - type: heading
-            heading: BlueSolar MPPT 75/15
+            heading: Paired BlueSolar 75/15 (KU)
           - type: tile
             entity: sensor.solar_controller_battery_charging
             name:

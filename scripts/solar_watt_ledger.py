@@ -2,8 +2,10 @@
 
 Keep a copy in victron-ble2mqtt-integration/scripts/solar_watt_ledger.py.
 
-Battery charge is storage, not loss. KU Victron / PWM D/C is unmetered, so the
-combined loss total is incomplete until those strings have HA power.
+Battery charge is storage, not loss. sensor.solar_controller_* is the paired
+KU BlueSolar 75/15, not the T2 SmartSolar 100/50 (no HA entity until its
+Instant Readout key exists). The second KU 75/15 and the T2 100/50 are
+unmetered, so the combined loss total stays incomplete.
 
 Formula source: victron docs/SOLAR_POWER_BALANCE.md. SmartShunt sign:
 https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
@@ -71,10 +73,9 @@ def _va_w(v: float | None, a: float | None) -> float | None:
 
 
 _KU_UNMETERED_PV_REASON = (
-    "KU combined PV lower bound uses A3 A/C as KU Renogy DC proxy "
-    "(DC in >= AC out; no invented efficiency); each charger tile is "
-    "equal 1/3 by suitcase count (est. only; PWM likely less than MPPT); "
-    "not ha_solar_entity"
+    "Paired KU BlueSolar 75/15 is sensor.solar_controller_*. "
+    "The second KU 75/15 and the T2 SmartSolar 100/50 have no HA power. "
+    "Do not scale the paired meter by 2 or 3. PWM is removed."
 )
 
 
@@ -83,7 +84,7 @@ def ku_unmetered_pv_residual(
     jumper_w: float | None,
     ku_renogy_dc_w: float | None,
 ) -> float | None:
-    """Combined KU Victron 2+3 + PWM D/C from shunt balance.
+    """Combined unmetered KU MPPT PV from shunt balance.
 
     batt2_W ≈ KU_PV + jumper_into_KU - KU_Renogy_DC
     jumper_w is signed T2 to KU positive (solar_W - T2_Renogy - batt1_W).
@@ -103,15 +104,13 @@ def ku_unmetered_pv_residual(
     return batt2_w - jumper_w + ku_renogy_dc_w
 
 
-KU_EQUAL_SHARE_CHARGERS = 3
+KU_EQUAL_SHARE_CHARGERS = 2
 
 
 def ku_equal_share_w(combined_pv_w: float | None) -> float | None:
-    """Equal 1/3 of combined KU PV. Two MPPT + one PWM, two suitcases each.
+    """Equal 1/2 of combined KU PV lower bound across two BlueSolar 75/15 MPPT.
 
-    Not (batt2 + load) / 3 -- that drops the jumper. PWM likely harvests less
-    than MPPT (Victron 81 W vs 100 W at 25 C) but there is no site derate.
-    https://www.victronenergy.com/upload/documents/Technical-Information-Which-solar-charge-controller-PWM-or-MPPT.pdf
+    Not (batt2 + load) / 2 -- that drops the jumper. No site derate between strings.
     """
     if combined_pv_w is None:
         return None
@@ -124,7 +123,7 @@ def ku_est_amps(watts: float | None, volts: float | None) -> float | None:
     return watts / volts
 
 
-_CONVERSION_HOP_IDS = frozenset({"t2_mppt", "sungold"})
+_CONVERSION_HOP_IDS = frozenset({"ku_victron_mppt", "sungold"})
 _DC_VDROP_HOP_IDS = frozenset({"t2_mppt_vdrop", "t2_ku_jumper"})
 _AC_VDROP_HOP_IDS = frozenset({"ac_a3_uti"})
 
@@ -192,11 +191,11 @@ def _hop(
 
 def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     """Panel current/power in, then per-hop in/out. Combined loss is metered conversion only."""
-    t2_v = _first_w(states, _MPPT_V_IDS)
-    t2_a = _first_w(states, _MPPT_A_IDS)
-    t2_pv = _first_w(states, _SOLAR_IDS)
-    if t2_pv is None:
-        t2_pv = _va_w(t2_v, t2_a)
+    ku_v = _first_w(states, _MPPT_V_IDS)
+    ku_a = _first_w(states, _MPPT_A_IDS)
+    ku_pv = _first_w(states, _SOLAR_IDS)
+    if ku_pv is None:
+        ku_pv = _va_w(ku_v, ku_a)
 
     mppt_charge = _first_w(states, _CHARGE_IDS)
     mppt_load = _first_w(states, _MPPT_LOAD_IDS)
@@ -215,9 +214,9 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         if b2v is not None and b2a is not None:
             batt2 = b2v * b2a
 
+    # T2 SmartSolar 100/50 is unmetered. solar_controller is on KU, so
+    # solar_W - batt1_W is not the T2-KU jumper.
     jumper_w: float | None = None
-    if t2_pv is not None and batt1 is not None:
-        jumper_w = t2_pv - batt1
 
     jumper_flowing = jumper_w is not None and abs(jumper_w) >= 1.0
     mppt_out: float | None = None
@@ -241,8 +240,6 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     sg_grid_a = _first_w(states, _SG_GRID_A_IDS)
     sg_load = _first_w(states, _SG_LOAD_IDS)
     sg_ac_in = _va_w(sg_grid_v, sg_grid_a)
-    # Conversion uses Sungold grid V*A (0 is valid). Vent/UTI display may use AC-out
-    # when V*A is missing or ~0 so the trailer clamp is not all "vent".
     uti_hop_w = sg_ac_in
     if uti_hop_w is None or uti_hop_w < 0.5:
         if sg_load is not None and abs(sg_load) >= 0.5:
@@ -250,7 +247,6 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     trailer_w: float | None = None
     if trailer_ct_w is not None or uti_hop_w is not None:
         trailer_w = max(trailer_ct_w or 0.0, uti_hop_w or 0.0)
-    # Operator 2026-09-21: cargo vent fan and LEDs on Sungold AC out (not A3 sibling).
     vent_fan_w: float | None = 0.0
     vent_unmetered = False
 
@@ -258,16 +254,26 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     if sg_pv is None:
         sg_pv = _va_w(_first_w(states, _SG_PV_V_IDS), _first_w(states, _SG_PV_A_IDS))
     sg_batt = _first_w(states, _SG_BATT_IDS)
-    sg_batt_a = _first_w(states, ("sensor.sungold_sph302480a_battery_current",))
 
     b1v = _first_w(states, _BATT1_V_IDS)
     b2v = _first_w(states, _BATT2_V_IDS)
-    mppt_dv, mppt_vdw, mppt_vd_inc = _vdrop_fields(t2_v, b1v, t2_a)
+    mppt_dv, mppt_vdw, mppt_vd_inc = _vdrop_fields(ku_v, b2v, ku_a)
     jumper_dv, jumper_vdw, jumper_vd_inc = _vdrop_fields(b1v, b2v, None)
     ac_dv, ac_vdw, ac_vd_inc = _vdrop_fields(a3_v, sg_grid_v, a3_a if a3_a is not None else sg_grid_a)
 
     hops: list[dict[str, Any]] = []
-    hops.append(_hop("t2_mppt", "T2 MPPT", t2_pv, mppt_out, note=mppt_note, vdrop_v=mppt_dv, vdrop_loss_w=mppt_vdw, vdrop_incomplete=mppt_vd_inc, bus="dc"))
+    hops.append(
+        _hop(
+            "t2_mppt",
+            "T2 SmartSolar 100/50 (unmetered)",
+            None,
+            None,
+            unmetered=True,
+            note="2s3p on T2; no Instant Readout key in HA yet",
+            vdrop_incomplete=True,
+            bus="dc",
+        )
+    )
 
     hops.append(
         _hop(
@@ -281,11 +287,10 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     )
 
     jumper_abs = abs(jumper_w) if jumper_w is not None else None
-    jumper_note = "shunt-to-shunt leftover solar_W - batt1_W; already in batt1 and batt2"
-    if jumper_w is not None and jumper_w > 0:
-        jumper_note = "T2 to KU; " + jumper_note
-    elif jumper_w is not None and jumper_w < 0:
-        jumper_note = "KU to T2; " + jumper_note
+    jumper_note = (
+        "unknown until T2 SmartSolar 100/50 solar W is in HA; "
+        "do not use paired KU 75/15 W minus Battery 1"
+    )
     hops.append(
         _hop(
             "t2_ku_jumper",
@@ -302,12 +307,16 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
     hops.append(
         _hop(
-            "ku_victron_pwm",
-            "KU Victron + PWM D/C",
-            None,
-            None,
-            unmetered=True,
-            note=_KU_UNMETERED_PV_REASON,
+            "ku_victron_mppt",
+            "Paired KU 75/15",
+            ku_pv,
+            mppt_out,
+            unmetered=False,
+            note=mppt_note + "; " + _KU_UNMETERED_PV_REASON,
+            vdrop_v=mppt_dv,
+            vdrop_loss_w=mppt_vdw,
+            vdrop_incomplete=mppt_vd_inc,
+            bus="dc",
         )
     )
 
@@ -358,25 +367,13 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         sg_in = sg_ac_in + (sg_pv or 0.0)
         if sg_batt is not None or sg_load is not None:
             sg_out = (sg_batt or 0.0) + (sg_load or 0.0)
-    sg_batt_note = "Sungold A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3"
-    if (
-        sg_grid_v is not None
-        and sg_grid_v > 50
-        and sg_batt_a is not None
-        and abs(sg_batt_a) < 0.5
-        and (sg_batt is None or abs(sg_batt) < 5)
-        and abs(sg_batt_a) > 0.01
-    ):
-        sg_batt_note += (
-            "; cart ~0.1 A in UTI is inverter DC standby/tare, not battery supplying A/C out"
-        )
     hops.append(
         _hop(
             "sungold",
             "Sungold",
             sg_in,
             sg_out,
-            note=sg_batt_note,
+            note="Sungold A/C INPUT (V*A) + PV minus (battery input + A/C out); not A3",
         )
     )
     hops.append(
@@ -399,7 +396,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             sg_load,
             sg_load,
             unmetered=True,
-            note="always-on Victron BLE radio; no HA watt entity; not a dump socket",
+            note="always-on Victron BLE radio; no HA watt entity; not a sim dump plug",
         )
     )
 
@@ -431,7 +428,7 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             vdrop_incomplete = True
 
     path_total = combined + vdrop_w
-    panel_parts = [p for p in (t2_pv, sg_pv) if p is not None]
+    panel_parts = [p for p in (ku_pv, sg_pv) if p is not None]
     panel_in = sum(panel_parts) if panel_parts else None
     ku_pv = ku_unmetered_pv_residual(batt2, jumper_w, trailer_w)
     ku_share = ku_equal_share_w(ku_pv)
@@ -466,7 +463,7 @@ def apply_ledger_to_meta(
     states: dict[str, dict[str, Any]],
     surplus: float | None,
 ) -> float | None:
-    """Copy hop ledger onto dump-tick meta. Returns surplus minus combined path losses (conversion + vdrop)."""
+    """Copy hop ledger onto dump-tick meta. Returns surplus minus combined conversion losses."""
     ledger = build_watt_ledger(states)
     meta["watt_hops"] = ledger["watt_hops"]
     meta["combined_losses_w"] = ledger["combined_losses_w"]

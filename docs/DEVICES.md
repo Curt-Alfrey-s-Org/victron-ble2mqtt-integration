@@ -78,6 +78,16 @@ Panel voltage on a cable is VE.Direct TEXT `VPV` (mV)
 ([protocol 3.34](https://www.victronenergy.com/upload/documents/VE.Direct-Protocol-3.34.pdf)).
 This site's BLE dongle sits on that VE.Direct port; do **not** unplug it for USB
 `VPV` or Instant Readout stops.
+### Pending Instant Readout keys (operator 2026-10-02)
+
+Add only from VictronConnect **Product info** -> **Instant Readout details** ([official steps](https://www.victronenergy.com/media/pg/VictronConnect_app/en/stored-trends---instant-readout.html)). Do **not** commit placeholder MACs or keys.
+
+| Charger | Bus | Status |
+|---------|-----|--------|
+| SmartSolar MPPT **100/50** | T2 (HQ2239CQYT2) | Not in `user_settings_data.py` / HA |
+| BlueSolar MPPT **75/15** (second) | KU (HQ2239JTRKU) | Not in MQTT yet |
+| Paired BlueSolar **75/15** rev3 | KU | Live as `Solar-controller` / `sensor.solar_controller_*` |
+
 
 | Instant Readout field | HA MQTT name | Solar dashboard (this site) |
 |-----------------------|--------------|-----------------------------|

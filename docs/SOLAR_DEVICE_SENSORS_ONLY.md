@@ -20,7 +20,7 @@
 
 | Question | Read this entity (device) |
 |----------|---------------------------|
-| T2 solar W | `sensor.solar_controller_solar` |
+| Paired KU 75/15 solar W | `sensor.solar_controller_solar` (not T2 100/50) |
 | T2 pack W | `sensor.battery_1_power` (sign = shunt) |
 | KU pack W | `sensor.battery_2_power` |
 | Sungold PV | `sensor.sungold_sph302480a_pv_power` |
@@ -48,7 +48,7 @@ in **Settings > Devices & services > Entities** if needed.
 
 ## Node-RED computed meters (not in HA)
 
-Derived tiles (KU PWM+MPPT est, jumper, equal share, EM16 A3 live) live in **Node-RED** only:
+Derived tiles (legacy KU est / equal-share retired 2026-10-02; jumper, EM16 A3 live; per-panel est waits on new BLE keys) live in **Node-RED** only:
 `http://192.168.0.105:1880/solar/computed` (see `docs/SOLAR_HA_NODERED_SPLIT.md`).
 
 HA keeps `solar_em16_live.yaml` so Site solar EM16 tiles go **Unavailable** when the AC path is dead (not frozen watts).
