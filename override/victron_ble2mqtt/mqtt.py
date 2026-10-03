@@ -564,13 +564,15 @@ class SolarChargerHandler(BaseHandler):
         )
         extra.append(self.charging_power.publish(self.mqtt_client))
 
-        self.load_power.set_state(
-            self._apply_precision(
-                self.load_power,
-                data_dict["battery_voltage"] * data_dict["external_device_load"],
+        # SmartSolar 100/50 ads omit load output. 75/15 includes it.
+        # Missing key must not drop solar/battery publishes.
+        load_a = data_dict.get("external_device_load")
+        batt_v = data_dict.get("battery_voltage")
+        if load_a is not None and batt_v is not None:
+            self.load_power.set_state(
+                self._apply_precision(self.load_power, batt_v * load_a)
             )
-        )
-        extra.append(self.load_power.publish(self.mqtt_client))
+            extra.append(self.load_power.publish(self.mqtt_client))
 
         return _mqtt_publish_results_ok(*extra)
 

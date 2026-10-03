@@ -13,6 +13,7 @@ Examples (in your env files):
 
   ADVKEY_BATTERY_1=<32-hex>
   ADVKEY_SOLAR_CONTROLLER=<32-hex>
+  ADVKEY_SMARTSOLAR_100_50=<32-hex>
   ADVKEY_BATTERY_2=<32-hex>
 """
 
@@ -49,6 +50,11 @@ devices = [
         "mac": "d7:69:eb:1f:f8:3d",
         "type": "BlueSolar",
         "name": "Solar-controller",
+    },
+    {
+        "mac": "e2:ed:d5:67:be:b0",
+        "type": "SolarCharger",
+        "name": "SmartSolar 100/50",
     },
     {
         "mac": "cb:0d:c2:0a:ae:0f",

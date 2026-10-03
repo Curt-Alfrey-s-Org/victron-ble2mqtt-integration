@@ -84,7 +84,7 @@ Add only from VictronConnect **Product info** -> **Instant Readout details** ([o
 
 | Charger | Bus | Status |
 |---------|-----|--------|
-| SmartSolar MPPT **100/50** | T2 (HQ2239CQYT2) | Not in `user_settings_data.py` / HA |
+| SmartSolar MPPT **100/50** | T2 (HQ2239CQYT2) | Live. MAC `e2:ed:d5:67:be:b0`. HA `sensor.smartsolar_100_50_*` on Site solar T2. |
 | BlueSolar MPPT **75/15** (second) | KU (HQ2239JTRKU) | Not in MQTT yet |
 | Paired BlueSolar **75/15** rev3 | KU | Live as `Solar-controller` / `sensor.solar_controller_*` |
 

@@ -768,16 +768,93 @@ template:
         unit_of_measurement: W
         device_class: power
         state_class: measurement
-        # Briefing only. H5082 reports no watts, so this is T2 MPPT PV watts; dump
-        # load already shows in the Sungold / pack meters. Its derivative is PV falling.
+        # Briefing only. Sum of live PV: T2 SmartSolar 100/50 + KU paired 75/15 + Sungold PV.
+        # Derivative is site PV falling. Not a single mislabeled charger.
         state: >
-          {% set solar_live = states('sensor.solar_controller_solar') %}
-          {% set solar_canon = states('sensor.solar_controller_solar_power') %}
-          {% set solar = solar_live if is_number(solar_live) else solar_canon %}
-          {% if not is_number(solar) %}
+          {% set t2 = states('sensor.smartsolar_100_50_solar_power') %}
+          {% set ku_live = states('sensor.solar_controller_solar') %}
+          {% set ku_canon = states('sensor.solar_controller_solar_power') %}
+          {% set ku = ku_live if is_number(ku_live) else ku_canon %}
+          {% set sg = states('sensor.sungold_sph302480a_pv_power') %}
+          {% set ns = namespace(total=0, n=0) %}
+          {% if is_number(t2) %}{% set ns.total = ns.total + (t2 | float) %}{% set ns.n = ns.n + 1 %}{% endif %}
+          {% if is_number(ku) %}{% set ns.total = ns.total + (ku | float) %}{% set ns.n = ns.n + 1 %}{% endif %}
+          {% if is_number(sg) %}{% set ns.total = ns.total + (sg | float) %}{% set ns.n = ns.n + 1 %}{% endif %}
+          {% if ns.n == 0 %}
             {{ none }}
           {% else %}
-            {{ solar | float(0) }}
+            {{ ns.total }}
+          {% endif %}
+      - name: T2-KU jumper
+        unique_id: t2_ku_jumper_w
+        default_entity_id: sensor.t2_ku_jumper_w
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set b = states('sensor.battery_1_power') %}
+          {% set c = states('sensor.smartsolar_100_50_battery_power') %}
+          {% if is_number(b) and is_number(c) %}
+            {{ (b | float) - (c | float) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: T2-KU jumper amps
+        unique_id: t2_ku_jumper_a
+        default_entity_id: sensor.t2_ku_jumper_a
+        unit_of_measurement: A
+        device_class: current
+        state_class: measurement
+        state: >
+          {% set b = states('sensor.battery_1_current') %}
+          {% set c = states('sensor.smartsolar_100_50_battery_current') %}
+          {% if is_number(b) and is_number(c) %}
+            {{ (b | float) - (c | float) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Silent KU 75/15
+        unique_id: ku_silent_mppt_w
+        default_entity_id: sensor.ku_silent_mppt_w
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set b2 = states('sensor.battery_2_power') %}
+          {% set paired = states('sensor.solar_controller_charging_power') %}
+          {% set jump = states('sensor.t2_ku_jumper_w') %}
+          {% if is_number(b2) and is_number(paired) and is_number(jump) %}
+            {{ (b2 | float) - (paired | float) + (jump | float) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Silent KU 75/15 amps
+        unique_id: ku_silent_mppt_a
+        default_entity_id: sensor.ku_silent_mppt_a
+        unit_of_measurement: A
+        device_class: current
+        state_class: measurement
+        state: >
+          {% set b2 = states('sensor.battery_2_current') %}
+          {% set paired = states('sensor.solar_controller_battery_charging') %}
+          {% set jump = states('sensor.t2_ku_jumper_a') %}
+          {% if is_number(b2) and is_number(paired) and is_number(jump) %}
+            {{ (b2 | float) - (paired | float) + (jump | float) }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+      - name: Silent KU 75/15 size check
+        unique_id: ku_silent_mppt_third_w
+        default_entity_id: sensor.ku_silent_mppt_third_w
+        unit_of_measurement: W
+        device_class: power
+        state_class: measurement
+        state: >
+          {% set pv = states('sensor.smartsolar_100_50_solar_power') %}
+          {% if is_number(pv) %}
+            {{ (pv | float) / 3 }}
+          {% else %}
+            {{ none }}
           {% endif %}
       - name: Dump bus load T2
         unique_id: dump_bus_load_t2
@@ -847,8 +924,36 @@ template:
             'KU': is_state('binary_sensor.dump_v_rebulk_ku', 'on'),
             'Sungold': is_state('binary_sensor.dump_v_rebulk_sph', 'on'),
           } %}
+          {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
+          {% set t2pv = states('sensor.smartsolar_100_50_solar_power') %}
+          {% set ku_live = states('sensor.solar_controller_solar') %}
+          {% set ku_canon = states('sensor.solar_controller_solar_power') %}
+          {% set kupv = ku_live if is_number(ku_live) else ku_canon %}
+          {% set sgpv = states('sensor.sungold_sph302480a_pv_power') %}
+          {% set pv_ok = {
+            'T2': is_number(t2pv) and (t2pv | float) >= minw,
+            'KU': is_number(kupv) and (kupv | float) >= minw,
+            'Sungold': is_number(sgpv) and (sgpv | float) >= minw,
+          } %}
+          {% set t2st = states('sensor.smartsolar_100_50_battery_state') | lower %}
+          {% set kua = states('sensor.solar_controller_charge_state') | lower %}
+          {% set kub = states('sensor.solar_controller_battery_state') | lower %}
+          {% set charging = ['bulk', 'absorption', 'float'] %}
+          {% set stage_ok = {
+            'T2': t2st in charging,
+            'KU': kua in charging or kub in charging,
+            'Sungold': true,
+          } %}
+          {% set soc_min = states('input_number.dump_min_soc_percent') | float(90) %}
+          {% set soc_skip = is_state('input_boolean.dump_soc_unsynced', 'on') %}
+          {% set t2soc = states('sensor.battery_1_state_of_charge') %}
+          {% set kusoc = states('sensor.battery_2_state_of_charge') %}
+          {% set soc_bus = {
+            'T2': soc_skip or (is_number(t2soc) and (t2soc | float) >= soc_min),
+            'KU': soc_skip or (is_number(kusoc) and (kusoc | float) >= soc_min),
+            'Sungold': true,
+          } %}
           {% if not is_state('binary_sensor.dump_solar_present', 'on')
-             or not is_state('binary_sensor.dump_charge_float', 'on')
              or not is_state('binary_sensor.dump_soc_ok', 'on') %}
             none
           {% else %}
@@ -862,6 +967,8 @@ template:
                  and (is_state('timer.h5082_' ~ s ~ '_cooldown', 'idle') or is_state('input_boolean.dump_skip_cooldown', 'on'))
                  and not (bus == 'Sungold' and is_state('binary_sensor.dump_sph_vguard', 'on'))
                  and batt.get(bus, False)
+                 and pv_ok.get(bus, False) and stage_ok.get(bus, False)
+                 and soc_bus.get(bus, False)
                  and vfloat.get(bus, False) and not vrebulk.get(bus, False)
                  and head.get(bus, -1) > 0 %}
                 {% set pick.eid = eid %}
@@ -1050,9 +1157,11 @@ template:
         unique_id: dump_charge_ok
         default_entity_id: binary_sensor.dump_charge_ok
         state: >
+          {% set t2 = states('sensor.smartsolar_100_50_battery_state') | lower %}
           {% set a = states('sensor.solar_controller_charge_state') | lower %}
           {% set b = states('sensor.solar_controller_battery_state') | lower %}
-          {{ a in ['absorption', 'float'] or b in ['absorption', 'float'] }}
+          {% set charging = ['bulk', 'absorption', 'float'] %}
+          {{ t2 in charging or a in charging or b in charging }}
       - name: Dump batt T2 ok
         unique_id: dump_batt_t2_ok
         default_entity_id: binary_sensor.dump_batt_t2_ok
@@ -1086,6 +1195,21 @@ template:
         unique_id: dump_charge_float
         default_entity_id: binary_sensor.dump_charge_float
         state: >
+          {% set t2 = states('sensor.smartsolar_100_50_battery_state') | lower %}
+          {% set a = states('sensor.solar_controller_charge_state') | lower %}
+          {% set b = states('sensor.solar_controller_battery_state') | lower %}
+          {% set charging = ['bulk', 'absorption', 'float'] %}
+          {{ t2 in charging or a in charging or b in charging
+             or is_state('binary_sensor.dump_v_float_sph', 'on') }}
+      - name: Dump T2 charger float
+        unique_id: dump_t2_charger_float
+        default_entity_id: binary_sensor.dump_t2_charger_float
+        state: >
+          {{ states('sensor.smartsolar_100_50_battery_state') | lower == 'float' }}
+      - name: Dump KU charger float
+        unique_id: dump_ku_charger_float
+        default_entity_id: binary_sensor.dump_ku_charger_float
+        state: >
           {% set a = states('sensor.solar_controller_charge_state') | lower %}
           {% set b = states('sensor.solar_controller_battery_state') | lower %}
           {{ a == 'float' or b == 'float' }}
@@ -1093,19 +1217,25 @@ template:
         unique_id: dump_solar_present
         default_entity_id: binary_sensor.dump_solar_present
         state: >
-          {% set s = states('sensor.solar_controller_solar') %}
-          {% set s2 = states('sensor.solar_controller_solar_power') %}
-          {% set pv = s if is_number(s) else s2 %}
           {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
-          {{ is_number(pv) and (pv | float) >= minw }}
+          {% set t2 = states('sensor.smartsolar_100_50_solar_power') %}
+          {% set ku_live = states('sensor.solar_controller_solar') %}
+          {% set ku_canon = states('sensor.solar_controller_solar_power') %}
+          {% set ku = ku_live if is_number(ku_live) else ku_canon %}
+          {% set sg = states('sensor.sungold_sph302480a_pv_power') %}
+          {{ (is_number(t2) and (t2 | float) >= minw)
+             or (is_number(ku) and (ku | float) >= minw)
+             or (is_number(sg) and (sg | float) >= minw) }}
       - name: Dump load exceeds solar
         unique_id: dump_load_exceeds_solar
         default_entity_id: binary_sensor.dump_load_exceeds_solar
         device_class: problem
         state: >
-          {% set t2 = states('sensor.solar_controller_solar') %}
+          {% set ku_live = states('sensor.solar_controller_solar') %}
+          {% set ku_canon = states('sensor.solar_controller_solar_power') %}
+          {% set ku = ku_live if is_number(ku_live) else ku_canon %}
           {% set pv = states('sensor.sungold_sph302480a_pv_power') %}
-          {% set solar = ((t2 | float(0)) if is_number(t2) else 0) + ((pv | float(0)) if is_number(pv) else 0) %}
+          {% set solar = ((ku | float(0)) if is_number(ku) else 0) + ((pv | float(0)) if is_number(pv) else 0) %}
           {% set load = states('sensor.sungold_sph302480a_load_power') %}
           {% set minw = states('input_number.dump_min_solar_w') | float(50) %}
           {{ is_number(solar) and is_number(load)
@@ -1118,9 +1248,10 @@ template:
           {% if is_state('input_boolean.dump_soc_unsynced', 'on') %}
             {{ true }}
           {% else %}
-            {% set s = states('sensor.battery_1_state_of_charge') %}
-            {% set m = states('input_number.dump_min_soc_percent') | float(95) %}
-            {{ is_number(s) and (s | float) >= m }}
+            {% set m = states('input_number.dump_min_soc_percent') | float(90) %}
+            {% set t2 = states('sensor.battery_1_state_of_charge') %}
+            {% set ku = states('sensor.battery_2_state_of_charge') %}
+            {{ (is_number(t2) and (t2 | float) >= m) or (is_number(ku) and (ku | float) >= m) }}
           {% endif %}
       - name: Dump T2 float hold
         unique_id: dump_v_float_t2
@@ -1458,8 +1589,9 @@ automation dump_load:
   - id: dump_turn_on
     alias: "Dump ON: add dump sockets while the charger is in float"
     description: >
-      Adds one dump socket at a time. Starts when the T2 MPPT has been in float for
-      1 min and T2 PV has been at or above "Dump min solar" for 1 min, the master
+      Adds one dump socket at a time. Starts when a Victron is in float or Sungold is at
+      start volts for 1 min, and T2 100/50, KU 75/15, or Sungold PV has been at or
+      above "Dump min solar" for 1 min, the master
       switch is on, SoC is ok (or ignored), PV is not falling and Sungold load is not
       above solar. sensor.dump_next_plug picks the first OFF dump socket (Use dump,
       Inverter not House) whose cooldown is idle, whose bus is at or above its start
@@ -1726,7 +1858,7 @@ automation dump_load:
                 name: Dump control
                 entity_id: "switch.ihoment_h5082_{{ repeat.item }}"
                 message: >-
-                  {{ label }}: turned OFF by "Dump OFF all: solar gone for 1 minute": T2 PV {{ states('sensor.solar_controller_solar') }} W below Dump min solar {{ states('input_number.dump_min_solar_w') }} W for 1 min. Cooldown 10 min.
+                  {{ label }}: turned OFF by "Dump OFF all: solar gone for 1 minute": site PV below Dump min solar {{ states('input_number.dump_min_solar_w') }} W for 1 min. Cooldown 10 min.
 
   - id: dump_turn_off_bulk
     alias: "Dump SHED one per minute: T2 charger left absorption/float"
@@ -1830,7 +1962,7 @@ automation dump_load:
                 name: Dump control
                 entity_id: "{{ target }}"
                 message: >-
-                  {{ label }}: turned OFF by "Dump SHED one per minute: Sungold load above solar": Sungold load {{ states('sensor.sungold_sph302480a_load_power') }} W is above T2 PV {{ states('sensor.solar_controller_solar') }} W + Sungold PV {{ states('sensor.sungold_sph302480a_pv_power') }} W. Next shed in 1 min if still true.
+                  {{ label }}: turned OFF by "Dump SHED one per minute: Sungold load above solar": Sungold load {{ states('sensor.sungold_sph302480a_load_power') }} W is above KU 75/15 PV {{ states('sensor.solar_controller_solar') }} W + Sungold PV {{ states('sensor.sungold_sph302480a_pv_power') }} W. Next shed in 1 min if still true.
             - delay: "00:01:00"
 
   - id: dump_notify_load_exceeds_solar

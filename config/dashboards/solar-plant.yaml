@@ -122,11 +122,24 @@ views:
         cards:
           - type: heading
             heading: T2 24 V
-          - type: markdown
-            content: >
-              **SmartSolar MPPT 100/50** (2s3p on T2) has no Home Assistant entities until its
-              VictronConnect Instant Readout advertisement key is added in
-              `override/victron_ble2mqtt/user_settings_data.py`. See [DEVICES.md](https://github.com/Curt-Alfrey-s-Org/victron-ble2mqtt-integration/blob/main/docs/DEVICES.md).
+          - type: tile
+            entity: sensor.smartsolar_100_50_solar_power
+            name: 100/50 W
+          - type: tile
+            entity: sensor.smartsolar_100_50_battery_state
+            name: 100/50 charge
+          - type: tile
+            entity: sensor.smartsolar_100_50_battery_power
+            name: 100/50 charge W
+          - type: tile
+            entity: sensor.smartsolar_100_50_solar_yield
+            name: 100/50 yield
+          - type: tile
+            entity: sensor.smartsolar_100_50_battery_voltage
+            name: 100/50 V
+          - type: tile
+            entity: sensor.smartsolar_100_50_battery_current
+            name: 100/50 A
           - type: tile
             entity: sensor.battery_1_power
             name: Batt 1 W
@@ -311,13 +324,25 @@ views:
               - type: section
                 label: Whole site (all must be on to add)
               - entity: binary_sensor.dump_charge_float
-                name: T2 charger in float
+                name: A charger is in bulk, absorption, or float
               - entity: binary_sensor.dump_solar_present
-                name: Solar present (T2 PV at/above min solar)
+                name: Solar present (T2, KU, or Sungold PV)
               - entity: binary_sensor.dump_soc_ok
-                name: SoC ok (or ignored)
-              - entity: sensor.solar_controller_solar
+                name: T2 or KU SoC ok (or ignored)
+              - entity: sensor.smartsolar_100_50_solar_power
                 name: T2 PV now
+              - entity: sensor.solar_controller_solar
+                name: KU PV now
+              - entity: sensor.t2_ku_jumper_w
+                name: Jumper W (+ into T2)
+              - entity: sensor.t2_ku_jumper_a
+                name: Jumper A (+ into T2)
+              - entity: sensor.ku_silent_mppt_w
+                name: Silent 75/15 W
+              - entity: sensor.ku_silent_mppt_a
+                name: Silent 75/15 A
+              - entity: sensor.ku_silent_mppt_third_w
+                name: Silent 75/15 size check (1/3 T2 PV)
               - type: section
                 label: Blockers (on = stops adding / sheds)
               - entity: binary_sensor.dump_pv_falling
@@ -327,9 +352,11 @@ views:
               - entity: binary_sensor.dump_sph_vguard
                 name: Sungold voltage guard (blocks adding on Sungold)
               - entity: binary_sensor.dump_charge_ok
-                name: T2 absorption or float (off = sheds)
+                name: A Victron is in absorption or float (off = sheds)
               - type: section
                 label: T2 bus
+              - entity: binary_sensor.dump_t2_charger_float
+                name: T2 100/50 in float
               - entity: binary_sensor.dump_v_float_t2
                 name: T2 at/above start volts
               - entity: binary_sensor.dump_v_rebulk_t2
@@ -338,6 +365,8 @@ views:
                 name: T2 battery within discharge limit
               - type: section
                 label: KU bus
+              - entity: binary_sensor.dump_ku_charger_float
+                name: KU 75/15 in float
               - entity: binary_sensor.dump_v_float_ku
                 name: KU at/above start volts
               - entity: binary_sensor.dump_v_rebulk_ku
@@ -1248,6 +1277,8 @@ views:
             title: Watts
             hours_to_show: 72
             entities:
+              - entity: sensor.smartsolar_100_50_solar_power
+                name: 100/50
               - entity: sensor.solar_controller_solar
                 name: Paired 75/15
               - entity: sensor.battery_1_power
@@ -1273,6 +1304,8 @@ views:
             title: Watts (chargers)
             hours_to_show: 72
             entities:
+              - entity: sensor.smartsolar_100_50_battery_power
+                name: 100/50 charge
               - entity: sensor.solar_controller_charging_power
                 name: Paired 75/15 charge
               - entity: sensor.sungold_sph302480a_charging_power
@@ -1303,6 +1336,8 @@ views:
             title: Volts
             hours_to_show: 72
             entities:
+              - entity: sensor.smartsolar_100_50_battery_voltage
+                name: 100/50
               - entity: sensor.battery_1_voltage
                 name: Battery 1
               - entity: sensor.battery_2_voltage
@@ -1328,6 +1363,8 @@ views:
             title: Amps
             hours_to_show: 72
             entities:
+              - entity: sensor.smartsolar_100_50_battery_current
+                name: 100/50
               - entity: sensor.battery_1_current
                 name: Battery 1
               - entity: sensor.battery_2_current
@@ -1399,6 +1436,13 @@ views:
           - type: markdown
             content: Cards from the old **Solar** tab that Site solar did not have yet (added by `scripts/compare_solar_tab.py`).
               Move or delete them freely.
+      - type: grid
+        cards:
+          - type: heading
+            heading: SmartSolar MPPT 100/50
+          - type: tile
+            entity: sensor.smartsolar_100_50_rssi
+            name: 100/50 RSSI
       - type: grid
         cards:
           - type: heading

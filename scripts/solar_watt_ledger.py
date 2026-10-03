@@ -20,6 +20,9 @@ _SOLAR_IDS = (
     "sensor.solar_controller_solar_power",
     "sensor.solar_controller_solar",
 )
+_T2_PV_IDS = ("sensor.smartsolar_100_50_solar_power",)
+_T2_BATT_W_IDS = ("sensor.smartsolar_100_50_battery_power",)
+_T2_BATT_A_IDS = ("sensor.smartsolar_100_50_battery_current",)
 _CHARGE_IDS = ("sensor.solar_controller_charging_power",)
 _MPPT_LOAD_IDS = ("sensor.solar_controller_load_power",)
 _MPPT_V_IDS = ("sensor.solar_controller_battery",)
@@ -214,9 +217,30 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         if b2v is not None and b2a is not None:
             batt2 = b2v * b2a
 
-    # Jumper cable is installed: T2 shunt inverter side to KU shunt inverter side.
-    # solar_controller is the paired KU 75/15, so solar_W - batt1_W is not that cable.
+    # SmartShunt power is +charge into that battery.
+    # https://www.victronenergy.com/media/pg/SmartShunt/en/operation.html
+    # T2 has one metered charger (SmartSolar 100/50). Extra battery watts are the jumper.
+    # +jumper_w = watts into T2 from KU. The silent KU 75/15 is the KU shunt
+    # leftover after the paired 75/15 and the jumper leaving KU.
+    t2_pv = _first_w(states, _T2_PV_IDS)
+    t2_batt_w = _first_w(states, _T2_BATT_W_IDS)
+    t2_batt_a = _first_w(states, _T2_BATT_A_IDS)
+    b1_a = _first_w(states, _BATT1_A_IDS)
+    b2_a = _first_w(states, _BATT2_A_IDS)
     jumper_w: float | None = None
+    jumper_a: float | None = None
+    if batt1 is not None and t2_batt_w is not None:
+        jumper_w = batt1 - t2_batt_w
+    if b1_a is not None and t2_batt_a is not None:
+        jumper_a = b1_a - t2_batt_a
+    silent_w: float | None = None
+    silent_a: float | None = None
+    if batt2 is not None and mppt_charge is not None and jumper_w is not None:
+        silent_w = batt2 - mppt_charge + jumper_w
+    ku_charge_a = _first_w(states, _MPPT_A_IDS)
+    if b2_a is not None and ku_charge_a is not None and jumper_a is not None:
+        silent_a = b2_a - ku_charge_a + jumper_a
+    silent_third_w = None if t2_pv is None else t2_pv / 3.0
 
     jumper_flowing = jumper_w is not None and abs(jumper_w) >= 1.0
     mppt_out: float | None = None
@@ -262,18 +286,30 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     ac_dv, ac_vdw, ac_vd_inc = _vdrop_fields(a3_v, sg_grid_v, a3_a if a3_a is not None else sg_grid_a)
 
     hops: list[dict[str, Any]] = []
-    hops.append(
-        _hop(
-            "t2_mppt",
-            "T2 SmartSolar 100/50 (unmetered)",
-            None,
-            None,
-            unmetered=True,
-            note="2s3p on T2; no Instant Readout key in HA yet",
-            vdrop_incomplete=True,
-            bus="dc",
+    if t2_pv is not None or t2_batt_w is not None:
+        hops.append(
+            _hop(
+                "t2_mppt",
+                "T2 SmartSolar 100/50",
+                t2_pv,
+                t2_batt_w,
+                note="metered Instant Readout; 2s3p on T2",
+                bus="dc",
+            )
         )
-    )
+    else:
+        hops.append(
+            _hop(
+                "t2_mppt",
+                "T2 SmartSolar 100/50 (unmetered)",
+                None,
+                None,
+                unmetered=True,
+                note="no smartsolar_100_50 sample in this state set",
+                vdrop_incomplete=True,
+                bus="dc",
+            )
+        )
 
     hops.append(
         _hop(
@@ -287,10 +323,17 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
     )
 
     jumper_abs = abs(jumper_w) if jumper_w is not None else None
-    jumper_note = (
-        "installed from the T2 shunt inverter side to the KU shunt inverter side; "
-        "no clamp on that cable. Do not use paired KU 75/15 W minus Battery 1"
-    )
+    if jumper_w is None:
+        jumper_note = (
+            "needs Battery 1 power and SmartSolar battery power; "
+            "do not use the KU 75/15 minus Battery 1"
+        )
+    elif jumper_w > 0:
+        jumper_note = "+ into T2 from KU (Battery 1 W minus SmartSolar battery W)"
+    elif jumper_w < 0:
+        jumper_note = "+ into KU from T2 (Battery 1 W minus SmartSolar battery W is negative)"
+    else:
+        jumper_note = "jumper balance is about zero"
     hops.append(
         _hop(
             "t2_ku_jumper",
@@ -428,10 +471,15 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
             vdrop_incomplete = True
 
     path_total = combined + vdrop_w
-    panel_parts = [p for p in (ku_pv, sg_pv) if p is not None]
+    panel_parts = [p for p in (t2_pv, ku_pv, sg_pv) if p is not None]
     panel_in = sum(panel_parts) if panel_parts else None
-    ku_pv = ku_unmetered_pv_residual(batt2, jumper_w, trailer_w)
-    ku_share = ku_equal_share_w(ku_pv)
+    if silent_w is not None:
+        ku_unmetered = silent_w
+        ku_kind = "shunt_balance"
+    else:
+        ku_unmetered = ku_unmetered_pv_residual(batt2, jumper_w, trailer_w)
+        ku_kind = "ac_lower_bound" if trailer_w is not None and ku_unmetered is not None else None
+    ku_share = ku_equal_share_w(ku_unmetered)
 
     return {
         "watt_hops": hops,
@@ -444,15 +492,17 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "combined_vdrop_incomplete": vdrop_incomplete,
         "panel_in_w": panel_in,
         "jumper_w": jumper_w,
+        "jumper_a": jumper_a,
+        "ku_silent_mppt_w": silent_w,
+        "ku_silent_mppt_a": silent_a,
+        "ku_silent_mppt_third_w": silent_third_w,
         "trailer_outlet_w": trailer_w,
         "sungold_ac_in_w": sg_ac_in,
         "uti_hop_w": uti_hop_w,
         "vent_fan_w": vent_fan_w,
         "ku_renogy_ac_est_w": trailer_w,
-        "ku_unmetered_pv_est_w": ku_pv,
-        "ku_unmetered_pv_est_kind": (
-            "ac_lower_bound" if trailer_w is not None else None
-        ),
+        "ku_unmetered_pv_est_w": ku_unmetered,
+        "ku_unmetered_pv_est_kind": ku_kind,
         "ku_charger_equal_share_w": ku_share,
         "ku_charger_equal_share_a": ku_est_amps(ku_share, b2v),
     }

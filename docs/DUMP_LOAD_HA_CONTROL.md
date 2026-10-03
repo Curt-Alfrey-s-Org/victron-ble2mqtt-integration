@@ -61,7 +61,7 @@ survive restarts and Ask ALFa may tune them.
 |-----|--------|
 | Kill switch | HA `input_boolean.dump_control_enabled` |
 | `switch.turn_on` / `turn_off` | HA automations only |
-| **When** dump may start | HA: T2 MPPT **float** for 1 min **and** that bus's shunt/cart voltage **>= float helper** for 1 min **and** solar present. **Not** bulk. **Not** surplus watts. |
+| **When** dump may start | HA: that bus charger in **bulk, absorption, or float** for 1 min, bus voltage **>= start-volt helper**, that bus PV >= min solar, and that bus SoC >= min (or SoC ignored). Extra load holds the Victron out of an early absorption finish. HA does not write the MPPT. |
 | **Which** sockets | A socket on [manual hold](site-solar/dump-hold.md) (switched by hand) is never turned on by these automations and is turned off only if **Hold also blocks turn-offs** is off. Only sockets whose `input_select.h5082_<id>_<side>_use` is **dump** (Site solar **Use**; default **normal**). A normal socket is never switched by these automations. A socket whose `input_select.h5082_<id>_<side>_inverter` is **House** (plug on house grid power) is never switched either, even if its Use is dump. All 16 sockets (8 plugs) are in the list. What is plugged into a socket is only its HA **Load** text, never hard-coded. |
 | **How many** plugs (claim leftover PV) | HA staged ON: one socket, **site load delta** after `dump_site_confirm_s` (default 5 s), then another while that bus stays above re-bulk, batt ok, inverter headroom, and that plug's cooldown is idle |
 | **When** dump must stop (keep 95%+ after PV) | HA: solar gone 1 min (cancels min-on); bus voltage **<= re-bulk helper** 1 min; pack discharging `dump_batt_t2_ok` / `_ku_ok` / `_sph_ok` off 1 min; **Sungold Load now > Solar now** 1 min sheds **one** dump plug per minute (`sensor.dump_shed_plug`); T2 MPPT not absorb/float 1 min sheds **one** plug per minute (not all at once) |
@@ -131,7 +131,7 @@ trigger (float throttles PV watts to the load).
 
 **Float:** MPPT **holds** Vfloat (~27.0-27.4 V on this plant). HA may add dumps:
 
-1. `binary_sensor.dump_charge_float` on for 1 min (T2 MPPT `float`).
+1. `binary_sensor.dump_charge_float` on for 1 min (a Victron in bulk, absorption, or float, or Sungold at start volts).
 2. `binary_sensor.dump_solar_present` on (PV >= `dump_min_solar_w`).
 3. That plug's bus `dump_v_float_*` on for 1 min (shunt/cart V >= float helper).
 4. `dump_soc_unsynced` off **and** SoC < `dump_min_soc_percent` (95) blocks T2/KU add.
