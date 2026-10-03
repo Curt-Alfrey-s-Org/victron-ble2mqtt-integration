@@ -17,7 +17,7 @@ SEED = ROOT / "config" / "dashboards" / "solar-plant.yaml"
 FIXTURE = ROOT / "tests" / "fixtures" / "solar_tab_export_trimmed.json"
 # The 9 cards added from the real 2026-09-29 Solar tab export (see SOLAR_TAB_MERGE_PLAN.md).
 ADDED_FROM_REAL_EXPORT = {
-    "BlueSolar MPPT 75/15": [
+    "Paired BlueSolar 75/15 (KU)": [
         "sensor.solar_controller_battery_charging",
         "sensor.solar_controller_battery",
         "sensor.solar_controller_load",
@@ -44,7 +44,7 @@ def _load(name: str):
 cmp = _load("compare_solar_tab")
 settings = _load("site_solar_settings")
 
-LIVE_TILE = "sensor.solar_controller_charge_state"  # tile on Now > T2 24 V
+LIVE_TILE = "sensor.solar_controller_charge_state"  # tile on Now > KU 24 V
 HISTORY_ONLY = "sensor.solar_controller_battery"  # only in a History graph
 NEW_A = "sensor.solar_controller_device_rssi"  # not on Site solar
 NEW_B = "sensor.battery_1_consumed_ah_example"
@@ -113,7 +113,7 @@ def test_cards_are_compared_by_entities():
     assert rows[("sensor.battery_1_state_of_charge",)].status == "on-site-solar"  # Now badge
     live = rows[(LIVE_TILE,)]
     assert live.status == "on-site-solar"
-    assert any("T2 24 V" in w for w in live.where)
+    assert any("KU 24 V" in w for w in live.where)
     assert rows[(NEW_A,)].status == "missing"
     assert rows[(HISTORY_ONLY,)].status == "history-only"
     partly = rows[(LIVE_TILE, NEW_B)]  # found inside a vertical-stack

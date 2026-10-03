@@ -1,4 +1,4 @@
-"""KU combined estimate package and dashboard tile."""
+"""Deprecated KU estimate package, and the paired meter on the Now view."""
 
 from pathlib import Path
 
@@ -13,7 +13,10 @@ def test_ku_est_package_exists() -> None:
     assert "t2_ku_jumper_power" in text
 
 
-def test_now_view_has_ku_est_tile() -> None:
+def test_now_view_shows_paired_ku_meter_not_retired_pwm_tile() -> None:
+    """Site solar Now shows the paired 75/15. The PWM+MPPT est tile was retired 2026-10-02."""
     blob = DASH.read_text(encoding="utf-8")
-    assert "sensor.ku_pwm_mppt_combined_est_power" in blob
-    assert "PWM+MPPT est" in blob
+    assert "heading: KU 24 V" in blob
+    assert "sensor.solar_controller_solar" in blob
+    assert "sensor.ku_pwm_mppt_combined_est_power" not in blob
+    assert "PWM+MPPT est" not in blob

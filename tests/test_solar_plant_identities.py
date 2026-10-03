@@ -46,7 +46,8 @@ def test_21_sep_shot_git_identities() -> None:
     assert ku_est is not None
     assert isclose(ku_est, -198.45, rel_tol=1e-3)
     assert ku_share is not None
-    assert isclose(ku_share, ku_est / 3.0, rel_tol=1e-6)
+    # Two BlueSolar 75/15 chargers. PWM is removed, so the share is 1/2.
+    assert isclose(ku_share, ku_est / 2.0, rel_tol=1e-6)
     assert isclose(site_solar, 334.8, rel_tol=1e-3)
     assert isclose(site_charge, batt1_w, rel_tol=1e-6)
     assert site_load == sph_ac_out

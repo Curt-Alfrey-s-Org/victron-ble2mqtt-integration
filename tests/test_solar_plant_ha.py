@@ -1,4 +1,4 @@
-"""Validate Solar plant HA package and Lovelace YAML (device-native, no duplicate tiles)."""
+"""Validate Solar plant HA package and Lovelace YAML (device sensors only, no duplicate tiles)."""
 
 from __future__ import annotations
 
@@ -84,5 +84,6 @@ def test_now_view_tile_entities_unique() -> None:
 
 def test_device_policy_doc() -> None:
     text = DEVICE_POLICY.read_text(encoding="utf-8")
-    assert "device-native" in text.lower()
-    assert "once" in text.lower() or "duplicate" in text.lower()
+    assert "device sensors only" in text.lower()
+    assert "one tile per device" in text.lower()
+    assert "duplicate" in text.lower()
