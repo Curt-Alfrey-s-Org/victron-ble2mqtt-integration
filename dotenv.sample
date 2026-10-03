@@ -15,7 +15,7 @@
 
 MQTT_HOST=192.168.0.105
 MQTT_PORT=1883
-MQTT_USER=victron
+MQTT_USER=user
 MQTT_PASSWORD=your_secure_password_here
 
 # Optional: pin / override Home Assistant image (default set in docker-compose.homeassistant.yml)
