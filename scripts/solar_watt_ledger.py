@@ -214,8 +214,8 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
         if b2v is not None and b2a is not None:
             batt2 = b2v * b2a
 
-    # T2 SmartSolar 100/50 is unmetered. solar_controller is on KU, so
-    # solar_W - batt1_W is not the T2-KU jumper.
+    # Jumper cable is installed: T2 shunt inverter side to KU shunt inverter side.
+    # solar_controller is the paired KU 75/15, so solar_W - batt1_W is not that cable.
     jumper_w: float | None = None
 
     jumper_flowing = jumper_w is not None and abs(jumper_w) >= 1.0
@@ -288,8 +288,8 @@ def build_watt_ledger(states: dict[str, dict[str, Any]]) -> dict[str, Any]:
 
     jumper_abs = abs(jumper_w) if jumper_w is not None else None
     jumper_note = (
-        "unknown until T2 SmartSolar 100/50 solar W is in HA; "
-        "do not use paired KU 75/15 W minus Battery 1"
+        "installed from the T2 shunt inverter side to the KU shunt inverter side; "
+        "no clamp on that cable. Do not use paired KU 75/15 W minus Battery 1"
     )
     hops.append(
         _hop(

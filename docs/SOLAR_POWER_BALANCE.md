@@ -42,13 +42,15 @@ off T2/KU battery negatives. **A/C:** Sungold **UTI / A/C INPUT** is in the **Su
 panel → B3 → outlet → vent fan. Renogy inverters stay **unmetered** in HA (registry has Sungold MQTT; **no** Renogy/PWM entities).
 Do not merge Sungold D/C into T2/KU. Do not print 2× T2 watts as live KU Victron.
 Dashboard hop policy: KU Renogy tile shows **0 W** (no HA inverter entity; never `-- W`).
-**T2-KU jumper** is **shunt to shunt** (SYSTEM MINUS of HQ2239CQYT2 to SYSTEM MINUS of
-HQ2239JTRKU). Victron counts everything after the shunt
+**T2-KU jumper** is installed between the **inverter side** of the T2 shunt
+(HQ2239CQYT2 SYSTEM MINUS) and the **inverter side** of the KU shunt
+(HQ2239JTRKU SYSTEM MINUS). Victron counts everything after the shunt
 ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)
 step 2): T2→KU current is already in **Battery 1** (load) and **Battery 2** (charge).
-There is no third clamp. The Lovelace jumper tile is the T2 leftover identity
-`solar_W - T2_Renogy_W - batt1_W` (T2 Renogy **0 W** while idle), signed **+ = T2→KU**.
-Do **not** add that tile into Solar now, Charge now, or Load now -- Batt 1 + Batt 2 already
+There is no clamp on that cable. A T2-bus leftover
+`T2_solar_W - T2_Renogy_W - batt1_W` (T2 Renogy **0 W** while idle), signed **+ = T2→KU**,
+would name the transfer. Paired KU watts minus Battery 1 are not that cable.
+Do **not** add that leftover into Solar now, Charge now, or Load now -- Batt 1 + Batt 2 already
 carry the transfer (lossless jumper cancels in the sum). Negative Battery 1 W with idle T2
 Renogy means current is leaving T2 through the jumper toward KU, not into the T2 RV outlet.
 **A3** = panel **hot leg** (`path-ku-renogy-panel`, \|A3\|). When A3 shows load, **every
@@ -110,7 +112,7 @@ Do **not** invent a site derate from panel damage notes. Revisit only if paired 
 
 The jumper is **not** "these two packs were always one bank." It is there so T2's charger can help KU while the T2 RV outlet is empty.
 
-Victron's **one-bank** diagram is: all battery negatives on a bus, **one** shunt, chargers/loads on SYSTEM MINUS ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)). This site is **two banks, two shunts**, with the jumper on **SYSTEM MINUS to SYSTEM MINUS**. That transfer **is** in both SmartShunt nets (T2 sees load, KU sees charge). It is not a Victron one-bank parallel on BATTERY MINUS (that layout would hide jumper amps from the shunt).
+Victron's **one-bank** diagram is: all battery negatives on a bus, **one** shunt, chargers/loads on SYSTEM MINUS ([installation](https://www.victronenergy.com/media/pg/SmartShunt/en/installation.html)). This site is **two banks, two shunts**, with the jumper installed **inverter side to inverter side** (SYSTEM MINUS to SYSTEM MINUS). That transfer **is** in both SmartShunt nets (T2 sees load, KU sees charge). It is not a Victron one-bank parallel on BATTERY MINUS (that layout would hide jumper amps from the shunt).
 
 If the jumper were low-R on **both** poles, T2 and KU voltages would stay within tens of millivolts. They did not:
 
@@ -166,7 +168,7 @@ What each SmartShunt shows ([operation](https://www.victronenergy.com/media/pg/S
 
 - **Only net current of that LiTime.**
 - **Not** MPPT-to-Renogy current that stays on that bus (absorb/float: shunt toward **0 A** while solar still feeds that inverter).
-- **Does** include T2-KU jumper current (shunt-to-shunt on SYSTEM MINUS). There is still no dedicated jumper ammeter. The leftover `T2 solar − T2 Renogy − batt1` would name that transfer. `sensor.solar_controller_solar` is the paired KU 75/15, so do not subtract Battery 1 from it.
+- **Does** include T2-KU jumper current. The cable is installed from the T2 shunt inverter side to the KU shunt inverter side (SYSTEM MINUS to SYSTEM MINUS). There is still no ammeter on that cable. `sensor.solar_controller_solar` is the paired KU 75/15, so do not subtract Battery 1 from it and call the result the jumper.
 - **Not** each unmetered MPPT string as its own HA number (only the paired 75/15 is clamped today).
 
 Charger-to-inverter watts: **MPPT solar** from `sensor.solar_controller_solar` (paired KU 75/15 only) plus **EM16** on the AC side. T2 100/50 and second KU 75/15 are unmetered until Instant Readout keys. `DC_leftover` below is an estimate, not a clamp.
@@ -205,7 +207,7 @@ SmartShunt Battery 2 is **net** of both KU MPPTs + jumper minus KU Renogy DC
 ```
 batt2_W ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
 KU_PV_DC ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
-jumper_into_KU ≈ T2_solar_W − T2_Renogy_W − batt1_W   # T2 100/50 solar is unmetered; not paired KU W − batt1
+jumper_into_KU ≈ T2_solar_W − T2_Renogy_W − batt1_W   # estimate only; cable is inverter side to inverter side; not paired KU W − batt1
 ```
 
 Subtract jumper when isolating **KU PV** so T2-sourced watts that already arrived in Battery 2 are not labeled KU generation. Do **not** add jumper into site Solar / Charge / Load -- Charge now is pack nets (jumper cancels in Batt1+Batt2).
@@ -217,7 +219,7 @@ net (charge +276 W is storage, not inverter draw).
 Inverter **DC in >= AC out**; do not invent efficiency. Ledger
 `ku_renogy_ac_est_w` = |A3| (or |B3| when that breaker is the outlet path).
 `ku_unmetered_pv_est_w` = `batt2_W − jumper_W + ku_renogy_ac_est_w` is a **combined
-lower bound** only (`kind=ac_lower_bound`) when all three terms exist. Example: batt2 **276 W**, jumper **−75 W** (KU→T2), load **25 W** → residual est **376 W**, and equal share is **188 W** (376 / 2). The live ledger does **not** fill that jumper from `sensor.solar_controller_solar − Battery 1`. Until the T2 SmartSolar 100/50 solar watts are in HA, `jumper_w` and `ku_unmetered_pv_est_w` stay **None** even when A3 is present. Do **not** use legacy equal-share `/3`, PWM, or a 2× reporter as live truth. Node-RED per-panel est waits on new BLE keys ([SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md)).
+lower bound** only (`kind=ac_lower_bound`) when all three terms exist. Example: batt2 **276 W**, jumper **−75 W** (KU→T2), load **25 W** → residual est **376 W**, and equal share is **188 W** (376 / 2). The cable is already installed. The live ledger leaves `jumper_w` empty because that cable has no clamp. It does **not** fill the number from `sensor.solar_controller_solar − Battery 1`. While `jumper_w` is unknown, `ku_unmetered_pv_est_w` stays **None** even when A3 is present. Do **not** use legacy equal-share `/3`, PWM, or a 2× reporter as live truth. Node-RED per-panel est waits on new BLE keys ([SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md)).
 
 **Dashboard / dump-load:** only `sensor.solar_controller_*` is a live Victron clamp (paired KU 75/15, Now > **KU 24 V**). Combined A/C lower bound is **not** `ha_solar_entity`.
 
@@ -320,7 +322,7 @@ surplus_after_path_losses_w = surplus_w - combined_path_losses_w
 ```
 
 - **Paired KU BlueSolar 75/15:** `sensor.solar_controller_*` (MQTT `pi4-d769eb1ff83d`). Loss is solar W minus charging power minus load power when both ends exist. This is **not** the T2 SmartSolar 100/50.
-- **T2 SmartSolar 100/50 (2s3p):** unmetered until its VictronConnect Instant Readout key is in `user_settings_data.py`. Hop stays incomplete. Do not use KU solar W minus Battery 1 as the T2-KU jumper.
+- **T2 SmartSolar 100/50 (2s3p):** unmetered until its VictronConnect Instant Readout key is in `user_settings_data.py`. Hop stays incomplete. The T2-KU jumper is the installed cable between the two shunt inverter sides. Do not use KU solar W minus Battery 1 as that cable.
 - **Second KU 75/15:** unmetered (Renogy 2p vs suitcase 2s on the paired unit is still unconfirmed). No 2x or 3x scaling of the paired meter.
 - **PWM:** removed. Not a hop.
 - Dump-load ON/OFF uses `surplus_after_path_losses_w` ([Morningstar diversion 6.0](https://www.morningstarcorp.com/wp-content/uploads/technical-doc-diversion-manual-en.pdf)).
