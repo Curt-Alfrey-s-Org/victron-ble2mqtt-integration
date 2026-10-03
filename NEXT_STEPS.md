@@ -152,7 +152,7 @@ Only `.105` (Home Assistant) is involved: Pi 4 `.223` and Pi 5 `.240` have nothi
 - [ ] **4.** `bash scripts/site_solar_session.sh dashboard-apply`
   - This runs `save_solar_plant_storage_dashboard.py --force`: it backs up the live dashboard (`.backups/site-solar/<stamp>-before-seed/`) and replaces it with the seed. **Any Site solar UI edits made since the last seed are replaced too.**
   - Undo: `bash scripts/site_solar_session.sh restore --from <that folder> --dashboard` (add `--dry-run` first to preview), or `python3 scripts/site_solar_settings.py restore --from <folder> --dashboard` with the token exported.
-- [ ] **5.** In HA, open `/site-solar/solar-tab` (Site solar > **Solar tab**). Expect a note card and 9 tiles under BlueSolar MPPT 75/15 (4), SmartShunt HQ2239CQYT2 (1), SmartShunt HQ2239JTRKU (1) and Sungold (3). Now and History are unchanged. The other 39 Solar-tab cards were already on Site solar (see `docs/SOLAR_TAB_MERGE_PLAN.md`).
+- [ ] **5.** In HA, open `/site-solar/solar-tab` (Site solar > **Solar tab**). Expect a note card and 9 tiles under Paired BlueSolar 75/15 (KU) (4), SmartShunt HQ2239CQYT2 (1), SmartShunt HQ2239JTRKU (1) and Sungold (3). Now and History are unchanged. The other 39 Solar-tab cards were already on Site solar (see `docs/SOLAR_TAB_MERGE_PLAN.md`). The paired 75/15 live tiles on Now are under **KU 24 V**. Battery 1 stays under **T2 24 V**.
 - [ ] **6.** Your decision, no rush: **keep, hide or remove the old Solar tab** (`/dashboard-solar`).
   - **Keep:** nothing to do. It is also the only place with the "Animated solar flow" link, which was not copied because it names a Tailscale host (kept out of git).
   - **Hide:** Settings > Dashboards > Solar, turn off **Show in sidebar**.
@@ -399,17 +399,14 @@ Hosts: Pi 4 `.223` and Pi 5 `.240` (`/home/n4s1/victron-ble2mqtt-integration`); 
 - [ ] **Rebuild/recreate the victron container:** `docker compose -f docker-compose.victron.yml up -d --build` (or the usual `sudo bash scripts/redeploy_victron.sh`). Check `docker logs victron_ble2mqtt`: a startup failure now logs CRITICAL and exits 1, so `restart: unless-stopped` restarts it right away instead of sitting idle.
 - [ ] **H5082 bridge:** `sudo systemctl restart h5082-mqtt` (runs `govee_h5082` from this checkout). Plugs that come into range later are now picked up within ~60 s; confirm the 16 H5082 switches in Home Assistant (.105) still update.
 - [ ] **Purge script** (`scripts/purge_solar_plant_ha_history.py`, needs an HA admin token via `HA_TOKEN` or `--token-file`; default URL `http://192.168.0.105:8123`): run `python scripts/purge_solar_plant_ha_history.py --dry-run` first and review the entity list (it now also includes the removed computed sensors). Only then `--apply`. It deletes Home Assistant recorder history/statistics.
-- [ ] Run `pytest tests/` locally (GitHub Actions is off): expect 124 passed, 2 skipped, 3 failed (the HA config tests below).
+- [ ] Run `pytest tests/` locally. GitHub Actions is enabled. The 2026-10-03 run on `ci/tests-trivy` passed tests and Trivy.
 
 **Decisions for you**
 
-- [ ] **3 failing HA config tests vs your 09-24..09-26 HA edits** — for each, update the test or restore the config:
-  - `tests/test_sim_dump_control.py::test_surplus_template_and_charge_ok` expects the removed computed sensor `sensor.site_solar_power` (the template now uses device sensors).
-  - `tests/test_solar_ku_estimates.py::test_now_view_has_ku_est_tile`: the Site solar dashboard no longer has the "PWM+MPPT est" tile added on 09-24.
-  - `tests/test_solar_plant_ha.py::test_device_policy_doc` expects the word "device-native" in the policy doc.
+- [x] **HA config tests vs the 09-24..09-26 dashboard** (closed 2026-10-03). The Now view shows the paired KU 75/15 and has no PWM+MPPT est tile. The policy doc says "device sensors only". `test_sim_dump_control.py` is not in the tree.
 - [ ] `govee_h5082/` isn't in the CI ruff paths and has 9 style-only ruff findings; add it to CI or leave it.
 - [ ] Majors available, not applied: rich 14.1 → 15.0, tyro 0.9.28 → 1.0.16 (ha-services stays < 2.15.3 on purpose; it needs Python 3.12).
-- [ ] Yesterday's workflow items (ci-trivy deps, ghcr owner) still need a token with `workflow` scope, and the open decision above on re-enabling GitHub Actions still stands.
+- [x] GitHub Actions was enabled on this repo on 2026-10-03.
 
 ## Next step: post-merge host steps from the 2026-09-25 security review
 

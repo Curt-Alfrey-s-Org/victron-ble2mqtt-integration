@@ -166,7 +166,7 @@ What each SmartShunt shows ([operation](https://www.victronenergy.com/media/pg/S
 
 - **Only net current of that LiTime.**
 - **Not** MPPT-to-Renogy current that stays on that bus (absorb/float: shunt toward **0 A** while solar still feeds that inverter).
-- **Does** include T2-KU jumper current (shunt-to-shunt on SYSTEM MINUS). There is still no dedicated jumper ammeter; the leftover identity `solar_W - batt1_W` *names* that transfer.
+- **Does** include T2-KU jumper current (shunt-to-shunt on SYSTEM MINUS). There is still no dedicated jumper ammeter. The leftover `T2 solar − T2 Renogy − batt1` would name that transfer. `sensor.solar_controller_solar` is the paired KU 75/15, so do not subtract Battery 1 from it.
 - **Not** each unmetered MPPT string as its own HA number (only the paired 75/15 is clamped today).
 
 Charger-to-inverter watts: **MPPT solar** from `sensor.solar_controller_solar` (paired KU 75/15 only) plus **EM16** on the AC side. T2 100/50 and second KU 75/15 are unmetered until Instant Readout keys. `DC_leftover` below is an estimate, not a clamp.
@@ -194,7 +194,7 @@ Shunt_KU        = Battery 2 power (HQ2239JTRKU)
 AC_trailer      = EM16 A3 magnitude
 ```
 
-**Retired:** `PV x3`, `2 * PV_T2`, PWM fold-in, and equal-share `/3` -- historical log tables only.
+**Current:** equal share of a known KU residual is **residual / 2** (two BlueSolar 75/15). **Retired:** `PV x3`, `2 * PV_T2`, PWM fold-in, and equal-share `/3` -- historical log tables only.
 
 ### KU battery net (unmetered strings)
 
@@ -205,7 +205,7 @@ SmartShunt Battery 2 is **net** of both KU MPPTs + jumper minus KU Renogy DC
 ```
 batt2_W ≈ KU_PV_DC + jumper_into_KU − KU_Renogy_DC
 KU_PV_DC ≈ batt2_W − jumper_into_KU + KU_Renogy_DC
-jumper_into_KU ≈ solar_W − T2_Renogy_W − batt1_W   # leftover identity; already in both shunts
+jumper_into_KU ≈ T2_solar_W − T2_Renogy_W − batt1_W   # T2 100/50 solar is unmetered; not paired KU W − batt1
 ```
 
 Subtract jumper when isolating **KU PV** so T2-sourced watts that already arrived in Battery 2 are not labeled KU generation. Do **not** add jumper into site Solar / Charge / Load -- Charge now is pack nets (jumper cancels in Batt1+Batt2).
@@ -217,9 +217,9 @@ net (charge +276 W is storage, not inverter draw).
 Inverter **DC in >= AC out**; do not invent efficiency. Ledger
 `ku_renogy_ac_est_w` = |A3| (or |B3| when that breaker is the outlet path).
 `ku_unmetered_pv_est_w` = `batt2_W − jumper_W + ku_renogy_ac_est_w` is a **combined
-lower bound** only (`kind=ac_lower_bound`). Example: batt2 **276 W**, jumper **−75 W** (KU→T2), load **25 W** → residual est **376 W** (combined lower bound only). Do **not** use legacy equal-share `/3` or 2x reporter as live truth. Node-RED per-panel est waits on new BLE keys ([SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md)).
+lower bound** only (`kind=ac_lower_bound`) when all three terms exist. Example: batt2 **276 W**, jumper **−75 W** (KU→T2), load **25 W** → residual est **376 W**, and equal share is **188 W** (376 / 2). The live ledger does **not** fill that jumper from `sensor.solar_controller_solar − Battery 1`. Until the T2 SmartSolar 100/50 solar watts are in HA, `jumper_w` and `ku_unmetered_pv_est_w` stay **None** even when A3 is present. Do **not** use legacy equal-share `/3`, PWM, or a 2× reporter as live truth. Node-RED per-panel est waits on new BLE keys ([SOLAR_HA_NODERED_SPLIT.md](SOLAR_HA_NODERED_SPLIT.md)).
 
-**Dashboard / dump-load:** only `sensor.solar_controller_*` is a live Victron clamp (paired KU 75/15). Combined A/C lower bound is **not** `ha_solar_entity`. Ledger `ku_unmetered_pv_est_w` is **None** without A3; with A3 it is the combined lower bound above.
+**Dashboard / dump-load:** only `sensor.solar_controller_*` is a live Victron clamp (paired KU 75/15, Now > **KU 24 V**). Combined A/C lower bound is **not** `ha_solar_entity`.
 
 **Sungold cart (15 Sep, AC charge, PV = 0)** -- LCD names from the SPH302480A manual ([reprint](https://www.solaris-shop.com/content/3000W_SPH302480A_20231128.pdf) §4.1). `INPUT BATT` is battery **input** power; `INV OUTPUT LOAD KW` is AC load; `AC INPUT` is mains. HA **Output mode** `4` is not in the sidecar lookup (0-3 only) -- leave it as the raw integer ([SUNGOLD_SPH302480A.md](SUNGOLD_SPH302480A.md)).
 
@@ -258,7 +258,7 @@ Sungold AC-out V×A and both SmartShunt V×A close. The rest does **not**.
 | Jumper | Shunt-to-shunt leftover `T2 solar - batt1` (already in both shunts; T2 tile = `-` KU tile) | formula **185.7 W**; KU tile **248.3** (looks like leftover + \|A3\|); T2 tile **41.9** (Batt 1 W) | Tile mixup; do not add jumper to Solar/Charge/Load |
 | Trailer / AC-in | `\|B3\|` if >= 0.5 else `\|A3\|` | B3 0, A3 -62.5 → 62.5; tile **Sungold AC-in 653.4** | No (653 ≈ UTI V×A) |
 | KU PV est | `batt2 - jumper + trailer` | -75.2 - 185.7 + 62.5 = **-198.4**; tile **136.1** | No |
-| KU share | KU PV / 3 | tile **136.1** (same as KU PV) | No (share must be /3) |
+| KU share | KU PV / 2 (two BlueSolar 75/15) | tile **136.1** (same as KU PV) | No (shot tile was not half; PWM /3 is retired) |
 | Site solar | T2 + Sungold PV + max(0, KU est) | 227.6 + 107.2 + 0 = **334.8**; tile **147** | No |
 | Site load | Sungold `load_power` (same as Sungold AC out) | AC-out **324.8**; Load now **656.5** ≈ AC-in 653.4 ≈ Instant W sum 659.6 | No |
 | Site charge | batt1+ + batt2+ + Sungold charge+ | batt1 ~41.9; tile **1** | No |

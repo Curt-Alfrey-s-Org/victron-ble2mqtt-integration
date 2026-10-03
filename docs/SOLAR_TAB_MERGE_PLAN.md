@@ -91,7 +91,7 @@ not counted):
 
 **Added, by heading** (each tile keeps `name: {type: entity}` from the Solar tab):
 
-- **BlueSolar MPPT 75/15:** `sensor.solar_controller_battery_charging` (battery A),
+- **Paired BlueSolar 75/15 (KU)** (seed heading; the 2026-09-29 Solar tab export called this BlueSolar MPPT 75/15): `sensor.solar_controller_battery_charging` (battery A),
   `sensor.solar_controller_battery` (battery V), `sensor.solar_controller_load`,
   `sensor.solar_controller_rssi` (diagnostic)
 - **SmartShunt HQ2239CQYT2:** `sensor.battery_1_auxiliary_mode` (diagnostic)
@@ -122,11 +122,11 @@ Full table (as printed by the tool):
 | 4 | view 1 > Thermo-Hygrometer-CAAF6F | tile | `sensor.thermo_hygrometer_caaf6f_h5072_75_tempc` | on-site-solar | Now > House (tile); History > Temperature (history-graph) - keep as is (already on Site solar) |
 | 5 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_battery_charging` | history-only | History > Amps (history-graph) - add live card to Solar tab view |
 | 6 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_battery` | history-only | History > Volts (history-graph) - add live card to Solar tab view |
-| 7 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_charge_state` | on-site-solar | Now > T2 24 V (tile) - keep as is (already on Site solar) |
+| 7 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_charge_state` | on-site-solar | Now > KU 24 V (tile) - keep as is (already on Site solar) |
 | 8 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_load` | missing | add to Solar tab view |
 | 9 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_rssi` | missing | add to Solar tab view |
-| 10 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_solar` | on-site-solar | Now > T2 24 V (tile); Now > Dump status (why / why not) (entities); History > Watts (history-graph) - keep as is (already on Site solar) |
-| 11 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_yield_today` | on-site-solar | Now > T2 24 V (tile) - keep as is (already on Site solar) |
+| 10 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_solar` | on-site-solar | Now > KU 24 V (tile); Now > Dump status (why / why not) (entities); History > Watts (history-graph) - keep as is (already on Site solar) |
+| 11 | view 1 > BlueSolar MPPT 75/15 | tile | `sensor.solar_controller_yield_today` | on-site-solar | Now > KU 24 V (tile) - keep as is (already on Site solar) |
 | 12 | view 1 > SmartShunt HQ2239CQYT2 | tile | `sensor.battery_1_auxiliary_mode` | missing | add to Solar tab view |
 | 13 | view 1 > SmartShunt HQ2239CQYT2 | tile | `sensor.battery_1_state_of_charge` | on-site-solar | Now > (badges) (entity); History > SoC / % (history-graph) - keep as is (already on Site solar) |
 | 14 | view 1 > SmartShunt HQ2239CQYT2 | tile | `sensor.battery_1_consumed_ah` | on-site-solar | Now > T2 24 V (tile) - keep as is (already on Site solar) |
